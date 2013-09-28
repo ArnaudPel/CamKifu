@@ -1,7 +1,7 @@
 import math
 import cv2
 import numpy as np
-from cam.draw import _show
+from cam.draw import show
 
 __author__ = 'Kohistan'
 
@@ -49,4 +49,4 @@ def find_black(img):
                 cv2.line(img, (i * b_width, (j+1)*b_height), ((i+1) * b_width, (j+1)*b_height), red, 2)
                 cv2.line(img, ((i+1) * b_width, (j+1)*b_height), ((i+1) * b_width, j*b_height), red, 2)
                 cv2.line(img, ((i+1) * b_width, j*b_height), (i * b_width, j*b_height), red, 2)
-                _show(img)
+                show(img)

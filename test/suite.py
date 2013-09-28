@@ -1,5 +1,7 @@
 from unittest.result import TestResult
-import go
+
+from go import kifu
+from cam import regression
 
 __author__ = 'Kohistan'
 
@@ -10,11 +12,21 @@ import doctest
 class MyTestCase(unittest.TestSuite):
 
     def load_tests(self):
-        self.addTest(doctest.DocTestSuite(go.kifu))
+        self.addTest(doctest.DocTestSuite(kifu))
+        self.addTest(doctest.DocTestSuite(regression))
 
 if __name__ == '__main__':
     suite = MyTestCase()
     suite.load_tests()
     result = TestResult()
     suite.run(result)
-    print(result)
+    if result.wasSuccessful():
+        print "Test suite completed successfully (run=" + str(result.testsRun) + ")."
+    else:
+        for err in result.errors:
+            for line in err:
+                print line
+        for fail in result.failures:
+            for line in fail:
+                print line
+    #print(result)

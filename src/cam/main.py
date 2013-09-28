@@ -1,5 +1,6 @@
 import math
 import cv2
+from cam.draw import draw_lines, show
 
 from cam.regression import merge
 from cam.hough import find_segments
@@ -44,15 +45,29 @@ def extrapolate(lines):
 
 if __name__ == '__main__':
 
-    filename = "empty cut.jpg"
+    filename = "4 stones.jpg"
 
     path = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/pics/original/" + filename
     img = cv2.imread(path, flags=cv2.CV_LOAD_IMAGE_GRAYSCALE)
 
     hlines, vlines = find_segments(img)
-    merge(vlines)
+    img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
-    #key = cv2.waitKey()
+    segimg = img.copy()
+
+    draw_lines(segimg, hlines, color=(0, 255, 0), thickness=1)
+    merged, discarded = merge(hlines)
+    draw_lines(img, merged, thickness=1)
+
+    draw_lines(segimg, vlines, color=(0, 255, 0), thickness=1)
+    merged2, discarded2 = merge(vlines)
+    draw_lines(img, merged2, thickness=1)
+
+    #draw_lines(img, discarded, thickness=1)
+    show(segimg, name="Segments")
+    show(img, name="Merged")
+
+    key = cv2.waitKey()
     cv2.destroyAllWindows()
 
 

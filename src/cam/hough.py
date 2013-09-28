@@ -2,7 +2,7 @@ import math
 import cv2
 from bisect import insort
 import numpy as np
-from cam.draw import Segment, draw_lines, _show, draw_circles
+from cam.draw import Segment, draw_lines, show, draw_circles
 from cam.prepare import binarize
 from cam.stats import tohisto
 from gui.plot import plot_histo
