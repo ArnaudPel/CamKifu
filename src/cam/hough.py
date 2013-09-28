@@ -1,5 +1,6 @@
 import math
 import cv2
+from bisect import insort
 import numpy as np
 from cam.draw import Segment, draw_lines, _show, draw_circles
 from cam.prepare import binarize
@@ -39,7 +40,7 @@ def split_h(img, nbsplits=5, offset=False):
         yield Chunk(x0, y0, img[y0:y1, x0:x1].copy(), img)
 
 
-def split_v(img, nbsplits=5):
+def split_v(img, nbsplits=5, offset=False):
     """
     Split the image in "nbsplits" vertical strips, and yields the Chunks.
     nbsplits -- the number of strips required.
@@ -48,11 +49,18 @@ def split_v(img, nbsplits=5):
     for i in range(nbsplits):
 
         strip_size = img.shape[1] / nbsplits
-        x0 = i * strip_size
-        if (i + 1) < nbsplits:
-            x1 = (i + 1) * strip_size
+        if offset:
+            offs = strip_size / 2
         else:
-            x1 = img.shape[1]
+            offs = 0
+        x0 = i * strip_size + offs
+        if (i + 1) < nbsplits:
+            x1 = (i + 1) * strip_size + offs
+        else:
+            if offset:
+                return
+            else:
+                x1 = img.shape[1]
 
         y0 = 0
         y1 = img.shape[0]
@@ -66,15 +74,15 @@ def split_sq(img, nbsplits=5, offset=False):
 
     """
     for hchunk in split_h(img, nbsplits, offset=offset):
-        for vchunk in split_v(hchunk.mat, nbsplits):
+        for vchunk in split_v(hchunk.mat, nbsplits, offset=offset):
             # todo optimize loop if this is the way to go
             yield Chunk(hchunk.x + vchunk.x, hchunk.y + vchunk.y, vchunk.mat, img)
 
 
 def hough(gray, prepare=True):
     """
-    Calls the Canny function in order to call HoughLines2 function
-    Returns all lines found. The image is binarized internally and can be provided in color.
+    Calls the Canny function in order to call HoughLinesP function
+    Returns all lines found.
     """
     # todo extract parameters in config file to ease tuning ?
     # todo remove "prepare" named parameter if not used
@@ -95,72 +103,77 @@ def hough(gray, prepare=True):
         return []
 
 
-def find_squares(img):
+def find_segments(img):
+    """
+    Split the image into squares, call Hough on each square.
+    Returns all segments found in two lists. The first contains the segments deemed "horizontal",
+    and the other segment contains the rest, the "verticals". Both are ordered by intercept,
+    their intersection with one of the middle line of the image.
 
+    """
+
+    chunks = list(split_sq(img, nbsplits=10))
+    #chunks.extend(split_sq(img, nbsplits=10, offset=True))  # todo connect that if needing more segments
+
+    hsegs = []
+    vsegs = []
+    i = 0
     xmid = img.shape[1] / 2
     ymid = img.shape[0] / 2
 
-    hlines = []
-    vlines = []
-
-    for chunk in split_sq(img, nbsplits=10):
+    while i < len(chunks):
+        chunk = chunks[i]
+        i += 1
         segments = hough(chunk.mat)
         for seg in segments:
             # translate segment coordinates to place it in global image
-            x0 = chunk.x + seg[0]
-            y0 = chunk.y + seg[1]
-            x1 = chunk.x + seg[2]
-            y1 = chunk.y + seg[3]
+            seg[0] += chunk.x
+            seg[1] += chunk.y
+            seg[2] += chunk.x
+            seg[3] += chunk.y
 
             # prepare some data that will be used in sorting and matching
-            xdiff = x1 - x0
-            ydiff = y1 - y0
+            xdiff = seg[2] - seg[0]
+            ydiff = seg[3] - seg[1]
             if xdiff != 0 and -1 < ydiff/xdiff < 1:
-                slope = ydiff / xdiff
-                yrank = slope * (xmid - x0) + y0
-                hlines.append(Segment(((x0, y0), (x1, y1)), slope, yrank))
+                # horizontal segments (well, segments that are more horizontal than vertical)
+                slope = float(ydiff) / xdiff
+                yrank = slope * (xmid - seg[0]) + seg[1]
+                insort(hsegs, Segment(seg, slope, yrank))
             else:
-                inv_slope = xdiff / ydiff
-                xrank = inv_slope * (ymid - y0) + x0
-                vlines.append(Segment(((x0, y0), (x1, y1)), inv_slope, xrank))
+                # vertical segments
+                inv_slope = float(xdiff) / ydiff
+                xrank = inv_slope * (ymid - seg[1]) + seg[0]
+                insort(vsegs, Segment(seg, inv_slope, xrank))
 
-    for chunk in split_sq(img, nbsplits=10, offset=True):
-        segments = hough(chunk.mat)
-        for seg in segments:
-            # translate segment coordinates to place it in global image
-            x0 = chunk.x + seg[0]
-            y0 = chunk.y + seg[1]
-            x1 = chunk.x + seg[2]
-            y1 = chunk.y + seg[3]
+    return hsegs, vsegs
 
-            # prepare some data that will be used in sorting and matching
-            xdiff = x1 - x0
-            ydiff = y1 - y0
-            if xdiff != 0 and -1 < ydiff/xdiff < 1:
-                slope = ydiff / xdiff
-                yrank = slope * (xmid - x0) + y0
-                hlines.append(Segment(((x0, y0), (x1, y1)), slope, yrank))
-            else:
-                inv_slope = xdiff / ydiff
-                xrank = inv_slope * (ymid - y0) + x0
-                vlines.append(Segment(((x0, y0), (x1, y1)), inv_slope, xrank))
-
-    # dev block
+    #dev block
     #ghostgrid = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    #ghostgrid = cv2.cvtColor(np.zeros_like(img), cv2.COLOR_GRAY2RGB)
-    ghostgrid = np.zeros_like(img)
-    centers = []
-    for ln in hlines:
-        centers.append((xmid, ln.intercept))
-    for ln in vlines:
-        centers.append((ln.intercept, ymid))
-    draw_lines(ghostgrid, hlines, color=(255, 255, 255))
-    draw_lines(ghostgrid, vlines, color=(255, 255, 255))
+    ##ghostgrid = cv2.cvtColor(np.zeros_like(img), cv2.COLOR_GRAY2RGB)
+    ##ghostgrid = np.zeros_like(img)
+    #centers = []
+    #
+    #for ln in hsegs:
+    #    centers.append((xmid, ln.intercept))
+    #draw_lines(ghostgrid, hsegs, color=(0, 255, 0))
+    #
+    #for ln in vsegs:
+    #    centers.append((ln.intercept, ymid))
+    #draw_lines(ghostgrid, vsegs, color=(0, 255, 0))
+    #
     #draw_circles(ghostgrid, centers)
-    #draw_circles(ghostgrid, [(chunk.x, chunk.y)], color=(255, 0, 0))
-    _show(ghostgrid, name="Ghost Grid")
-    #cv2.waitKey()
-    return ghostgrid
+    #_show(ghostgrid, name="Ghost Grid")
+    #key = cv2.waitKey()
+    #if key == 113:
+    #    print "Exit key pressed (q). Bye."
+    #    return
+    #if key == 63234:
+    #    i = max(0, i-2)
+    #prev = hsegs[0].intercept
+    #for ln in hsegs:
+    #    print abs(prev - ln.intercept)
+    #    prev = ln.intercept
 
 
 if __name__ == '__main__':

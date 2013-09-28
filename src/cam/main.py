@@ -1,10 +1,8 @@
 import math
 import cv2
-import numpy as np
 
-from cam.hough import find_squares, hough
-from cam.prepare import binarize
-from cam.draw import _show, draw_lines
+from cam.regression import merge
+from cam.hough import find_segments
 from cam.stats import tohisto
 from gui.plot import plot_histo
 
@@ -50,12 +48,11 @@ if __name__ == '__main__':
 
     path = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/pics/original/" + filename
     img = cv2.imread(path, flags=cv2.CV_LOAD_IMAGE_GRAYSCALE)
-    # find_black(img)
-    # find_grid(img)
 
-    find_squares(img)
+    hlines, vlines = find_segments(img)
+    merge(vlines)
 
-    cv2.waitKey()
+    #key = cv2.waitKey()
     cv2.destroyAllWindows()
 
 

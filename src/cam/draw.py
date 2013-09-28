@@ -28,23 +28,32 @@ def _show(img, auto_down=True, name="Camkifu"):
 def draw_lines(img, lines, color=(255, 0, 0)):
     for line in lines:
         if isinstance(line, Segment):
-            p1 = line.points[0]
-            p2 = line.points[1]
+            p1 = line.coords[0:1]
+            p2 = line.coords[2:3]
         else:
             p1 = (line[0], line[1])
             p2 = (line[2], line[3])
         colo = cv2.cv.CV_RGB(*color)
         cv2.line(img, p1, p2, colo, thickness=1)
-    print "found " + str(len(lines)) + " lines"
+    #print "found " + str(len(lines)) + " lines"
 
 
 class Segment:
 
-    def __init__(self, (p1, p2), slope, intercept, x_intersect=0, y_intersect=0):
-        self.points = (p1, p2)
+    def __init__(self, coords, slope, intercept, x_intersect=0, y_intersect=0):
+        self.coords = coords
         self.slope = slope
         self.intercept = intercept
         # intersection of the line with an arbitrary horizontal line
         self.x_intersect = x_intersect
         # intersection of the line with an arbitrary vertical line
         self.y_intersect = y_intersect
+
+    def __lt__(self, other):
+        return self.intercept < other.intercept
+
+    def __gt__(self, other):
+        return self.intercept > other.intercept
+
+    #def __eq__(self, other):
+    #    return self.intercept == other.intercept and self.slope == other.slope
