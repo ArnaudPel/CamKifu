@@ -2,10 +2,7 @@ import math
 import cv2
 from bisect import insort
 import numpy as np
-from cam.draw import Segment, draw_lines, show, draw_circles
-from cam.prepare import binarize
-from cam.stats import tohisto
-from gui.plot import plot_histo
+from cam.draw import Segment, show
 
 __author__ = 'Kohistan'
 
@@ -93,6 +90,7 @@ def hough(gray, prepare=True):
         bw = gray
 
     threshold = 10
+    #minlen = 3*min(bw.shape) / 4  # minimum length to accept a line
     minlen = min(bw.shape) / 2  # minimum length to accept a line
     maxgap = minlen / 12  # maximum gap for line merges (if probabilistic hough)
 
@@ -112,15 +110,11 @@ def find_segments(img):
 
     """
 
-    chunks = list(split_sq(img, nbsplits=10))
-    #chunks.extend(split_sq(img, nbsplits=10, offset=True))  # todo connect that if needing more segments
-
     hsegs = []
     vsegs = []
+    chunks = list(split_sq(img, nbsplits=10))
+    chunks.extend(split_sq(img, nbsplits=10, offset=True))  # todo connect that if needing more segments
     i = 0
-    xmid = img.shape[1] / 2
-    ymid = img.shape[0] / 2
-
     while i < len(chunks):
         chunk = chunks[i]
         i += 1
@@ -131,49 +125,13 @@ def find_segments(img):
             seg[1] += chunk.y
             seg[2] += chunk.x
             seg[3] += chunk.y
-
-            # prepare some data that will be used in sorting and matching
-            xdiff = seg[2] - seg[0]
-            ydiff = seg[3] - seg[1]
-            if xdiff != 0 and -1 < ydiff/xdiff < 1:
-                # horizontal segments (well, segments that are more horizontal than vertical)
-                slope = float(ydiff) / xdiff
-                yrank = slope * (xmid - seg[0]) + seg[1]
-                insort(hsegs, Segment(seg, slope, yrank))
+            segment = Segment(seg, img)
+            if segment.horiz:
+                insort(hsegs, segment)
             else:
-                # vertical segments
-                inv_slope = float(xdiff) / ydiff
-                xrank = inv_slope * (ymid - seg[1]) + seg[0]
-                insort(vsegs, Segment(seg, inv_slope, xrank))
+                insort(vsegs, segment)
 
-    return hsegs, vsegs
-
-    #dev block
-    #ghostgrid = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    ##ghostgrid = cv2.cvtColor(np.zeros_like(img), cv2.COLOR_GRAY2RGB)
-    ##ghostgrid = np.zeros_like(img)
-    #centers = []
-    #
-    #for ln in hsegs:
-    #    centers.append((xmid, ln.intercept))
-    #draw_lines(ghostgrid, hsegs, color=(0, 255, 0))
-    #
-    #for ln in vsegs:
-    #    centers.append((ln.intercept, ymid))
-    #draw_lines(ghostgrid, vsegs, color=(0, 255, 0))
-    #
-    #draw_circles(ghostgrid, centers)
-    #_show(ghostgrid, name="Ghost Grid")
-    #key = cv2.waitKey()
-    #if key == 113:
-    #    print "Exit key pressed (q). Bye."
-    #    return
-    #if key == 63234:
-    #    i = max(0, i-2)
-    #prev = hsegs[0].intercept
-    #for ln in hsegs:
-    #    print abs(prev - ln.intercept)
-    #    prev = ln.intercept
+    return Grid(hsegs, vsegs, img)
 
 
 if __name__ == '__main__':
@@ -185,6 +143,38 @@ if __name__ == '__main__':
             sub[x][y] = 0
     print(src)
     print zip(range(sub.shape[1]), range(sub.shape[0]))
+
+
+class Grid:
+    def __init__(self, hsegs, vsegs, img):
+        assert isinstance(hsegs, list)
+        assert isinstance(vsegs, list)
+        self.hsegs = hsegs
+        self.vsegs = vsegs
+        self.img = img
+
+    def __add__(self, other):
+        assert isinstance(other, Grid)
+        assert id(self.img) == id(other.img)
+        hsegs = [seg for seg in self.hsegs + other.hsegs]
+        vsegs = [seg for seg in self.vsegs + other.vsegs]
+        hsegs.sort()
+        vsegs.sort()
+        return Grid(hsegs, vsegs, self.img)
+
+    def __len__(self):
+        return len(self.hsegs) + len(self.vsegs)
+
+    def __str__(self):
+        rep = "Grid(hsegs:" + str(len(self.hsegs))
+        rep += ", vsegs:" + str(len(self.vsegs)) + ")"
+        return rep
+
+    def enumerate(self):
+        return self.hsegs + self.vsegs
+
+    def insort(self, segment):
+        insort(self.hsegs, segment) if segment.horiz else insort(self.vsegs, segment)
 
 
 class Chunk:

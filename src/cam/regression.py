@@ -4,52 +4,98 @@ import random
 import numpy as np
 from bisect import insort
 from cam.draw import Segment
+from cam.hough import Grid
 
 __author__ = 'Kohistan'
 
 itercount = 0
 
 
-def merge(segments):
+def runmerge(grid):
+    merged = Grid([], [], grid.img)
+    discarded = Grid([], [], grid.img)
+
+    # merge locally first to minimize askew lines
+    for i in range(2):  # i=0 is horizontal, i=1 is vertical
+        low = Grid([], [], grid.img)
+        high = Grid([], [], grid.img)
+        mid = grid.img.shape[1-i] / 2  # numpy (i,j) is equivalent to opencv (y,x)
+        for seg in (grid.vsegs if i else grid.hsegs):
+            if (seg.coords[0+i] + seg.coords[2+i])/2 < mid:
+                low.insort(seg)
+            else:
+                high.insort(seg)
+        mgd, disc = _merge(low)
+        merged += mgd
+        discarded += disc
+        mgd, disc = _merge(high)
+        merged += mgd
+        discarded += disc
+
+    # run global merges with increasing tolerance for error
+    merged += discarded
+    for precision in (1, 2, 4, 8, 16, 32):
+        print "nb segments: " + str(len(merged))
+        print "precision:" + str(precision)
+        print
+        merged, discarded = _merge(merged, precision=precision)
+        merged += discarded
+    return merged
+
+
+def _merge(grid, precision=1):
     """
     Returns:
-        merged, discarded -- merged is a list of points, discarded a list of cam.draw.Segment
+        merged_grid, discarded_grid
+    Args:
+        precision -- the max "dispersion" allowed around the regressed line to accept a merge.
 
     """
-    merged = []
-    discarded = []
+
+    merged = Grid([], [], grid.img)
+    discarded = Grid([], [], grid.img)
     random.seed(42)
+    correction = 0
 
-    while 1 < len(segments):
-        i = random.randint(0, len(segments) - 1)
-        seg = segments.pop(i)
-        valuations = []
+    for i in range(2):
+        if i: segments = list(grid.vsegs)  # second pass, vertical lines
+        else: segments = list(grid.hsegs)  # first pass, horizontal lines
 
-        # valuate against the 'n' closest neighbours
-        for neighb in _get_neighbours(segments, i, seg.intercept):
-            _least_squares(seg, neighb, valuations)
-            if 0 < len(valuations) and valuations[0][0] < 0.1:  # error small enough already, don't loop
-                break
+        while 1 < len(segments):
+            i = random.randint(0, len(segments) - 1)
+            seg = segments.pop(i)
+            valuations = []
 
-        if len(valuations) == 0:
-            continue
-        bestmatch = valuations[0]
-        if bestmatch[0] < 1:  # if error acceptable
-            segments.remove(bestmatch[1])  # todo allow segments to be merged several times by removing this line ?
-            merged.append(_get_seg(bestmatch[2]))
-        else:
-            discarded.append(seg)
+            # valuate against the 'n' closest neighbours
+            for neighb in _get_neighbours(segments, i, seg.intercept):
+                _least_squares(seg, neighb, valuations)
+                if 0 < len(valuations) and valuations[0][0] < 0.1:  # error small enough already, don't loop
+                    break
 
-        #print "seg: " + str(seg.coords)
-        #print "error: " + str(bestmatch[0])
-        #print "neigh: " + str(bestmatch[1].coords)
-        #print "projections: "
-        #for proj in bestmatch[2]:
-        #    print proj
-        #print
+            if 0 < len(valuations):
+                bestmatch = valuations[0]
+                if bestmatch[0] < precision:  # if error acceptable
+                    segments.remove(bestmatch[1])
+                    segmt = Segment(_get_seg(bestmatch[2]), grid.img)
+                    merged.insort(segmt)
+                else:
+                    discarded.insort(seg)
+            else:
+                discarded.insort(seg)
 
-    global itercount
-    print "iterations: " + str(itercount)
+            #print "seg: " + str(seg.coords)
+            #print "error: " + str(bestmatch[0])
+            #print "neigh: " + str(bestmatch[1].coords)
+            #print "projections: "
+            #for proj in bestmatch[2]:
+            #    print proj
+            #print
+
+        # last segment has not been merged, but is not necessarily bad either
+        if 0 < len(segments):
+            merged.insort(segments[0])
+            correction -= 1  # -1 because last segment of this pass has not been merged
+    assert len(grid) == 2*len(merged) + len(discarded) + correction
     return merged, discarded
 
 
@@ -70,21 +116,9 @@ def _least_squares(seg, neighb, valuations):
 
 def _get_neighbours(segments, start, intercept):
     """
-    >>> segments = []
-    >>> segments.append(Segment([], 0, 0))   # 15 - out
-    >>> segments.append(Segment([], 0, 6))   # 9
-    >>> segments.append(Segment([], 0, 9))   # 6
-    >>> segments.append(Segment([], 0, 10))  # 5
-    >>> segments.append(Segment([], 0, 13))  # 2
-    >>> segments.append(Segment([], 0, 16))  # 1
-    >>> segments.append(Segment([], 0, 18))  # 3
-    >>> segments.append(Segment([], 0, 19))  # 4
-    >>> segments.append(Segment([], 0, 30))  # 15 - out
-    >>> start = 5
-    >>> intercept = 15
-    >>> diffs = [abs(neigh.intercept - intercept) for neigh in _get_neighbours(segments, start, intercept)]
-    >>> print diffs
-    [1, 2, 3, 4, 5, 6, 9]
+    Generator that returns segments whose intercept is increasingly more distant from
+        the "intercept" argument. The list is supposed to be sorted, and "start" is supposed
+        to be the position of "intercept" in the list.
 
     """
     l = start - 1
@@ -118,7 +152,7 @@ def _get_neighbours(segments, start, intercept):
         if ldiff < 0 or rdiff < 0:
             raise IndexError("There is an issue with left / right ordering")
 
-        if 10 < min(ldiff, rdiff):
+        if 10 < min(ldiff, rdiff):  # todo tune pixel dist according to img.shape ?
             return  # don't explore neighbours whose intercept is more than 'n' pixels away
 
         if ldiff < rdiff:
@@ -150,7 +184,6 @@ def _error(points, regr):
     vect = np.vstack([vx, vy])
     p0 = np.vstack([x0, y0])
 
-    # todo remove normalization if needing a bit more speed, because they are already
     projector = vect.dot(vect.T) / vect.T.dot(vect)  # projection matrix
 
     error = 0
