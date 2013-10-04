@@ -18,7 +18,8 @@ class Goban():
         self._draw()
         self._bind()
 
-    def coord(self, move):
+    @staticmethod
+    def coord(move):
 
         """
         Returns a tuple of integer describing the row and column of the move.

@@ -34,10 +34,10 @@ def runmerge(grid):
 
     # run global merges with increasing tolerance for error
     merged += discarded
-    for precision in (1, 2, 4, 8, 16, 32):
-        print "nb segments: " + str(len(merged))
-        print "precision:" + str(precision)
-        print
+    for precision in (1, 4, 16, 32):
+        #print "nb segments: " + str(len(merged))
+        #print "precision:" + str(precision)
+        #print
         merged, discarded = _merge(merged, precision=precision)
         merged += discarded
     return merged

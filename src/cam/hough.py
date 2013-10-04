@@ -113,7 +113,7 @@ def find_segments(img):
     hsegs = []
     vsegs = []
     chunks = list(split_sq(img, nbsplits=10))
-    chunks.extend(split_sq(img, nbsplits=10, offset=True))  # todo connect that if needing more segments
+    #chunks.extend(split_sq(img, nbsplits=10, offset=True))  # todo connect that if needing more segments
     i = 0
     while i < len(chunks):
         chunk = chunks[i]
@@ -147,15 +147,15 @@ if __name__ == '__main__':
 
 class Grid:
     def __init__(self, hsegs, vsegs, img):
-        assert isinstance(hsegs, list)
-        assert isinstance(vsegs, list)
+        assert isinstance(hsegs, list), "hsegs must be of type list."
+        assert isinstance(vsegs, list), "vsegs must be of type list."
         self.hsegs = hsegs
         self.vsegs = vsegs
         self.img = img
 
     def __add__(self, other):
-        assert isinstance(other, Grid)
-        assert id(self.img) == id(other.img)
+        assert isinstance(other, Grid), "can't add: other should be a grid."
+        assert self.img.shape == other.img.shape, "images should have same shape when adding grids."
         hsegs = [seg for seg in self.hsegs + other.hsegs]
         vsegs = [seg for seg in self.vsegs + other.vsegs]
         hsegs.sort()
