@@ -1,10 +1,10 @@
 import cv2
 import numpy as np
-from cam.draw import draw_lines, show, draw_circles
 from cam.extrapolation import prune, median
+from cam.imgutil import draw_circles, draw_lines, show
 
-from cam.regression import runmerge
-from cam.hough import find_segments, hough, Grid
+from cam.hough import find_segments, hough, Grid, runmerge
+from config import calibconf
 
 __author__ = 'Kohistan'
 
@@ -81,6 +81,11 @@ def user_corners():
     name = "User Input"
     cam = cv2.VideoCapture(0)
     corners = GridListener()
+
+    calibdata = np.load(calibconf.npfile)
+    camera = calibdata[calibconf.camera]
+    disto = calibdata[calibconf.distortion]
+
     while True:
         #try:
             ret, frame = cam.read()
@@ -88,6 +93,8 @@ def user_corners():
             #frame = cv2.imread("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/pics/internet/goban0.jpg")
             if ret:
                 cv2.setMouseCallback(name, corners.onmouse)
+                frame = cv2.undistort(frame, camera, disto)
+                frame = cv2.flip(frame, 1)
                 corners.paint(frame)
                 show(frame, name=name)
                 key = cv2.waitKey(200)

@@ -1,6 +1,7 @@
-from go.kifu import Kifu
-from config import *
 from Tkinter import Tk, Canvas
+
+from go.kifu import Kifu
+from config.guiconf import *
 
 
 __author__ = 'Kohistan'

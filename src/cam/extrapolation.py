@@ -3,6 +3,8 @@ from cam.hough import Grid
 
 __author__ = 'Kohistan'
 
+# Dev script that's most likely deprecated.
+
 
 def prune(grid, keep=25):
     hsegs = []

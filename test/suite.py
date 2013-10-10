@@ -1,7 +1,7 @@
 from unittest.result import TestResult
 
 from go import kifu
-from cam import regression, extrapolation
+from cam import extrapolation
 
 __author__ = 'Kohistan'
 
@@ -13,7 +13,6 @@ class MyTestCase(unittest.TestSuite):
 
     def load_tests(self):
         self.addTest(doctest.DocTestSuite(kifu))
-        self.addTest(doctest.DocTestSuite(regression))
         self.addTest(doctest.DocTestSuite(extrapolation))
 
 if __name__ == '__main__':
