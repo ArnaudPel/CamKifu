@@ -128,9 +128,9 @@ def urdistort_live():
 
 if __name__ == '__main__':
     #calibrate()
-    #urdistort_live()
-    im, _ = campattern()
-    cv2.imwrite("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/calib/calib.png", im)
+    urdistort_live()
+    #im, _ = campattern()
+    #cv2.imwrite("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/calib/calib.png", im)
 
 
 
