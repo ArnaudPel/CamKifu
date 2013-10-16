@@ -77,9 +77,8 @@ def video():
 
 
 if __name__ == '__main__':
-    #video()
-    #picture
     user_corners()
+
 
 
 

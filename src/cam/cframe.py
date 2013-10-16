@@ -1,8 +1,11 @@
+import sys
+
 import cv2
 import numpy as np
-import sys
-from cam.imgutil import show, draw_circles, draw_lines
+
+from cam.imgutil import show, draw_circles, draw_lines, saturate, rgb_histo
 from config import calibconf
+
 
 __author__ = 'Kohistan'
 
@@ -25,24 +28,25 @@ def user_corners():
             cv2.setMouseCallback(name, corners.onmouse)
             frame = cv2.undistort(frame, camera, disto)
             frame = cv2.flip(frame, 1)
-            corners.paint(frame)
-            show(frame, name=name)
-            key = cv2.waitKey(200)
 
-            size = min(*frame.shape[0:2])
-
+            size = 19 * 30
             if corners.ready() and not canoned:
                 src = np.array(corners.hull, dtype=np.float32)
                 dst = np.array([(0, 0), (size, 0), (size, size), (0, size)], dtype=np.float32)
+                # todo optimization: crop the image around the ROI before computing the transform
                 mtx = cv2.getPerspectiveTransform(src, dst)
-                print "Perspective Transform:"
-                print mtx
-                print
                 canoned = True
             if canoned:
-                canon_img = cv2.warpPerspective(frame, mtx, (frame.shape[1], frame.shape[0]))
-                show(canon_img, name="Canonical Perspective")
+                canon_img = cv2.warpPerspective(frame, mtx, (size, size))
+                histo = rgb_histo(canon_img)
+                enhanced = saturate(canon_img)
+                show(enhanced, name="Enhanced")
+                show(histo, name="RGB Histogram")
 
+            corners.paint(frame)
+            show(frame, name=name)
+
+            key = cv2.waitKey(200)
             if key == 113:
                 return
             elif key == 122:
@@ -59,6 +63,7 @@ class GridListener():
         self.nb = nb
         self.hull = None
 
+    #noinspection PyUnusedLocal
     def onmouse(self, event, x, y, flag, param):
         if event == cv2.cv.CV_EVENT_LBUTTONDOWN and not self.ready():
             self.points.append((x, y))
@@ -84,24 +89,24 @@ class GridListener():
                 x1, y1 = self.hull[i]
                 x2, y2 = self.hull[i + 1]
                 draw_lines(img, [[x1, y1, x2, y2]], color)
-                color = (255 * (nbpts - i-1) / nbpts, 0, 255 * (i+1) / nbpts)
+                color = (255 * (nbpts - i - 1) / nbpts, 0, 255 * (i + 1) / nbpts)
 
-            # draw extrapolated
-            #if len(self.hull) == 4:
-            #    segs = []
-            #    for i in [-1, 0]:
-            #        p11 = self.hull[i]
-            #        p12 = self.hull[i + 1]
-            #        p21 = self.hull[i + 2]
-            #        p22 = self.hull[i + 3]
-            #
-                    #size = 18
-                    #for j in range(1, size):
-                    #    x1 = (j * p11[0] + (size - j) * p12[0]) / size
-                    #    x2 = (j * p22[0] + (size - j) * p21[0]) / size
-                    #    y1 = (j * p11[1] + (size - j) * p12[1]) / size
-                    #    y2 = (j * p22[1] + (size - j) * p21[1]) / size
-                    #    segs.append([x1, y1, x2, y2])
+                # draw extrapolated
+                #if len(self.hull) == 4:
+                #    segs = []
+                #    for i in [-1, 0]:
+                #        p11 = self.hull[i]
+                #        p12 = self.hull[i + 1]
+                #        p21 = self.hull[i + 2]
+                #        p22 = self.hull[i + 3]
+                #
+                #size = 18
+                #for j in range(1, size):
+                #    x1 = (j * p11[0] + (size - j) * p12[0]) / size
+                #    x2 = (j * p22[0] + (size - j) * p21[0]) / size
+                #    y1 = (j * p11[1] + (size - j) * p12[1]) / size
+                #    y2 = (j * p22[1] + (size - j) * p21[1]) / size
+                #    segs.append([x1, y1, x2, y2])
                 #draw_lines(img, segs, color=(42, 142, 42))
 
     def _order(self):

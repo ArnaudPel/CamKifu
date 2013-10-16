@@ -100,6 +100,37 @@ def draw_lines(img, segments, color=(0, 255, 0)):
         cv2.line(img, p1, p2, colo, thickness=thickness)
 
 
+def saturate(img):
+    """
+    Convert the image to HSV, multiply both Saturation and Value by 1.5,
+    and return corresponding enhanced RGB image.
+
+    """
+    # todo add doctest for the 50% enhancement + respect of 255 max value
+    maxsv = np.ones_like(img)
+    maxsv[:, :, 1:3] *= 255
+    saturated = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    saturated[:, :, 1:3] = np.minimum(maxsv[:, :, 1:3], saturated[:, :, 1:3] * 1.5)
+    return cv2.cvtColor(saturated, cv2.COLOR_HSV2RGB)
+
+
+def rgb_histo(img):
+    """
+    Code pasted from:
+    http://opencvpython.blogspot.fr/2012/04/drawing-histogram-in-opencv-python.html
+
+    """
+    h = np.zeros((300, 256, 3))
+    bins = np.arange(256).reshape(256, 1)
+    color = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+    for ch, col in enumerate(color):
+        hist_item = cv2.calcHist([img], [ch], None, [256], [0, 256])
+        cv2.normalize(hist_item, hist_item, 0, 255, cv2.NORM_MINMAX)
+        hist = np.int32(np.around(hist_item))
+        pts = np.column_stack((bins, hist))
+        cv2.polylines(h, [pts], False, col)
+    return np.flipud(h)
+
 windows = set()  # todo improve or remove this dev workaround to center windows at startup only
 
 
