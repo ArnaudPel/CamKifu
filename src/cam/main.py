@@ -1,14 +1,19 @@
 import cv2
-from cam.cframe import user_corners
+from cam.calib import Rectifier
+from cam.stones import StonesFinder
 from cam.extrapolation import median
 from cam.imgutil import draw_circles, draw_lines, show
 
-from cam.hough import find_segments, runmerge
+from cam.board import find_segments, runmerge, BoardFinder
 
 __author__ = 'Kohistan'
 
 
 def picture():
+    """
+    Old code that is most likely deprecated, or simply useless.
+
+    """
     filename = "original/fenetre2.jpg"
 
     path = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/pics/" + filename
@@ -32,73 +37,37 @@ def picture():
     cv2.destroyAllWindows()
 
 
-def video():
-    segment = True
-    merge = True
-    extrapolate = True
+def main():
+    #noinspection PyArgumentList
     cam = cv2.VideoCapture(0)
+
+    rectifier = Rectifier(cam)
+    board_finder = BoardFinder(cam, rectifier)
+    stones_finder = StonesFinder(cam, rectifier)
+
+    states = {"plain": 0, "canonical": 1}
+    state = 0
+
     while True:
-        try:
-            ret, frame = cam.read()
-            img = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-            if segment:
-                grid = find_segments(img)
-                for i in range(0):
-                    ret, frame = cam.read()
-                    if segment: img = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-                    grid += find_segments(img)
-                print "segments: " + str(len(grid))
+        if state == states["plain"]:
+            board_finder.run()
+            stones_finder.transform = board_finder.mtx
+            stones_finder.size = board_finder.size
+            if board_finder.mtx is not None:
+                state = 1
+            else:
+                break
 
-                if merge: grid = runmerge(grid)
-                print "segments: " + str(len(grid))
-
-                if extrapolate:
-                    grid, discarded = median(grid)
-                    draw_lines(frame, discarded.enumerate(), color=(255, 0, 0))
-
-                draw_lines(frame, grid.enumerate())
-
-            show(frame)
-            print "looped."
-            print
-        except Exception as ex:
-            print "Camkifu dropped frame: " + str(ex)
-
-        key = cv2.waitKey(20)
-        if key == 113:
-            return
-        elif key == 101:
-            extrapolate = not extrapolate
-        elif key == 109:
-            merge = not merge
-            print "merging: " + ("yes" if merge else "no")
-        elif key == 115:
-            segment = not segment
+        elif state == states["canonical"]:
+            stones_finder.run()
+            if stones_finder.undo:
+                board_finder.perform_undo()
+                state = 0
+                stones_finder.undo = False
+            else:
+                break
+        cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
-    user_corners()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    main()

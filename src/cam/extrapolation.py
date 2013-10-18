@@ -1,5 +1,5 @@
 from _bisect import insort, bisect
-from cam.hough import Grid
+from cam.board import Grid
 
 __author__ = 'Kohistan'
 

@@ -1,5 +1,6 @@
 from math import sqrt
 import math
+import time
 import cv2
 import numpy as np
 
@@ -106,7 +107,7 @@ def saturate(img):
     and return corresponding enhanced RGB image.
 
     """
-    # todo add doctest for the 50% enhancement + respect of 255 max value
+    # todo add doctest for the 50% enhancement + no-overflow of 255 max value
     maxsv = np.ones_like(img)
     maxsv[:, :, 1:3] *= 255
     saturated = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
@@ -242,3 +243,62 @@ class Segment:
         x2 = (self.coords[0] - self.coords[2]) ** 2
         y2 = (self.coords[1] - self.coords[3]) ** 2
         return int(sqrt(x2 + y2))
+
+
+class VidProcessor(object):
+    """
+    Class meant to be extended by implementations of video processing.
+
+    """
+    def __init__(self, camera, rectifier):
+        self.cam = camera
+        self.rectifier = rectifier
+        self.process_delay = 200
+        self.pause_delay = 500
+        self.undo = False
+        self.interrupt = False
+
+    def run(self):
+        self.interrupt = False
+        while not self.interrupt:
+            ret, frame = self.cam.read()
+            if ret:
+                if self.rectifier is not None:
+                    frame = self.rectifier.undistort(frame)
+                frame = cv2.flip(frame, 1)  # horizontal flip, because I'm using macOS X camera
+                self._doframe(frame)
+                self._wait()
+            else:
+                print "Could not read camera for {0}.".format(str(type(self)))
+                time.sleep(5)
+
+    def _wait(self):
+        """
+        This function is being called by default after _doframe() so that
+        any image displayed will stay on screen. In a development env it
+        makes sense to assume we will show something most of the time.
+
+        Overriding the _wait() method with "pass" is a way to skip that step.
+
+        """
+        key = cv2.waitKey(self.process_delay)
+        # 'p' key pauses the whole process and display
+        if key == 112:
+            while True:
+                # repeating the same key resumes processing. other keys are executed as if nothing happened
+                key = cv2.waitKey(self.pause_delay)
+                if key in (112, 113, 122):
+                    break
+        # 'q' key returns
+        if key == 113:
+            self._done()
+        # 'z' key sets an 'undo' flag that should be available to the function during next iteration.
+        # still to be tested, not too sure about namespaces.
+        elif key == 122:
+            self.undo = True
+
+    def _done(self):
+        self.interrupt = True
+
+    def _doframe(self, frame):
+        raise NotImplementedError("Abstract method meant to be extended")

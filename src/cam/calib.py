@@ -6,65 +6,21 @@ from time import sleep, time
 import cv2
 import numpy as np
 
-from cam.imgutil import draw_circles, show
+from cam.imgutil import draw_circles, show, VidProcessor
 from config import calibconf
-
 
 __author__ = 'Kohistan'
 
-
 # todo inline these two guys as parameters, auto-guess, or move to config
-nbx = 5  # number of rows  todo swap values
+nbx = 5  # number of rows
 nby = 8  # number of circles per row
 
 
-def calibrate():
-    cam = cv2.VideoCapture(0)
-    objectpoints = []
-    imagepoints = []
-    shape = None
-
-    # detect a set of calibration patterns in webcam input
-    mark = time() + calibconf.pause
-    while len(imagepoints) < calibconf.shots:
-        ret, frame = cam.read()
-        if ret:
-            show(cv2.flip(frame, 1))  # horizontal flip, because I'm using macOS X camera
-
-            if mark < time():
-                mark += calibconf.pause
-                message = "Could not detect calibration pattern. Please try to place it differently."
-                if ret:
-                    success, shot = cv2.findCirclesGridDefault(frame, (nby, nbx), flags=cv2.CALIB_CB_SYMMETRIC_GRID)
-                    if success:
-                        imagepoints.append(shot)
-                        message = "Pattern {0} has been recorded. Please move calibration" \
-                                  " pattern for next record.".format(len(imagepoints))
-                        shape = frame.shape[0:2]
-                print message
-        else:
-            print "camera read failed."
-        if cv2.waitKey(50) == 113: return  # don't try to calibrate if 'q' has been pressed
-
-    # fill object points vector
-    _, objectref = genpattern(*shape)
-    for i in range(len(imagepoints)):
-        objectpoints.append(objectref)
-    objectpoints = np.array(objectpoints, dtype=np.float32)
-    imagepoints = np.array(imagepoints, dtype=np.float32)
-
-    retval, camera_mtx, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(objectpoints, imagepoints, shape)
-    if retval:
-        print
-        print "Calibration completed successfully. Thank you."
-        arrays = {calibconf.camera: camera_mtx, calibconf.distortion: dist_coeffs}
-        np.savez(calibconf.npfile, **arrays)
-        print "Calibration data saved to: " + calibconf.npfile
-    else:
-        print "Camera calibration failed."
-
-
 def genpattern(x_resol, y_resol):
+    """
+    Generate a symmetric calibration pattern of circles.
+
+    """
     x_border = x_resol / 10
     y_border = y_resol / 10
     xchunk = (x_resol - 2*x_border)/nbx
@@ -89,7 +45,75 @@ def genpattern(x_resol, y_resol):
     return img, centers
 
 
+class Rectifier(VidProcessor):
+
+    def __init__(self, camera):
+        super(self.__class__, self).__init__(camera, None)
+        self.camera_coeffs = None
+        self.disto = None
+        try:
+            calibdata = np.load(calibconf.npfile)
+            self.camera_coeffs = calibdata[calibconf.camera]
+            self.disto = calibdata[calibconf.distortion]
+        except IOError or TypeError:
+            choice = ""
+            while choice not in ("y", "n"):
+                choice = raw_input("Would you like to start calibration process ? (y/n)")
+            if choice == "y":
+                self.mark = time() + calibconf.pause
+                self.imagepoints = []
+                self.shape = None
+                self._calibrate()
+
+    def _calibrate(self):
+        # detect a set of calibration patterns in webcam input
+        self.run()
+
+        if len(self.imagepoints) == calibconf.shots:
+            # fill object points vector
+            objectpoints = []
+            _, objectref = genpattern(*self.shape)
+            for i in range(len(self.imagepoints)):
+                objectpoints.append(objectref)
+            objectpoints = np.array(objectpoints, dtype=np.float32)
+            imagepoints = np.array(self.imagepoints, dtype=np.float32)
+
+            # compute calibration
+            retval, cam_mtx, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(objectpoints, imagepoints, self.shape)
+            if retval:
+                print
+                print "Calibration completed successfully. Thank you."
+                arrays = {calibconf.camera: cam_mtx, calibconf.distortion: dist_coeffs}
+                np.savez(calibconf.npfile, **arrays)
+                print "Calibration data saved to: " + calibconf.npfile
+            else:
+                print "Camera calibration failed."
+        else:
+            print "Calibration has been cancelled."
+
+    def _doframe(self, frame):
+        show(frame)
+        if self.mark < time():
+            self.mark += calibconf.pause
+            message = "Could not detect calibration pattern. Please try to place it differently."
+            success, shot = cv2.findCirclesGridDefault(frame, (nby, nbx), flags=cv2.CALIB_CB_SYMMETRIC_GRID)
+            if success:
+                self.imagepoints.append(shot)
+                message = "Pattern {0} has been recorded. Please move calibration" \
+                          " pattern for next record.".format(len(self.imagepoints))
+                self.shape = frame.shape[0:2]
+            print message
+        if len(self.imagepoints) == calibconf.shots:
+            self._done()
+
+    def undistort(self, frame):
+        if self.camera_coeffs is not None and self.disto is not None:
+            return cv2.undistort(frame, self.camera_coeffs, self.disto)
+        return frame
+
+
 def campattern():
+    #noinspection PyArgumentList
     cam = cv2.VideoCapture(0)
     ret, frame = cam.read()
     tries = 0
@@ -102,70 +126,3 @@ def campattern():
         return genpattern(*frame.shape[0:2])
     else:
         print "could not get calibration pattern based on cam resolution."
-
-
-def urdistort_live():
-    calibdata = np.load(calibconf.npfile)
-    camera = calibdata[calibconf.camera]
-    disto = calibdata[calibconf.distortion]
-    print "Camera"
-    print camera
-    print "Distortion"
-    print disto
-
-    cam = cv2.VideoCapture(0)
-    while True:
-        ret, frame = cam.read()
-        if camera is not None and disto is not None:
-            frame = cv2.undistort(frame, camera, disto)
-            frame = cv2.flip(frame, 1)  # flip only after removing distortion !
-            show(frame)
-            if cv2.waitKey(50) == 113: return
-        else:
-            print "No calibration data found here: " + calibconf.npfile
-            break
-
-
-if __name__ == '__main__':
-    #calibrate()
-    urdistort_live()
-    #im, _ = campattern()
-    #cv2.imwrite("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/calib/calib.png", im)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
