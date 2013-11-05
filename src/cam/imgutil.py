@@ -1,5 +1,6 @@
 from math import sqrt
 import math
+from sys import float_info
 import time
 import cv2
 import numpy as np
@@ -32,7 +33,7 @@ def split_h(img, nbsplits=5, offset=False):
             y1 = (i + 1) * strip_size + offs
         else:
             if offset:
-                return  # skipp last block when offsetting
+                return # skipp last block when offsetting
             else:
                 y1 = img.shape[0]
 
@@ -89,16 +90,26 @@ def draw_circles(img, centers, color=(0, 0, 255), radius=5, thickness=1):
 
 
 def draw_lines(img, segments, color=(0, 255, 0)):
-    thickness = 1 + 2*_factor(img)
+    thickness = 1 + 2 * _factor(img)
     for seg in segments:
         if isinstance(seg, Segment):
             p1 = (seg.coords[0], seg.coords[1])
             p2 = (seg.coords[2], seg.coords[3])
         else:
-            p1 = (seg[0], seg[1])
-            p2 = (seg[2], seg[3])
+            if len(seg) == 4:
+                p1 = (seg[0], seg[1])
+                p2 = (seg[2], seg[3])
+            elif len(seg) == 2:
+                p1 = seg[0]
+                p2 = seg[1]
+            else:
+                print "Unrecognized segment format: " + seg
+                continue
         colo = cv2.cv.CV_RGB(*color)
-        cv2.line(img, p1, p2, colo, thickness=thickness)
+        try:
+            cv2.line(img, p1, p2, colo, thickness=thickness)
+        except Exception as e:
+            print e
 
 
 def saturate(img):
@@ -132,10 +143,11 @@ def rgb_histo(img):
         cv2.polylines(h, [pts], False, col)
     return np.flipud(h)
 
+
 windows = set()  # todo improve or remove this dev workaround to center windows at startup only
 
 
-def show(img, auto_down=True, name="Camkifu"):
+def show(img, auto_down=True, name="Camkifu", loc=None):
     toshow = img
     if auto_down:
         f = _factor(img)
@@ -145,13 +157,42 @@ def show(img, auto_down=True, name="Camkifu"):
             for i in range(f):
                 toshow = cv2.pyrDown(toshow)
 
-    if name not in windows:
+    elif name not in windows:
         cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-        center = (screenw/2, screenh/2)
-        cv2.moveWindow(name, max(0, center[0] - img.shape[0]/2), img.shape[1]/2)
+        if loc is not None:
+            cv2.moveWindow(name, *loc)
+        else:
+            center = (screenw / 2, screenh / 2)
+            cv2.moveWindow(name, max(0, center[0] - img.shape[0] / 2), img.shape[1] / 2)
         windows.add(name)
 
     cv2.imshow(name, toshow)
+
+
+def median_blur(img, ksize=(3, 3)):
+    blurred = np.empty_like(img)
+    midx = ksize[0] / 2
+    midy = ksize[1] / 2
+    for x in range(img.shape[0]):
+        if midx <= x:
+            for y in range(img.shape[1]):
+                if midy <= y:
+                    area = img[x-midx: x+midx+1, y-midy: y+midy+1]
+                    try:
+                        depth = img.shape[2]
+                        for z in range(depth):
+                            sortd = sorted(area[:, :, z].flat)
+                            blurred[x][y][z] = sortd[0]
+                    except IndexError:
+                        sortd = sorted(area[:, :].flat)
+                        blurred[x][y] = sortd[0]
+                else:
+                    # copy pixel as is for now
+                    blurred[x][y] = img[x][y]
+        else:
+            # copy pixel as is for now
+            blurred[x] = img[x]
+    return blurred
 
 
 def _factor(img):
@@ -159,7 +200,7 @@ def _factor(img):
     Find how many times the image should be "pyrDown" to fit inside the screen.
 
     """
-#    screen size, automatic detection seems to be a pain so it is done manually.
+    #    screen size, automatic detection seems to be a pain so it is done manually.
     f = 0
     imwidth = img.shape[1]
     imheight = img.shape[0]
@@ -171,9 +212,8 @@ def _factor(img):
 
 
 def tohisto(mult_factor, values):
-
     """
-    Take an iterable of float values, multiplies them by the factor,
+    Take an iterable of float values, multiply them by the factor,
     floor them and store occurrence count in a dict.
     """
     histo = {}
@@ -210,7 +250,6 @@ class Chunk:
 
 
 class Segment:
-
     def __init__(self, seg, img):
 
         xmid = img.shape[1] / 2
@@ -242,7 +281,32 @@ class Segment:
     def __len__(self):
         x2 = (self.coords[0] - self.coords[2]) ** 2
         y2 = (self.coords[1] - self.coords[3]) ** 2
-        return int(sqrt(x2 + y2))
+        return sqrt(x2 + y2)
+
+    @staticmethod
+    def lencmp(seg1, seg2):
+        """
+        Compare segments based on their L2-norm. The default comparison being
+        on the intercepts, this one had to be external.
+        (see __lt__(self, other), __gt__(self, other))
+
+        """
+        return cmp(len(seg1), len(seg2))
+
+    def __getitem__(self, item):
+        return self.coords[item]
+
+    #noinspection PyNoneFunctionAssignment
+    def intersection(self, other):
+        x = (other[0] - self[0], other[1] - self[1])
+        d1 = (self[2] - self[0], self[3] - self[1])
+        d2 = (other[2] - other[0], other[3] - other[1])
+        cross = float(d1[0]*d2[1] - d1[1]*d2[0])
+        if abs(cross) < float_info.epsilon:
+            return False
+        else:
+            t1 = (x[0]*d2[1] - x[1]*d2[0]) / cross
+            return self[0] + t1*d1[0], self[1] + t1*d1[1]
 
 
 class VidProcessor(object):
@@ -250,6 +314,7 @@ class VidProcessor(object):
     Class meant to be extended by implementations of video processing.
 
     """
+
     def __init__(self, camera, rectifier):
         self.cam = camera
         self.rectifier = rectifier
@@ -289,15 +354,15 @@ class VidProcessor(object):
                 key = cv2.waitKey(self.pause_delay)
                 if key in (112, 113, 122):
                     break
-        # 'q' key returns
+            # 'q' key returns
         if key == 113:
-            self._done()
+            self._interrupt()
         # 'z' key sets an 'undo' flag that should be available to the function during next iteration.
         # still to be tested, not too sure about namespaces.
         elif key == 122:
             self.undo = True
 
-    def _done(self):
+    def _interrupt(self):
         self.interrupt = True
 
     def _doframe(self, frame):

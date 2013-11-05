@@ -22,17 +22,22 @@ def hough(gray, prepare=True):
     # todo extract parameters in config file to ease tuning ?
     # todo remove "prepare" named parameter if not used
     if prepare:
-        bw = cv2.GaussianBlur(gray, (3, 3), 0)
-        bw = cv2.Canny(bw, 10, 100)
+        #prepd = cv2.GaussianBlur(gray, (3, 3), 0)
+        #show(gray, name="gray", loc=(250, 250))
+        #prepd = cv2.erode(gray, np.ones((1, 5)), iterations=4)
+        #show(prepd, name="eroded", loc=(500, 250))
+        #cv2.waitKey()
+        prepd = gray
+        prepd = cv2.Canny(prepd, 30, 90)
     else:
-        bw = gray
+        prepd = gray
 
     threshold = 10
     #minlen = 3*min(bw.shape) / 4  # minimum length to accept a line
-    minlen = min(bw.shape) / 2  # minimum length to accept a line
-    maxgap = minlen / 12  # maximum gap for line merges (if probabilistic hough)
+    minlen = min(prepd.shape) / 2  # minimum length to accept a line
+    maxgap = minlen / 14  # maximum gap for line merges (if probabilistic hough)
 
-    lines = cv2.HoughLinesP(bw, 1, math.pi / 180, threshold, minLineLength=minlen, maxLineGap=maxgap)
+    lines = cv2.HoughLinesP(prepd, 1, math.pi / 180, threshold, minLineLength=minlen, maxLineGap=maxgap)
     if lines is not None:
         return lines[0]
     else:
@@ -50,12 +55,9 @@ def find_segments(img):
 
     hsegs = []
     vsegs = []
-    chunks = list(split_sq(img, nbsplits=10))
+    chunks = list(split_sq(img, nbsplits=5))
     #chunks.extend(split_sq(img, nbsplits=10, offset=True))  # todo connect that if needing more segments
-    i = 0
-    while i < len(chunks):
-        chunk = chunks[i]
-        i += 1
+    for chunk in chunks:
         segments = hough(chunk.mat)
         for seg in segments:
             # translate segment coordinates to place it in global image
@@ -69,7 +71,7 @@ def find_segments(img):
             else:
                 insort(vsegs, segment)
 
-    return Grid(hsegs, vsegs, img)
+    return SegGrid(hsegs, vsegs, img)
 
 
 if __name__ == '__main__':
@@ -83,7 +85,7 @@ if __name__ == '__main__':
     print zip(range(sub.shape[1]), range(sub.shape[0]))
 
 
-class Grid:
+class SegGrid:
     def __init__(self, hsegs, vsegs, img):
         assert isinstance(hsegs, list), "hsegs must be of type list."
         assert isinstance(vsegs, list), "vsegs must be of type list."
@@ -92,13 +94,13 @@ class Grid:
         self.img = img
 
     def __add__(self, other):
-        assert isinstance(other, Grid), "can't add: other should be a grid."
+        assert isinstance(other, SegGrid), "can't add: other should be a grid."
         assert self.img.shape == other.img.shape, "images should have same shape when adding grids."
         hsegs = [seg for seg in self.hsegs + other.hsegs]
         vsegs = [seg for seg in self.vsegs + other.vsegs]
         hsegs.sort()
         vsegs.sort()
-        return Grid(hsegs, vsegs, self.img)
+        return SegGrid(hsegs, vsegs, self.img)
 
     def __len__(self):
         return len(self.hsegs) + len(self.vsegs)
@@ -116,13 +118,13 @@ class Grid:
 
 
 def runmerge(grid):
-    merged = Grid([], [], grid.img)
-    discarded = Grid([], [], grid.img)
+    merged = SegGrid([], [], grid.img)
+    discarded = SegGrid([], [], grid.img)
 
     # merge locally first to minimize askew lines
     for i in range(2):  # i=0 is horizontal, i=1 is vertical
-        low = Grid([], [], grid.img)
-        high = Grid([], [], grid.img)
+        low = SegGrid([], [], grid.img)
+        high = SegGrid([], [], grid.img)
         mid = grid.img.shape[1 - i] / 2  # numpy (i,j) is equivalent to opencv (y,x)
         for seg in (grid.vsegs if i else grid.hsegs):
             if (seg.coords[0 + i] + seg.coords[2 + i]) / 2 < mid:
@@ -156,8 +158,8 @@ def _merge(grid, precision=1):
 
     """
 
-    merged = Grid([], [], grid.img)
-    discarded = Grid([], [], grid.img)
+    merged = SegGrid([], [], grid.img)
+    discarded = SegGrid([], [], grid.img)
     random.seed(42)
     correction = 0
 
@@ -349,7 +351,7 @@ class BoardFinder(VidProcessor):
             # todo optimization: crop the image around the ROI before computing the transform
             try:
                 self.mtx = cv2.getPerspectiveTransform(source, dst)
-                self._done()
+                self._interrupt()
             except cv2.error:
                 print "Please mark a square-like area. The 4 points must form a convex hull."
                 self.undo = True
@@ -373,7 +375,7 @@ class GridListener():
         try:
             np_file = np.load(gobanloc_npz)
             self.points = [p for p in np_file["location"]]
-            self._order()
+            self.hull = ordered_hull(self.points)
         except IOError or TypeError:
             self.points = []
 
@@ -382,7 +384,9 @@ class GridListener():
         if event == cv2.cv.CV_EVENT_LBUTTONDOWN and not self.ready():
             self.points.append((x, y))
             if self.ready():
-                self._order()
+                self.hull = ordered_hull(self.points)
+                if len(self.hull) == 4:
+                    np.savez(gobanloc_npz, location=self.points)
 
     def undo(self):
         if len(self.points):
@@ -423,23 +427,22 @@ class GridListener():
                 #    segs.append([x1, y1, x2, y2])
                 #draw_lines(img, segs, color=(42, 142, 42))
 
-    def _order(self):
-        self.hull = []
-        idx = 0
-        mind = sys.maxint
-        if self.ready():
-            cvhull = cv2.convexHull(np.vstack(self.points))
-            for i in range(len(cvhull)):
-                p = cvhull[i][0]
-                dist = p[0] ** 2 + p[1] ** 2
-                if dist < mind:
-                    mind = dist
-                    idx = i
-            for i in range(idx, idx + len(cvhull)):
-                p = cvhull[i % len(cvhull)][0]
-                self.hull.append((p[0], p[1]))
-            if len(self.hull) == 4:
-                np.savez(gobanloc_npz, location=self.points)
-
     def __str__(self):
         return "Corners:" + str(self.points)
+
+
+def ordered_hull(points):
+    hull = []
+    idx = 0
+    mind = sys.maxint
+    cvhull = cv2.convexHull(np.vstack(points))
+    for i in range(len(cvhull)):
+        p = cvhull[i][0]
+        dist = p[0] ** 2 + p[1] ** 2
+        if dist < mind:
+            mind = dist
+            idx = i
+    for i in range(idx, idx + len(cvhull)):
+        p = cvhull[i % len(cvhull)][0]
+        hull.append((p[0], p[1]))
+    return hull

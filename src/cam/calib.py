@@ -104,7 +104,7 @@ class Rectifier(VidProcessor):
                 self.shape = frame.shape[0:2]
             print message
         if len(self.imagepoints) == calibconf.shots:
-            self._done()
+            self._interrupt()
 
     def undistort(self, frame):
         if self.camera_coeffs is not None and self.disto is not None:

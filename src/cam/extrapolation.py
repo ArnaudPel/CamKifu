@@ -1,5 +1,5 @@
 from _bisect import insort, bisect
-from cam.board import Grid
+from cam.board import SegGrid
 
 __author__ = 'Kohistan'
 
@@ -23,8 +23,8 @@ def prune(grid, keep=25):
     if keep < len(vsegs):
         shortv = vsegs[0:len(vsegs) - keep]
 
-    return Grid([tpl[1] for tpl in longh], [tpl[1] for tpl in longv], grid.img), \
-           Grid([tpl[1] for tpl in shorth], [tpl[1] for tpl in shortv], grid.img)
+    return SegGrid([tpl[1] for tpl in longh], [tpl[1] for tpl in longv], grid.img), \
+           SegGrid([tpl[1] for tpl in shorth], [tpl[1] for tpl in shortv], grid.img)
 
 
 def median(grid):
@@ -106,8 +106,8 @@ def median(grid):
         else:
             discarded.append(parallels[pos])
 
-    return Grid([parallels[x] for x in good_pos], grid.vsegs, grid.img),\
-            Grid(discarded, [], grid.img)
+    return SegGrid([parallels[x] for x in good_pos], grid.vsegs, grid.img),\
+            SegGrid(discarded, [], grid.img)
     #return Grid(parallels, grid.vsegs, grid.img)
 
 

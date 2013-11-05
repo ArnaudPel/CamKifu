@@ -52,7 +52,7 @@ def main():
         if state == states["plain"]:
             board_finder.run()
             stones_finder.transform = board_finder.mtx
-            stones_finder.size = board_finder.size
+            stones_finder.canonical_size = board_finder.size
             if board_finder.mtx is not None:
                 state = 1
             else:
