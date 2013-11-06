@@ -1,4 +1,4 @@
-from _bisect import insort, bisect
+from _bisect import insort
 from cam.board import SegGrid
 
 __author__ = 'Kohistan'

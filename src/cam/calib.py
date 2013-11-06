@@ -6,7 +6,7 @@ from time import sleep, time
 import cv2
 import numpy as np
 
-from cam.imgutil import draw_circles, show, VidProcessor
+from cam.imgutil import draw_circles, VidProcessor
 from config import calibconf
 
 __author__ = 'Kohistan'
@@ -46,9 +46,13 @@ def genpattern(x_resol, y_resol):
 
 
 class Rectifier(VidProcessor):
+    """
+    Class responsible for camera calibration. Handles the calibration process when needed,
+    or simply undistort images if the calibration data is already available."
 
+    """
     def __init__(self, camera):
-        super(self.__class__, self).__init__(camera, None)
+        super(self.__class__, self).__init__(camera, None, None)
         self.camera_coeffs = None
         self.disto = None
         try:
@@ -67,7 +71,7 @@ class Rectifier(VidProcessor):
 
     def _calibrate(self):
         # detect a set of calibration patterns in webcam input
-        self.run()
+        self.execute()
 
         if len(self.imagepoints) == calibconf.shots:
             # fill object points vector
@@ -92,7 +96,7 @@ class Rectifier(VidProcessor):
             print "Calibration has been cancelled."
 
     def _doframe(self, frame):
-        show(frame)
+        self.imqueue.put(("Calibration", frame, self))
         if self.mark < time():
             self.mark += calibconf.pause
             message = "Could not detect calibration pattern. Please try to place it differently."
@@ -104,7 +108,7 @@ class Rectifier(VidProcessor):
                 self.shape = frame.shape[0:2]
             print message
         if len(self.imagepoints) == calibconf.shots:
-            self._interrupt()
+            self.interrupt()
 
     def undistort(self, frame):
         if self.camera_coeffs is not None and self.disto is not None:

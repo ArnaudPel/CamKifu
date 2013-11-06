@@ -1,194 +1,235 @@
-from math import floor
 import cv2
 import numpy as np
-from bisect import insort
 
-from cam.board import find_segments, runmerge, BoardFinder, ordered_hull
-from cam.imgutil import show, draw_lines, VidProcessor, draw_circles, median_blur
-from cam.calib import Rectifier
+from cam.board import ordered_hull
+from cam.imgutil import draw_circles, VidProcessor
+from config.guiconf import gsize, player_color
 
 __author__ = 'Kohistan'
 
 
 class StonesFinder(VidProcessor):
-    def __init__(self, camera, rectifier):
-        super(self.__class__, self).__init__(camera, rectifier)
+    """
+    Save background data using sample(img)
+    Perform background subtraction operations in order to detect stones.
 
-        # these two guys below are expected to be set externally
-        self.transform = None
-        self.canonical_size = None
+    self.stones -- the matrix of stones found so far (0:None, 1:Black, 2:White)
+    """
 
-        self.perfectv = []
-        self.perfecth = []
-        self.sizes = [0, 0]
+    def __init__(self, camera, rectifier, imqueue, transform, canonical_size):
+        super(self.__class__, self).__init__(camera, rectifier, imqueue)
+        self.bindings['s'] = self.reset
+        self.observers = []
 
-        self.grid = None
+        self._transform = transform
+        self._canonical_size = canonical_size
 
-    def _find_perfects(self, canon_img):
-        grid = find_segments(canon_img)
-        grid = runmerge(grid)
-        if len(self.perfecth) < 18:
-            for hseg in grid.hsegs:
-                if abs(hseg.slope) < 0.01:
-                    insort(self.perfecth, hseg)
-        if len(self.perfectv) < 18:
-            for vseg in grid.vsegs:
-                if abs(vseg.slope) < 0.01:
-                    insort(self.perfectv, vseg)
+        # the 2 lines below would benefit from some sort of automation
+        start = canonical_size / gsize / 2
+        end = canonical_size - start
+        self._grid = Grid([(start, start), (end, start), (end, end), (start, end)])
 
-    def _process_perfects(self, canon_img):
-        anchors = [[], []]
-        perfects = (self.perfecth, self.perfectv)
-        for i in range(2):
-            rough_size = (float(canon_img.shape[1 - i]) / 19)
-            estimates = []
-            # todo compare with more than one neighbour to leave "noisy couples" out.
-            for j in range(len(perfects[i]) - 1):
-                gap = perfects[i][j + 1].intercept - perfects[i][j].intercept  # x1-x0 or y1-y0 depending on i
-                factor = gap / rough_size
-                if 0.90 < factor:
-                    precision = (factor - floor(factor)) / round(factor)
-                    if precision < 0.10 or 0.90 < precision:
-                        factor = round(factor)
-                        estimates.append(gap / factor)
-                        anchors[i].append(perfects[i][j])
-                        anchors[i].append(perfects[i][j + 1])
-
-            # attempt to correct gap using mean (possibly in a statistically wrong way..)
-            self.sizes[i] = np.mean(estimates)
-
-        # draw extrapolated positions
-        draw_lines(canon_img, self.perfecth, color=(255, 0, 0))
-        # draw detected positions
-        centers = []
-        for hanch in anchors[0]:
-            for vanch in anchors[1]:
-                intersect = hanch.intersection(vanch)
-                if intersect is not False:
-                    centers.append(intersect)
-        draw_circles(canon_img, centers, color=(255, 0, 0))
-        draw_lines(canon_img, self.perfectv, color=(255, 0, 0))
-        draw_lines(canon_img, anchors[0])
-        draw_lines(canon_img, anchors[1])
-        show(canon_img, name="Grid Splitter")
-        self.reset()
-        cv2.waitKey()
+        self._background = np.zeros((gsize, gsize, 3), dtype=np.int16)
+        self.dosample = True
+        self.stones = np.zeros((gsize, gsize), dtype=np.uint8)
+        self.lastpos = None
 
     def _doframe(self, frame):
-        canon_img = cv2.warpPerspective(frame, self.transform, (self.canonical_size, self.canonical_size))
-
-        #if len(self.perfecth) < 18 or len(self.perfectv) < 18:
-        #    self._find_perfects(canon_img)
-        #else:
-        #    self._process_perfects(canon_img)
-        #draw_lines(canon_img, self.perfecth)
-        #draw_lines(canon_img, self.perfectv)
-        #show(canon_img, name="Grid Splitter")
-        #if self.undo:
-        #    self._interrupt()  # go back to previous processing step
-        #    self.reset()
-
-        #grid = find_segments(canon_img)
-        #draw_lines(canon_img, grid.enumerate())
-        #show(canon_img, name=
-
-        #smooth = cv2.medianBlur(canon_img, 5)
-        #smooth = cv2.bilateralFilter(canon_img, 9, 100, 100)
-        #smooth = median_blur(canon_img, ksize=(5, 1))
-        #show(smooth, name="Dev morphology")
-        self._showgrid(canon_img)
-        self.grid.sample(canon_img, np.ones((19, 19), dtype=np.bool))
-        show(canon_img, name="Canoned")
-
-    def _showgrid(self, img):
-        start = self.canonical_size / 19 / 2
-        end = self.canonical_size - start
-        if self.grid is None:
-            self.grid = Grid(19, points=[(start, start), (end, start), (end, end), (start, end)])
-        centers = []
-        for i in range(19):
-            for j in range(19):
-                centers.append(self.grid.mtx[i][j])
-                #draw_circles(img, centers)
+        if self.undoflag:
+            self.interrupt()  # go back to previous processing step
+            self.reset()
+        else:
+            canon_img = cv2.warpPerspective(frame, self._transform, (self._canonical_size, self._canonical_size))
+            if self.dosample:
+                self.sample(canon_img)
+                self.dosample = False
+            else:
+                self.detect(canon_img)
+            self._drawgrid(canon_img)
+            self._show(canon_img, name="Canoned")
 
     def reset(self):
-        self.perfecth = []
-        self.perfectv = []
+        self._background = self._background = np.zeros_like(self._background)
+        self.stones = np.zeros_like(self.stones)
+        self.lastpos = None
+        self.dosample = True
+
+    def _getzone(self, img, x, y):
+        """
+        x -- the opencv 'x axis' index
+        y -- the opencv 'y axis' index
+
+        """
+        p = self._grid.pos[x][y].copy()
+        pbefore = self._grid.pos[x - 1][y - 1].copy()
+        pafter = self._grid.pos[min(x + 1, gsize - 1)][min(y + 1, gsize - 1)].copy()
+        if x == 0:
+            pbefore[0] = -p[0]
+        elif x == gsize - 1:
+            pafter[0] = 2 * img.shape[0] - p[0] - 2
+        if y == 0:
+            pbefore[1] = -p[1]
+        elif y == gsize - 1:
+            pafter[1] = 2 * img.shape[1] - p[1] - 2
+        start = ((pbefore[0] + p[0]) / 2, (pbefore[1] + p[1]) / 2)
+        end = ((p[0] + pafter[0]) / 2, (p[1] + pafter[1]) / 2)
+        zone = img[start[0]: end[0], start[1]: end[1]].copy()
+        return zone, (start[1], start[0]), (end[1], end[0])
+
+    def sample(self, img):
+        for x in range(gsize):
+            for y in range(gsize):
+                zone, start, end = self._getzone(img, x, y)
+                for chan in range(3):
+                    self._background[x][y][chan] = int(np.mean(zone[:, :, chan]))
+        print "Image at {0} set as background.".format(hex(id(img)))
+
+    def detect(self, img):
+        """
+        Try to detect stones by comparing against neighbour colors.
+
+        mask -- a matrix of shape (gsize, gsize) providing positions of already known stones, as follow.
+                0: empty position
+                1: white position
+                2: black position
+
+        """
+        # todo: start to look for the new stone from the last known area (tenuki is rarely done at all moves)
+        assert len(self._background) == gsize, "At least one sample must have been run to provide comparison data."
+        pos = None
+        val = 0
+        for x in range(gsize):
+            for y in range(gsize):
+                if not self.stones[x][y]:
+                    bg = self._background[x][y]
+                    current = np.zeros(3, dtype=np.int16)
+                    zone, start, end = self._getzone(img, x, y)
+                    for chan in range(3):
+                        current[chan] = int(np.mean(zone[:, :, chan]))
+                    delta = compare(bg, current)
+                    if delta < -140 or 170 < delta:
+                        val = 1 if delta < 0 else 2
+                        if pos is None:
+                            pos = x, y
+                        else:
+                            print "dropped frame: StonesFinder (too many hits)"
+                            return
+                #current -= bg
+                #current = np.absolute(current)
+                #color = (int(current[0]), int(current[1]), int(current[2]))
+                #cv2.rectangle(img, start, end, color, thickness=-1)
+        if pos is not None:
+            if self.lastpos == pos:
+                self.stones[pos] = val
+                row = chr(97 + pos[1])
+                col = chr(97 + pos[0])
+                for obs in self.observers:
+                    print "{0}[{1}{2}]".format(player_color[val], row, col)
+                    obs.pipe((obs._move, (row, col, player_color[val])))
+            else:
+                self.lastpos = pos
+
+    def _drawgrid(self, img):
+        if self._grid is not None:
+            centers = []
+            for i in range(19):
+                for j in range(19):
+                    centers.append(self._grid.pos[i][j])
+                    draw_circles(img, centers)
+
+
+def compare(background, current):
+    """
+    Return a distance between the two colors.
+    background -- a vector of length 3
+    current -- a vector of length 3
+
+    """
+    sign = 1 if np.sum(background) <= np.sum(current) else -1
+    return sign*np.sum(np.absolute(current - background))
 
 
 class Grid(object):
     """
-    Stores the location of each intersection of the goban. This grid aims to be
-    flexible, and provides methods to actualize positions.
+    Store the location of each intersection of the goban.
+    The aim of splitting that part in a separate class is to allow for a more automated and robust
+    version to be developed.
 
     """
 
-    def __init__(self, size, points=None):
-        self.mtx = np.zeros((size, size, 2), dtype=np.int32)
-        # a matrix of colors, 3 per position (i.e. 361*3)
-        self.colors = []
-        self.size = size
+    def __init__(self, points):
+        self.pos = np.zeros((gsize, gsize, 2), dtype=np.int16)
+        hull = ordered_hull(points)
+        assert len(hull) == 4, "The points expected here are the 4 corners of the grid."
+        for i in range(gsize):
+            xup = (hull[0][0] * (gsize - 1 - i) + hull[1][0] * i) / (gsize - 1)
+            xdown = (hull[3][0] * (gsize - 1 - i) + hull[2][0] * i) / (gsize - 1)
+            for j in range(gsize):
+                self.pos[i][j][0] = (xup * (gsize - 1 - j) + xdown * j) / (gsize - 1)
 
-        if points is not None:
-            hull = ordered_hull(points)
-            assert len(hull) == 4, "The points expected here are the 4 corners of the grid."
-            for i in range(size):
-                xup = (hull[0][0] * (size - 1 - i) + hull[1][0] * i) / (size - 1)
-                xdown = (hull[3][0] * (size - 1 - i) + hull[2][0] * i) / (size - 1)
-                for j in range(size):
-                    self.mtx[i][j][0] = (xup * (size - 1 - j) + xdown * j) / (size - 1)
-
-                    yleft = (hull[0][1] * (size - 1 - j) + hull[3][1] * j) / (size - 1)
-                    yright = (hull[1][1] * (size - 1 - j) + hull[2][1] * j) / (size - 1)
-                    self.mtx[i][j][1] = (yleft * (size - 1 - i) + yright * i) / (size - 1)
-
-    def sample(self, img, mask):
-        for i in range(self.size):
-            row = []
-            self.colors.append(row)
-            # build the matrix of mean colors
-            for j in range(self.size):
-                if mask[i][j]:
-                    p = self.mtx[i][j]
-                    pbefore = list(self.mtx[i - 1][j - 1])
-                    pafter = list(self.mtx[min(i + 1, self.size - 1)][min(j + 1, self.size - 1)])
-
-                    if i == 0:
-                        pbefore[0] = -p[0]
-                    elif i == self.size - 1:
-                        pafter[0] = 2 * img.shape[0] - p[0] - 2
-                    if j == 0:
-                        pbefore[1] = -p[1]
-                    elif j == self.size - 1:
-                        pafter[1] = 2 * img.shape[1] - p[1] - 2
-
-                    start = ((pbefore[0] + p[0]) / 2, (pbefore[1] + p[1]) / 2)
-                    end = ((p[0] + pafter[0]) / 2, (p[1] + pafter[1]) / 2)
-                    zone = img[start[0]: end[0], start[1]: end[1]]
-                    color0 = int(np.mean(zone[:, :, 0]))
-                    color1 = int(np.mean(zone[:, :, 1]))
-                    color2 = int(np.mean(zone[:, :, 2]))
-                    color = (color0, color1, color2)
-                    row.append(color)
-
-                    #imgc = img.copy()
-                    #cv2.rectangle(imgc, start, end, color, thickness=-1)
-                    #show(imgc, name="color means")
-                    #if cv2.waitKey() == 113: return
-                else:
-                    row.append(None)
-        for row in self.colors:
-            print row
-        print
-        print
-
-
-        #pbefore = self.mtx[max(i-imid, 0)][max(j-jmid, 0)]
-        #pafter = self.mtx[max(i-imid, 0)][max(j-jmid, 0)]
+                yleft = (hull[0][1] * (gsize - 1 - j) + hull[3][1] * j) / (gsize - 1)
+                yright = (hull[1][1] * (gsize - 1 - j) + hull[2][1] * j) / (gsize - 1)
+                self.pos[i][j][1] = (yleft * (gsize - 1 - i) + yright * i) / (gsize - 1)
 
 
 
 
+
+
+
+# LEGACY CODE PROBABLY OUT OF DATE AND USE
+#    self.perfectv = []
+#    self.perfecth = []
+#
+#def _find_perfects(self, canon_img):
+#    grid = find_segments(canon_img)
+#    grid = runmerge(grid)
+#    if len(self.perfecth) < 18:
+#        for hseg in grid.hsegs:
+#            if abs(hseg.slope) < 0.01:
+#                insort(self.perfecth, hseg)
+#    if len(self.perfectv) < 18:
+#        for vseg in grid.vsegs:
+#            if abs(vseg.slope) < 0.01:
+#                insort(self.perfectv, vseg)
+#
+#def _process_perfects(self, canon_img):
+#    anchors = [[], []]
+#    perfects = (self.perfecth, self.perfectv)
+#    for i in range(2):
+#        rough_size = (float(canon_img.shape[1 - i]) / 19)
+#        estimates = []
+#        # to do: compare with more than one neighbour to leave "noisy couples" out ??
+#        for j in range(len(perfects[i]) - 1):
+#            gap = perfects[i][j + 1].intercept - perfects[i][j].intercept  # x1-x0 or y1-y0 depending on i
+#            factor = gap / rough_size
+#            if 0.90 < factor:
+#                precision = (factor - floor(factor)) / round(factor)
+#                if precision < 0.10 or 0.90 < precision:
+#                    factor = round(factor)
+#                    estimates.append(gap / factor)
+#                    anchors[i].append(perfects[i][j])
+#                    anchors[i].append(perfects[i][j + 1])
+#
+#        # attempt to correct gap using mean (possibly in a statistically wrong way..)
+#        self.sizes[i] = np.mean(estimates)
+#
+#    # draw extrapolated positions
+#    draw_lines(canon_img, self.perfecth, color=(255, 0, 0))
+#    # draw detected positions
+#    centers = []
+#    for hanch in anchors[0]:
+#        for vanch in anchors[1]:
+#            intersect = hanch.intersection(vanch)
+#            if intersect is not False:
+#                centers.append(intersect)
+#    draw_circles(canon_img, centers, color=(255, 0, 0))
+#    draw_lines(canon_img, self.perfectv, color=(255, 0, 0))
+#    draw_lines(canon_img, anchors[0])
+#    draw_lines(canon_img, anchors[1])
+#    show(canon_img, name="Grid Splitter")
+#    self.reset()
+#    cv2.waitKey()
 
 
 

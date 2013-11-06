@@ -2,12 +2,12 @@ import math
 from bisect import insort
 import random
 import sys
+import os
 
 import cv2
 import numpy as np
-import os
 
-from cam.imgutil import split_sq, Segment, VidProcessor, show, draw_circles, draw_lines
+from cam.imgutil import split_sq, Segment, draw_circles, draw_lines, VidProcessor
 from config.devconf import gobanloc_npz
 
 
@@ -334,8 +334,8 @@ def _get_seg(points):
 
 
 class BoardFinder(VidProcessor):
-    def __init__(self, camera, rectifier):
-        super(self.__class__, self).__init__(camera, rectifier)
+    def __init__(self, camera, rectifier, imqueue):
+        super(self.__class__, self).__init__(camera, rectifier, imqueue)
         self.name = "Manual Grid Detection"
         self.corners = GridListener()
         self.mtx = None
@@ -343,7 +343,7 @@ class BoardFinder(VidProcessor):
 
     def _doframe(self, frame):
         cv2.setMouseCallback(self.name, self.corners.onmouse)
-        if self.undo:
+        if self.undoflag:
             self.perform_undo()
         elif self.corners.ready():
             source = np.array(self.corners.hull, dtype=np.float32)
@@ -351,12 +351,12 @@ class BoardFinder(VidProcessor):
             # todo optimization: crop the image around the ROI before computing the transform
             try:
                 self.mtx = cv2.getPerspectiveTransform(source, dst)
-                self._interrupt()
+                self.interrupt()
             except cv2.error:
                 print "Please mark a square-like area. The 4 points must form a convex hull."
-                self.undo = True
+                self.undoflag = True
         self.corners.paint(frame)
-        show(frame, name=self.name)
+        self._show(frame, name=self.name)
 
     def perform_undo(self):
         self.corners.undo()
@@ -365,7 +365,7 @@ class BoardFinder(VidProcessor):
             os.remove(gobanloc_npz)
         except OSError:
             pass
-        self.undo = False
+        self.undoflag = False
 
 
 class GridListener():

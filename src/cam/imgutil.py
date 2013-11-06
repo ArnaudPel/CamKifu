@@ -1,3 +1,4 @@
+from Queue import Full
 from math import sqrt
 import math
 from sys import float_info
@@ -33,7 +34,7 @@ def split_h(img, nbsplits=5, offset=False):
             y1 = (i + 1) * strip_size + offs
         else:
             if offset:
-                return # skipp last block when offsetting
+                return  # skipp last block when offsetting
             else:
                 y1 = img.shape[0]
 
@@ -149,22 +150,22 @@ windows = set()  # todo improve or remove this dev workaround to center windows 
 
 def show(img, auto_down=True, name="Camkifu", loc=None):
     toshow = img
-    if auto_down:
-        f = _factor(img)
-        if f:
-            toshow = img.copy()
-            name += " (downsized)"
-            for i in range(f):
-                toshow = cv2.pyrDown(toshow)
-
-    elif name not in windows:
-        cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-        if loc is not None:
-            cv2.moveWindow(name, *loc)
-        else:
-            center = (screenw / 2, screenh / 2)
-            cv2.moveWindow(name, max(0, center[0] - img.shape[0] / 2), img.shape[1] / 2)
-        windows.add(name)
+    #if auto_down:
+    #    f = _factor(img)
+    #    if f:
+    #        toshow = img.copy()
+    #        name += " (downsized)"
+    #        for i in range(f):
+    #            toshow = cv2.pyrDown(toshow)
+    #
+    #elif name not in windows:
+    #    cv2.namedWindow(name, cv2.WINDOW_NORMAL)
+    #    if loc is not None:
+    #        cv2.moveWindow(name, *loc)
+    #    else:
+    #        center = (screenw / 2, screenh / 2)
+    #        cv2.moveWindow(name, max(0, center[0] - img.shape[0] / 2), img.shape[1] / 2)
+    #    windows.add(name)
 
     cv2.imshow(name, toshow)
 
@@ -177,7 +178,7 @@ def median_blur(img, ksize=(3, 3)):
         if midx <= x:
             for y in range(img.shape[1]):
                 if midy <= y:
-                    area = img[x-midx: x+midx+1, y-midy: y+midy+1]
+                    area = img[x - midx: x + midx + 1, y - midy: y + midy + 1]
                     try:
                         depth = img.shape[2]
                         for z in range(depth):
@@ -301,12 +302,12 @@ class Segment:
         x = (other[0] - self[0], other[1] - self[1])
         d1 = (self[2] - self[0], self[3] - self[1])
         d2 = (other[2] - other[0], other[3] - other[1])
-        cross = float(d1[0]*d2[1] - d1[1]*d2[0])
+        cross = float(d1[0] * d2[1] - d1[1] * d2[0])
         if abs(cross) < float_info.epsilon:
             return False
         else:
-            t1 = (x[0]*d2[1] - x[1]*d2[0]) / cross
-            return self[0] + t1*d1[0], self[1] + t1*d1[1]
+            t1 = (x[0] * d2[1] - x[1] * d2[0]) / cross
+            return self[0] + t1 * d1[0], self[1] + t1 * d1[1]
 
 
 class VidProcessor(object):
@@ -315,55 +316,85 @@ class VidProcessor(object):
 
     """
 
-    def __init__(self, camera, rectifier):
+    def __init__(self, camera, rectifier, imqueue):
         self.cam = camera
         self.rectifier = rectifier
-        self.process_delay = 200
-        self.pause_delay = 500
-        self.undo = False
-        self.interrupt = False
+        self.imqueue = imqueue
 
-    def run(self):
-        self.interrupt = False
-        while not self.interrupt:
+        self.frame_delay = 0.2  # by default, wait a bit between frame processings to spare some CPU
+        self.undoflag = False
+        self._interruptflag = False
+
+        self.bindings = {'p': self.pause, 'q': self.interrupt, 'z': self.undo}
+        self.key = None
+
+    def execute(self):
+        self._interruptflag = False
+        while not self._interruptflag:
             ret, frame = self.cam.read()
             if ret:
                 if self.rectifier is not None:
                     frame = self.rectifier.undistort(frame)
-                frame = cv2.flip(frame, 1)  # horizontal flip, because I'm using macOS X camera
                 self._doframe(frame)
-                self._wait()
+                self.checkkey()
             else:
                 print "Could not read camera for {0}.".format(str(type(self)))
                 time.sleep(5)
+            time.sleep(self.frame_delay)
 
-    def _wait(self):
+    def checkkey(self):
         """
-        This function is being called by default after _doframe() so that
-        any image displayed will stay on screen. In a development env it
-        makes sense to assume we will show something most of the time.
+        In order to add / modify key bindings, update the dict self.bindings with no-argument methods.
 
-        Overriding the _wait() method with "pass" is a way to skip that step.
+        key -- a char
 
         """
-        key = cv2.waitKey(self.process_delay)
-        # 'p' key pauses the whole process and display
-        if key == 112:
-            while True:
-                # repeating the same key resumes processing. other keys are executed as if nothing happened
-                key = cv2.waitKey(self.pause_delay)
-                if key in (112, 113, 122):
-                    break
-            # 'q' key returns
-        if key == 113:
-            self._interrupt()
-        # 'z' key sets an 'undo' flag that should be available to the function during next iteration.
-        # still to be tested, not too sure about namespaces.
-        elif key == 122:
-            self.undo = True
+        try:
+            key = chr(self.key)
+            command = self.bindings[key]
+            if command is not None:
+                print "executing command '{0}'".format(key)
+                command()
+        except (TypeError, ValueError):
+            pass  # not interested in non-char keys ATM
+        self.key = None
 
-    def _interrupt(self):
-        self.interrupt = True
+    def interrupt(self):
+        self._interruptflag = True
+        self._destroy_windows()
+
+    def pause(self):
+        # todo refactor towards multi-threaded arch
+        #key = None
+        #while True:
+        #    # repeating the same key resumes processing. other keys are executed as if nothing happened
+        #    try:
+        #        key = chr(cv2.waitKey(self.pause_delay))
+        #        if key in self.bindings:
+        #            break
+        #    except ValueError:
+        #        pass
+        #if (key is not None) and key != 'p':
+        #    command = self.bindings[key]
+        #    if command is not None:
+        #        command()
+        pass
+
+    def undo(self):
+        self.undoflag = True
+
+    def _show(self, img, name="VidProcessor"):
+        """
+        Offer the image to the main thread for display.
+
+        """
+        try:
+            self.imqueue.put_nowait((name, img, self))
+        except Full:
+            print "Image queue full, not showing {0}".format(hex(id(img)))
+
+    def _destroy_windows(self):
+        self.imqueue.put(None)
 
     def _doframe(self, frame):
         raise NotImplementedError("Abstract method meant to be extended")
