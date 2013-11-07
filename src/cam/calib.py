@@ -6,7 +6,8 @@ from time import sleep, time
 import cv2
 import numpy as np
 
-from cam.imgutil import draw_circles, VidProcessor
+from cam.imgutil import draw_circles
+from cam.video import VidProcessor
 from config import calibconf
 
 __author__ = 'Kohistan'
@@ -52,7 +53,7 @@ class Rectifier(VidProcessor):
 
     """
     def __init__(self, camera):
-        super(self.__class__, self).__init__(camera, None, None)
+        super(self.__class__, self).__init__(camera)
         self.camera_coeffs = None
         self.disto = None
         try:
@@ -96,7 +97,7 @@ class Rectifier(VidProcessor):
             print "Calibration has been cancelled."
 
     def _doframe(self, frame):
-        self.imqueue.put(("Calibration", frame, self))
+        self._show(frame, name="Calibration")
         if self.mark < time():
             self.mark += calibconf.pause
             message = "Could not detect calibration pattern. Please try to place it differently."

@@ -52,7 +52,7 @@ class Tree:
 
 
 class Kifu:
-    """ A game record """
+    """ A game record. """
     def __init__(self):
         self.root = Tree()
         self.current = self.root

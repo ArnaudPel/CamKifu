@@ -7,7 +7,8 @@ import os
 import cv2
 import numpy as np
 
-from cam.imgutil import split_sq, Segment, draw_circles, draw_lines, VidProcessor
+from cam.imgutil import split_sq, Segment, draw_circles, draw_lines
+from cam.video import VidProcessor
 from config.devconf import gobanloc_npz
 
 
@@ -342,6 +343,7 @@ class BoardFinder(VidProcessor):
         self.size = 19 * 25
 
     def _doframe(self, frame):
+        self._show(frame, name=self.name)
         cv2.setMouseCallback(self.name, self.corners.onmouse)
         if self.undoflag:
             self.perform_undo()
@@ -356,7 +358,6 @@ class BoardFinder(VidProcessor):
                 print "Please mark a square-like area. The 4 points must form a convex hull."
                 self.undoflag = True
         self.corners.paint(frame)
-        self._show(frame, name=self.name)
 
     def perform_undo(self):
         self.corners.undo()

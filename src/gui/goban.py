@@ -4,6 +4,7 @@ from Tkinter import Tk, Canvas
 from go.kifu import Kifu
 from config.guiconf import *
 from gui.cthread import AutoClick
+from gui.pipewarning import PipeWarning
 
 
 __author__ = 'Kohistan'
@@ -32,6 +33,7 @@ class Goban():
         self._bind()
 
         self.queue = Queue(10)
+        self.api = {"add": self._move}
 
     @staticmethod
     def coord(move):
@@ -49,18 +51,26 @@ class Goban():
         b = ord(col) - 97
         return a, b
 
-    def pipe(self, instruction):
-        try:
-            self.queue.put_nowait(instruction)
-        except Full:
-            print "Goban instruction queue full, ignoring {0}".format(instruction)
-        self._canvas.event_generate("<<execute>>")
+    def pipe(self, instruction, args):
+        if self.closed:
+            raise PipeWarning("Goban has been closed")
+        if instruction == "event":
+            self._canvas.event_generate(args)
+        else:
+            try:
+                self.queue.put_nowait((instruction, args))
+            except Full:
+                print "Goban instruction queue full, ignoring {0}".format(instruction)
+            self._canvas.event_generate("<<execute>>")
 
     def _execute(self, event):
         try:
             while True:
-                method, args = self.queue.get_nowait()
-                method(*args)
+                instruction, args = self.queue.get_nowait()
+                try:
+                    self.api[instruction](*args)
+                except KeyError:
+                    pass  # instruction not implemented here
         except Empty:
             pass
 
@@ -219,9 +229,9 @@ class Goban():
         selfcheck = True
         for (i, j) in ((-1, 0), (1, 0), (0, 1), (0, -1)):
             row = a + i
-            if row < 0 or 19 <= row: continue
             col = b + j
-            if col < 0 or 19 <= col: continue
+            if row < 0 or 19 <= row or col < 0 or 19 <= col:
+                continue
             othercolor = self.grid[row][col][0]
             if othercolor == "E":
                 # no need to check own group libs if at least one liberty left
@@ -231,21 +241,22 @@ class Goban():
                 enemies.append((row, col))
         captured = []
         for coord in enemies:
-            if not self._count(coord):
+            if self._count(coord) == 0:
                 self._clean(coord, captured)
                 selfcheck = False
-                # check for suicide play, undo if so
+        # check for suicide play, undo if so
         if selfcheck:
             if not self._count((a, b)):
                 print "suicide play"
                 self._backward("Suicide Play")
-                # store removed stones
+        # store removed stones
         self.deleted.append(captured)
 
     def _count(self, (a, b)):
 
         """
         Recursively counts the group liberties, starting at the given position.
+        Returns the number of liberties of group (a, b)
         """
         count = self._rcount((a, b), 0, self.markid)
         self.markid += 1

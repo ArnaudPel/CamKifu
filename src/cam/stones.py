@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 
 from cam.board import ordered_hull
-from cam.imgutil import draw_circles, VidProcessor
+from cam.imgutil import draw_circles
+from cam.video import VidProcessor
 from config.guiconf import gsize, player_color
 
 __author__ = 'Kohistan'
@@ -125,7 +126,7 @@ class StonesFinder(VidProcessor):
                 col = chr(97 + pos[0])
                 for obs in self.observers:
                     print "{0}[{1}{2}]".format(player_color[val], row, col)
-                    obs.pipe((obs._move, (row, col, player_color[val])))
+                    obs.pipe("add", (row, col, player_color[val]))
             else:
                 self.lastpos = pos
 
