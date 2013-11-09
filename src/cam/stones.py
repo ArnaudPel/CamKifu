@@ -1,8 +1,9 @@
+from bisect import insort
 import cv2
 import numpy as np
 
 from cam.board import ordered_hull
-from cam.imgutil import draw_circles
+from cam.imgutil import draw_circles, show
 from cam.video import VidProcessor
 from config.guiconf import gsize, player_color
 
@@ -47,7 +48,7 @@ class StonesFinder(VidProcessor):
             else:
                 self.detect(canon_img)
             self._drawgrid(canon_img)
-            self._show(canon_img, name="Canoned")
+            self._show(canon_img, name="Goban frame")
 
     def reset(self):
         self._background = self._background = np.zeros_like(self._background)
@@ -55,34 +56,51 @@ class StonesFinder(VidProcessor):
         self.lastpos = None
         self.dosample = True
 
-    def _getzone(self, img, x, y):
+    def _getzone(self, img, r, c):
         """
-        x -- the opencv 'x axis' index
-        y -- the opencv 'y axis' index
+        r -- the intersection row index, numpy-like
+        c -- the intersection column index, numpy-like
 
         """
-        p = self._grid.pos[x][y].copy()
-        pbefore = self._grid.pos[x - 1][y - 1].copy()
-        pafter = self._grid.pos[min(x + 1, gsize - 1)][min(y + 1, gsize - 1)].copy()
-        if x == 0:
+        d, u = 1, 1  # the weights to give to vertical directions (down, up)
+        proportions = [0.5, 1.0]  # needa be floats
+
+        p = self._grid.pos[r][c]
+        pbefore = self._grid.pos[r - 1][c - 1].copy()
+        pafter = self._grid.pos[min(r + 1, gsize - 1)][min(c + 1, gsize - 1)].copy()
+        if r == 0:
             pbefore[0] = -p[0]
-        elif x == gsize - 1:
+        elif r == gsize - 1:
             pafter[0] = 2 * img.shape[0] - p[0] - 2
-        if y == 0:
+        if c == 0:
             pbefore[1] = -p[1]
-        elif y == gsize - 1:
+        elif c == gsize - 1:
             pafter[1] = 2 * img.shape[1] - p[1] - 2
-        start = ((pbefore[0] + p[0]) / 2, (pbefore[1] + p[1]) / 2)
-        end = ((p[0] + pafter[0]) / 2, (p[1] + pafter[1]) / 2)
-        zone = img[start[0]: end[0], start[1]: end[1]].copy()
-        return zone, (start[1], start[0]), (end[1], end[0])
+
+        rects = []
+        points = []  # for debugging purposes. may be a good thing to clean that out
+        # determine start and end point of the rectangle
+        for i in range(2):
+            w1 = proportions[i] / 2
+            w2 = proportions[1-i] / 2
+            start = (int(w1*pbefore[0] + (1-w1)*p[0]), int(w2*pbefore[1] + (1-w2)*p[1]))
+            end = (int((1-w1)*p[0] + w1*pafter[0]), int((1-w2)*p[1] + w2*pafter[1]))
+            rects.append(img[start[0]: end[0], start[1]: end[1]].copy())  # todo try to remove this copy()
+            points.append((start[1], start[0], end[1], end[0]))
+
+        return rects, points
 
     def sample(self, img):
         for x in range(gsize):
             for y in range(gsize):
-                zone, start, end = self._getzone(img, x, y)
-                for chan in range(3):
-                    self._background[x][y][chan] = int(np.mean(zone[:, :, chan]))
+                zones, points = self._getzone(img, x, y)
+                #copy = img.copy()
+                for i, zone in enumerate(zones):
+                    for chan in range(3):
+                        self._background[x][y][chan] = int(np.mean(zone[:, :, chan]))
+                    #cv2.rectangle(copy, points[i][0:2], points[i][2:4], (255, 0, 0), thickness=-1)
+                #show(copy, name="Sampling Zone")
+                #if cv2.waitKey() == 113: raise SystemExit()
         print "Image at {0} set as background.".format(hex(id(img)))
 
     def detect(self, img):
@@ -99,26 +117,37 @@ class StonesFinder(VidProcessor):
         assert len(self._background) == gsize, "At least one sample must have been run to provide comparison data."
         pos = None
         val = 0
+        #subtract = np.zeros_like(img)
+        #deltas = []
         for x in range(gsize):
             for y in range(gsize):
                 if not self.stones[x][y]:
                     bg = self._background[x][y]
                     current = np.zeros(3, dtype=np.int16)
-                    zone, start, end = self._getzone(img, x, y)
-                    for chan in range(3):
-                        current[chan] = int(np.mean(zone[:, :, chan]))
-                    delta = compare(bg, current)
-                    if delta < -140 or 170 < delta:
+                    zones, points = self._getzone(img, x, y)
+                    delta = 0
+                    for i, zone in enumerate(zones):
+                        for chan in range(3):
+                            current[chan] = int(np.mean(zone[:, :, chan]))
+                        delta += compare(bg, current)
+                    if delta < -200 or 400 < delta:
                         val = 1 if delta < 0 else 2
                         if pos is None:
                             pos = x, y
                         else:
                             print "dropped frame: StonesFinder (too many hits)"
                             return
-                #current -= bg
-                #current = np.absolute(current)
-                #color = (int(current[0]), int(current[1]), int(current[2]))
-                #cv2.rectangle(img, start, end, color, thickness=-1)
+
+                    #insort(deltas, delta)
+                    #current -= bg
+                    #current = np.absolute(current)
+                    #color = (int(current[0]), int(current[1]), int(current[2]))
+                    #for i in range(2):
+                    #    cv2.rectangle(subtract, points[i][0:2], points[i][2:4], color, thickness=-1)
+        #self._show(subtract, name="Subtract")
+        #length = len(deltas)
+        #print str(deltas[0:5]) + str(deltas[length-5:length])
+
         if pos is not None:
             if self.lastpos == pos:
                 self.stones[pos] = val

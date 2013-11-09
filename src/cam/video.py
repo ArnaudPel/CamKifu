@@ -2,6 +2,7 @@ from Queue import Full
 from threading import Thread
 import time
 import cv2
+from cam.imgutil import show
 from config.devconf import vid_out_dir
 from datetime import datetime
 
@@ -58,9 +59,13 @@ class VidProcessor(object):
 
         """
         try:
-            key = self.key
-            if type(key) is not str:
-                key = chr(key)
+            if self.imqueue is not None:
+                key = self.key
+                if type(key) is not str:
+                    key = chr(key)
+            else:
+                key = chr(cv2.waitKey(50))  # for when running on main thread
+
             command = self.bindings[key]
             print key
             if command is not None:
@@ -100,15 +105,21 @@ class VidProcessor(object):
 
         """
         try:
-            self.imqueue.put_nowait((name, img, self))
+            if self.imqueue is not None:
+                self.imqueue.put_nowait((name, img, self))
+            else:
+                show(img, name=name)  # assume we are on main thread
             self.own_images.add(name)
         except Full:
             print "Image queue full, not showing {0}".format(hex(id(img)))
 
     def _destroy_windows(self):
         for name in self.own_images:
-            # caveat: wait until a slot is available to ensure destruction
-            self.imqueue.put((name, None, None))
+            if self.imqueue is not None:
+                # caveat: wait until a slot is available to ensure destruction
+                self.imqueue.put((name, None, None))
+            else:
+                cv2.destroyWindow(name)
         self.own_images.clear()
 
     def _doframe(self, frame):

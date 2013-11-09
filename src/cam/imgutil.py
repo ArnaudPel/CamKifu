@@ -148,22 +148,22 @@ windows = set()  # todo improve or remove this dev workaround to center windows 
 
 def show(img, auto_down=True, name="Camkifu", loc=None):
     toshow = img
-    #if auto_down:
-    #    f = _factor(img)
-    #    if f:
-    #        toshow = img.copy()
-    #        name += " (downsized)"
-    #        for i in range(f):
-    #            toshow = cv2.pyrDown(toshow)
-    #
-    #elif name not in windows:
-    #    cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-    #    if loc is not None:
-    #        cv2.moveWindow(name, *loc)
-    #    else:
-    #        center = (screenw / 2, screenh / 2)
-    #        cv2.moveWindow(name, max(0, center[0] - img.shape[0] / 2), img.shape[1] / 2)
-    #    windows.add(name)
+    if auto_down:
+        f = _factor(img)
+        if f:
+            toshow = img.copy()
+            name += " (downsized)"
+            for i in range(f):
+                toshow = cv2.pyrDown(toshow)
+
+    if name not in windows:
+        cv2.namedWindow(name, cv2.WINDOW_NORMAL)
+        if loc is not None:
+            cv2.moveWindow(name, *loc)
+        else:
+            center = (screenw / 2, screenh / 2)
+            cv2.moveWindow(name, max(0, center[0] - toshow.shape[0] / 2), toshow.shape[1] / 2)
+        windows.add(name)
 
     cv2.imshow(name, toshow)
 

@@ -1,7 +1,6 @@
 from Queue import Queue, Empty
 from Tkinter import Tk
 import cv2
-import sys
 from cam.imgutil import show
 from cam.video import VidSampler, KeyboardInput
 
@@ -13,34 +12,43 @@ from gui.goban import Goban
 __author__ = 'Kohistan'
 
 
-def main():
-    root = Tk()
-    goban = Goban(root, Kifu())
-    imqueue = Queue(maxsize=10)
+def main(gui=True):
+    """
+    gui --  Set to false to run the vision on main thread. Handy when needing to
+            display images from inside loops during dev.
 
-    def img_update():
+    """
+
+    if gui:
+        root = Tk()
+        goban = Goban(root, Kifu())
+        imqueue = Queue(maxsize=10)
+        vthread = Vision(goban, imqueue)
+
+        def img_update():
+            try:
+                while True:
+                    elem = imqueue.get_nowait()
+                    name, img, vidproc = elem
+                    if img is not None:
+                        show(img, name=name)
+                        key = cv2.waitKey(20)
+                        vidproc.key = key
+                    else:
+                        cv2.destroyWindow(name)
+            except Empty:
+                pass
+            root.after(5, img_update)
+
+        vthread.start()
         try:
-            while True:
-                elem = imqueue.get_nowait()
-                name, img, vidproc = elem
-                if img is not None:
-                    show(img, name=name)
-                    key = cv2.waitKey(20)
-                    vidproc.key = key
-                else:
-                    cv2.destroyWindow(name)
-        except Empty:
-            pass
-        root.after(5, img_update)
-
-    vthread = Vision(goban, imqueue)
-    vthread.start()
-    root.after(0, img_update)
-
-    try:
-        root.mainloop()
-    finally:
-        vthread.request_exit()
+            root.after(0, img_update)
+            root.mainloop()
+        finally:
+            vthread.request_exit()
+    else:
+        vthread = Vision(None, None)
+        vthread.run()  # run on the main thread
 
 
 def record():
@@ -55,5 +63,5 @@ def record():
 
 
 if __name__ == '__main__':
-    #main()
-    record()
+    main(gui=True)
+    #record()
