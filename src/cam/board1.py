@@ -1,14 +1,13 @@
 import math
 from bisect import insort
 import random
-import sys
 import os
 
 import cv2
 import numpy as np
+from cam.boardbase import BoardFinder, ordered_hull, GobanCorners
 
-from cam.imgutil import split_sq, Segment, draw_circles, draw_lines
-from cam.video import VidProcessor
+from cam.imgutil import split_sq, Segment
 from config.devconf import gobanloc_npz
 
 
@@ -334,116 +333,56 @@ def _get_seg(points):
     return seg
 
 
-class BoardFinder(VidProcessor):
+class BoardFinderManual(BoardFinder):
+
     def __init__(self, camera, rectifier, imqueue):
-        super(self.__class__, self).__init__(camera, rectifier, imqueue)
+        super(BoardFinderManual, self).__init__(camera, rectifier, imqueue)
         self.name = "Manual Grid Detection"
-        self.corners = GridListener()
-        self.mtx = None
-        self.size = 19 * 25
-
-    def _doframe(self, frame):
-        self._show(frame, name=self.name)
-        cv2.setMouseCallback(self.name, self.corners.onmouse)
-        if self.undoflag:
-            self.perform_undo()
-        elif self.corners.ready():
-            source = np.array(self.corners.hull, dtype=np.float32)
-            dst = np.array([(0, 0), (self.size, 0), (self.size, self.size), (0, self.size)], dtype=np.float32)
-            # todo optimization: crop the image around the ROI before computing the transform
-            try:
-                self.mtx = cv2.getPerspectiveTransform(source, dst)
-                self.interrupt()
-            except cv2.error:
-                print "Please mark a square-like area. The 4 points must form a convex hull."
-                self.undoflag = True
-        self.corners.paint(frame)
-
-    def perform_undo(self):
-        self.corners.undo()
-        self.mtx = None
-        try:
-            os.remove(gobanloc_npz)
-        except OSError:
-            pass
-        self.undoflag = False
-
-
-class GridListener():
-    def __init__(self, nb=4):
-        self.nb = nb
-        self.hull = None
         try:
             np_file = np.load(gobanloc_npz)
-            self.points = [p for p in np_file["location"]]
-            self.hull = ordered_hull(self.points)
+            for p in np_file["location"]:
+                self.corners.add(p)
         except IOError or TypeError:
-            self.points = []
+            pass
+
+    def _detect(self, frame):
+        self.corners.paint(frame)
+        self._show(frame, name=self.name)
+        cv2.setMouseCallback(self.name, self.onmouse)
+        if self.undoflag:
+            self.perform_undo()
 
     #noinspection PyUnusedLocal
     def onmouse(self, event, x, y, flag, param):
         if event == cv2.cv.CV_EVENT_LBUTTONDOWN and not self.ready():
-            self.points.append((x, y))
+            self.corners.add((x, y))
             if self.ready():
-                self.hull = ordered_hull(self.points)
-                if len(self.hull) == 4:
-                    np.savez(gobanloc_npz, location=self.points)
+                np.savez(gobanloc_npz, location=self.corners._points)
 
-    def undo(self):
-        if len(self.points):
-            self.points.pop(-1)
-
-    def ready(self):
-        return len(self.points) == self.nb
-
-    def paint(self, img):
-        #draw the clicks
-        draw_circles(img, self.points)
-
-        #draw convex hull
-        if self.ready():
-            nbpts = len(self.hull) - 1
-            color = (0, 0, 255)
-            for i in range(-1, nbpts):
-                x1, y1 = self.hull[i]
-                x2, y2 = self.hull[i + 1]
-                draw_lines(img, [[x1, y1, x2, y2]], color)
-                color = (255 * (nbpts - i - 1) / nbpts, 0, 255 * (i + 1) / nbpts)
-
-                # draw extrapolated
-                #if len(self.hull) == 4:
-                #    segs = []
-                #    for i in [-1, 0]:
-                #        p11 = self.hull[i]
-                #        p12 = self.hull[i + 1]
-                #        p21 = self.hull[i + 2]
-                #        p22 = self.hull[i + 3]
-                #
-                #size = 18
-                #for j in range(1, size):
-                #    x1 = (j * p11[0] + (size - j) * p12[0]) / size
-                #    x2 = (j * p22[0] + (size - j) * p21[0]) / size
-                #    y1 = (j * p11[1] + (size - j) * p12[1]) / size
-                #    y2 = (j * p22[1] + (size - j) * p21[1]) / size
-                #    segs.append([x1, y1, x2, y2])
-                #draw_lines(img, segs, color=(42, 142, 42))
-
-    def __str__(self):
-        return "Corners:" + str(self.points)
+    def perform_undo(self):
+        super(BoardFinderManual, self).perform_undo()
+        self.corners.pop()
+        try:
+            os.remove(gobanloc_npz)
+        except OSError:
+            pass
 
 
-def ordered_hull(points):
-    hull = []
-    idx = 0
-    mind = sys.maxint
-    cvhull = cv2.convexHull(np.vstack(points))
-    for i in range(len(cvhull)):
-        p = cvhull[i][0]
-        dist = p[0] ** 2 + p[1] ** 2
-        if dist < mind:
-            mind = dist
-            idx = i
-    for i in range(idx, idx + len(cvhull)):
-        p = cvhull[i % len(cvhull)][0]
-        hull.append((p[0], p[1]))
-    return hull
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

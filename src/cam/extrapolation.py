@@ -1,5 +1,5 @@
 from _bisect import insort
-from cam.board import SegGrid
+from cam.board1 import SegGrid
 
 __author__ = 'Kohistan'
 

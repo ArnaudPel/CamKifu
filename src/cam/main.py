@@ -63,5 +63,5 @@ def record():
 
 
 if __name__ == '__main__':
-    main(gui=True)
+    main(gui=False)
     #record()

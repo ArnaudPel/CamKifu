@@ -1,8 +1,10 @@
 from threading import Thread
 import cv2
-from cam.board import BoardFinder
+from cam.board1 import BoardFinder, BoardFinderManual
+from cam.board2 import BoardFinderAuto
 from cam.calib import Rectifier
-from cam.stones import StonesFinder
+from cam.stones1 import BackgroundSub
+from cam.stones2 import NeighbourComp
 from gui.pipewarning import PipeWarning
 
 __author__ = 'Kohistan'
@@ -24,7 +26,8 @@ class Vision(Thread):
 
     def run(self):
         rectifier = Rectifier(self.cam)
-        board_finder = BoardFinder(self.cam, rectifier, self.imqueue)
+        #board_finder = BoardFinderManual(self.cam, rectifier, self.imqueue)
+        board_finder = BoardFinderAuto(self.cam, rectifier, self.imqueue)
 
         states = ("board detection", "stones detection")
         state = states[0]
@@ -35,8 +38,10 @@ class Vision(Thread):
                 self.current_proc = board_finder
                 board_finder.execute()
                 if board_finder.mtx is not None:
-                    stones_finder = StonesFinder(self.cam, rectifier, self.imqueue, board_finder.mtx,
-                                                 board_finder.size)
+                    stones_finder = BackgroundSub(self.cam, rectifier, self.imqueue,
+                                                  board_finder.mtx, board_finder.size)
+                    #stones_finder = NeighbourComp(self.cam, rectifier, self.imqueue,
+                    #                              board_finder.mtx, board_finder.size)
                     stones_finder.observers.append(self.observer)
                     state = states[1]
                 else:

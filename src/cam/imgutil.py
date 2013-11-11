@@ -111,6 +111,17 @@ def draw_lines(img, segments, color=(0, 255, 0)):
             print e
 
 
+def draw_str(dst, (x, y), s):
+    """
+    Thank you dear opencv python samples.
+
+    """
+    # the shadow
+    cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.CV_AA)
+    # the white text
+    cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), lineType=cv2.CV_AA)
+
+
 def saturate(img):
     """
     Convert the image to HSV, multiply both Saturation and Value by 1.5,
@@ -305,6 +316,6 @@ class Segment:
             return False
         else:
             t1 = (x[0] * d2[1] - x[1] * d2[0]) / cross
-            return self[0] + t1 * d1[0], self[1] + t1 * d1[1]
+            return int(self[0] + t1 * d1[0]), int(self[1] + t1 * d1[1])
 
 

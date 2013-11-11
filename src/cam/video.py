@@ -2,9 +2,7 @@ from Queue import Full
 from threading import Thread
 import time
 import cv2
-from cam.imgutil import show
-from config.devconf import vid_out_dir
-from datetime import datetime
+from cam.imgutil import show, draw_str
 
 __author__ = 'Kohistan'
 
@@ -32,21 +30,26 @@ class VidProcessor(object):
 
         self.bindings = {'p': self.pause, 'q': self.interrupt, 'z': self.undo}
         self.key = None
+        self.latency = 0.0
 
     def execute(self):
         self._interruptflag = False
         while not self._interruptflag:
-            now = time.time()
-            if self.frame_period < now - self.lastf:
-                self.lastf = now
+            start = time.time()
+            if self.frame_period < start - self.lastf:
+                self.lastf = start
                 ret, frame = self.cam.read()
                 if ret:
-                    if self.rectifier is not None:
-                        frame = self.rectifier.undistort(frame)
+                     # undistort seems to actually pollute board detection.
+                     # todo remove calibration if it's not actually helping.
+                    #if self.rectifier is not None:
+                        #frame = self.rectifier.undistort(frame)
                     self._doframe(frame)
                     self.checkkey()
+                    self.latency = time.time() - start
                 else:
                     print "Could not read camera for {0}.".format(str(type(self)))
+                    self.latency = 0.0
                     time.sleep(5)
             else:
                 time.sleep(self.frame_period / 10)  # precision doesn't really matter here
@@ -80,30 +83,32 @@ class VidProcessor(object):
         self._destroy_windows()
 
     def pause(self):
-        # todo refactor towards multi-threaded arch
-        #key = None
-        #while True:
-        #    # repeating the same key resumes processing. other keys are executed as if nothing happened
-        #    try:
-        #        key = chr(cv2.waitKey(self.pause_delay))
-        #        if key in self.bindings:
-        #            break
-        #    except ValueError:
-        #        pass
-        #if (key is not None) and key != 'p':
-        #    command = self.bindings[key]
-        #    if command is not None:
-        #        command()
-        pass
+        # todo refactor for multi-threaded arch
+        if self.imqueue is None:
+            key = None
+            while True:
+                # repeating the same key resumes processing. other keys are executed as if nothing happened
+                try:
+                    key = chr(cv2.waitKey(500))
+                    if key in self.bindings:
+                        break
+                except ValueError:
+                    pass
+            if (key is not None) and key != 'p':
+                command = self.bindings[key]
+                if command is not None:
+                    command()
 
     def undo(self):
         self.undoflag = True
 
-    def _show(self, img, name="VidProcessor"):
+    def _show(self, img, name="VidProcessor", latency=True):
         """
         Offer the image to the main thread for display.
 
         """
+        if latency:
+            draw_str(img, (40, 20), "latency:  %.1f ms" % (self.latency * 1000))
         try:
             if self.imqueue is not None:
                 self.imqueue.put_nowait((name, img, self))
