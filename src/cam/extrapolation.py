@@ -111,24 +111,23 @@ def median(grid):
     #return Grid(parallels, grid.vsegs, grid.img)
 
 
-def bidirection(alist, start, exclude=False):
+def bidirection(length, start, exclude=False):
     """
-    >>> alist = [1,2,3,4,5,6,7,8,9]
-    >>> print [x for x in bidirection(alist, 3)]
-    [4, 3, 5, 2, 6, 1, 7, 8, 9]
-    >>> print [x for x in bidirection(alist, 0)]
-    [1, 2, 3, 4, 5, 6, 7, 8, 9]
-    >>> print [x for x in bidirection(alist, len(alist) - 1)]
-    [9, 8, 7, 6, 5, 4, 3, 2, 1]
-    >>> print [x for x in bidirection(alist, 3, exclude=True)]
-    [5, 3, 6, 2, 7, 1, 8, 9]
+    >>> print [x for x in bidirection(7, 3)]
+    [2, 3, 1, 4, 0, 5, 6]
+    >>> print [x for x in bidirection(7, 0)]
+    [0, 1, 2, 3, 4, 5, 6]
+    >>> print [x for x in bidirection(7, 6)]
+    [5, 6, 4, 3, 2, 1, 0]
+    >>> print [x for x in bidirection(7, 3, exclude=True)]
+    [2, 4, 1, 5, 0, 6]
     """
     bw = start - 1
     fw = start
     if exclude:
         fw += 1
-    forward = fw < len(alist)
-    while 0 <= bw or fw < len(alist):
+    forward = start < length / 2
+    while 0 <= bw or fw < length:
         if forward:
             yield fw
             fw += 1
@@ -136,7 +135,7 @@ def bidirection(alist, start, exclude=False):
         else:
             yield bw
             bw -= 1
-            forward = fw < len(alist)
+            forward = fw < length
 
 
 

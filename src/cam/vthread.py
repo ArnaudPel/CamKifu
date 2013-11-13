@@ -1,11 +1,8 @@
 from threading import Thread
 import cv2
-from cam.board1 import BoardFinder, BoardFinderManual
 from cam.board2 import BoardFinderAuto
 from cam.calib import Rectifier
 from cam.stones1 import BackgroundSub
-from cam.stones2 import NeighbourComp
-from gui.pipewarning import PipeWarning
 
 __author__ = 'Kohistan'
 
@@ -20,6 +17,7 @@ class Vision(Thread):
     def __init__(self, observer, images):
         Thread.__init__(self, name="Vision")
         self.observer = observer
+        #noinspection PyArgumentList
         self.cam = cv2.VideoCapture(0)
         self.imqueue = images
         self.current_proc = None
