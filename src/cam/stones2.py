@@ -1,5 +1,4 @@
 from bisect import insort
-import cv2
 import numpy as np
 from cam.stonesbase import StonesFinder, compare
 from config.guiconf import gsize

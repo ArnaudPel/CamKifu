@@ -131,14 +131,18 @@ class VidProcessor(object):
         raise NotImplementedError("Abstract method meant to be extended")
 
 
-class VidSampler(VidProcessor):
+class VidRecorder(VidProcessor):
+    """
+    Class to record a sample into a video file.
+
+    """
     def __init__(self, camera, directory, filename, fps=5):
         """
         fps -- frames per second.
         filepath -- the location where to save the video
 
         """
-        super(VidSampler, self).__init__(camera)
+        super(VidRecorder, self).__init__(camera)
         self.uri = "{0}/{1}.avi".format(directory, filename)
         self._fps = fps
         self._lastw = 0

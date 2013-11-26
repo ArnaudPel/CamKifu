@@ -68,6 +68,10 @@ class Kifu:
 
     @staticmethod
     def parse(sgf):
+        """
+        Return a kifu reflecting the given sgf file.
+
+        """
         print "parsing " + sgf
         kifu = Kifu()
         with open(sgf) as mfile:
@@ -89,5 +93,34 @@ class Kifu:
         return kifu
 
 if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
+    kifu = Kifu.parse("/Users/Kohistan/Documents/go/Perso Games/sgfc output.sgf")
+    print kifu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

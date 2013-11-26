@@ -2,12 +2,12 @@ from Queue import Queue, Empty
 from Tkinter import Tk
 import cv2
 from cam.imgutil import show
-from cam.video import VidSampler, KeyboardInput
+from cam.video import VidRecorder, KeyboardInput
 
 from cam.vthread import Vision
 from config.devconf import vid_out_dir
 from go.kifu import Kifu
-from gui.goban import Goban
+from gui.gobanTk import GobanTk
 
 __author__ = 'Kohistan'
 
@@ -21,7 +21,7 @@ def main(gui=True):
 
     if gui:
         root = Tk()
-        goban = Goban(root, Kifu())
+        goban = GobanTk(root, Kifu())
         imqueue = Queue(maxsize=10)
         vthread = Vision(goban, imqueue)
 
@@ -52,8 +52,9 @@ def main(gui=True):
 
 
 def record():
+    #noinspection PyArgumentList
     cam = cv2.VideoCapture(0)
-    recorder = VidSampler(cam, vid_out_dir, "Plaizac 1")
+    recorder = VidRecorder(cam, vid_out_dir, "Plaizac 1")
 
     kbin = KeyboardInput(recorder)
     kbin.daemon = True

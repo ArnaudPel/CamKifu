@@ -9,6 +9,14 @@ __author__ = 'Kohistan'
 
 
 class BoardFinder(VidProcessor):
+    """
+    Abstract class providing a suggestion of common features that should be
+    shared by board (goban) finding algorithms.
+
+    The most inflexible part is to hold a self.mtx object when detection has been successful,
+    expected to be the matrix used in perspective transforms.
+
+    """
 
     def __init__(self, camera, rectifier, imqueue):
         super(BoardFinder, self).__init__(camera, rectifier, imqueue)

@@ -6,24 +6,23 @@ from Tkinter import Tk, Canvas
 from go.kifu import Kifu
 from config.guiconf import *
 from go.rules import Rule, coord
-from gui.cthread import AutoClick
 from gui.pipewarning import PipeWarning
 
 
 __author__ = 'Kohistan'
 
 
-class Goban():
+class GobanTk():
     """
     Class modeling the GUI, that is to say a goban.
     """
 
-    def __init__(self, root, kifu):
+    def __init__(self, master, kifu):
         self.kifu = kifu
         self.rules = Rule()
 
-        self._root = root
-        self._canvas = Canvas(root, width=gsize * rwidth, height=gsize * rwidth)
+        self._master = master
+        self._canvas = Canvas(master, width=gsize * rwidth, height=gsize * rwidth)
         self.border = 3
         self.tkindexes = np.zeros((gsize, gsize), dtype=np.uint16)
         self.highlight_id = -1
@@ -59,7 +58,7 @@ class Goban():
             pass
 
     def quit(self, event):
-        self._root.quit()
+        self._master.quit()
         self.closed = True
 
     def printself(self, event):
@@ -209,7 +208,7 @@ class Goban():
 if __name__ == '__main__':
     kifu = Kifu.parse("/Users/Kohistan/Documents/Go/Legend Games/MilanMilan-Korondo.sgf")
     root = Tk()
-    goban = Goban(root, kifu)
+    goban = GobanTk(root, kifu)
     #autoplay = AutoClick(goban)
     #autoplay.start()
     root.mainloop()
