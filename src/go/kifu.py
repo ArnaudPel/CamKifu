@@ -1,112 +1,90 @@
+from config.guiconf import gsize
+from go.sgf import Collection, GameTree, Node, Parser
+
 __author__ = 'Kohistan'
 
 
-class Tree:
-    """ A tree structure modeling the moves of the game.
-    >>> kifu = Kifu()
-    >>> kifu.move("B[aa]")
-    >>> kifu.move("W[ba]")
-    >>> kifu.move("ca")
-    >>> kifu.undo()
-    >>> kifu.move("cb")
-    >>> kifu.move("db")
-    >>> kifu.move("eb")
-    >>> kifu.undo()
-    >>> kifu.undo()
-    >>> kifu.undo()
-    >>> kifu.move("cb")
-    >>> kifu.move("dc")
-    >>> print(kifu)
-    root: B[aa]
-    B[aa]: W[ba]
-    W[ba]: ca cb
-    ca:
-    cb: db dc
-    db: eb
-    eb:
-    dc:
-    <BLANKLINE>
-     """
-
-    def __init__(self, parent=None, move="root"):
-        self.parent = parent
-        self.value = move
-        self.children = []
-
-    def move(self, move):
-        for child in self.children:
-            if child.value == move:
-                return child
-        child = Tree(self, move)
-        self.children.append(child)
-        return child
-
-    def __repr__(self):
-        stri = self.value + ":"
-        for child in self.children:
-            stri += " " + child.value
-        stri += "\n"
-        for child in self.children:
-            stri += repr(child)
-        return stri
-
-
 class Kifu:
-    """ A game record. """
-    def __init__(self):
-        self.root = Tree()
-        self.current = self.root
+    """
+    Utility class simplifying common interactions with the SGF structure.
+    Will become more complicated if variations support is introduced.
 
-    def move(self, move):
-        self.current = self.current.move(move)
+    self.game -- the GameTree object backing the recording of this kifu.
 
-    def undo(self):
-        self.current = self.current.parent
+    """
+    def __init__(self, game):
+        self.game = game
+
+    def append(self, move):
+        node = Node(self.game, self.game.nodes[-1])
+        r, c = move.getab()
+        node.properties[move.color] = [r + c]  # sgf properties are in a list
+        node.number()
+        self.game.nodes.append(node)
+
+    def pop(self):
+        self.game.nodes.pop()
+
+    def current_move(self):
+        return self.game.nodes[-1].getmove()
+
+    def next_color(self):
+        current = self.current_move()
+        if current is not None:
+            return 'B' if current.color == 'W' else 'W'
+        else:
+            return 'B'
 
     def __repr__(self):
-        return repr(self.root)
+        return repr(self.game)
 
     @staticmethod
-    def parse(sgf):
+    def new():
         """
-        Return a kifu reflecting the given sgf file.
+        Create an empty Kifu.
 
         """
-        print "parsing " + sgf
-        kifu = Kifu()
-        with open(sgf) as mfile:
-            for line in mfile:
-                length = len(line)
-                i = 0
-                while i < length:
-                    if line[i] == ';':
-                        i += 1
-                        keyword = ""
-                        while (i < length) and (line[i] != "["):
-                            keyword += line[i]
-                            i += 1
-                        if keyword == 'B' or keyword == 'W':
-                            kifu.move(keyword + line[i:i+4])
-                    else:
-                        i += 1
-            kifu.current = kifu.root
-        return kifu
+        # initialize game
+        collection = Collection()
+        game = GameTree(collection)
+        collection.children.append(game)
+
+        # add context node
+        context = Node(game, None)
+        context.properties["SZ"] = [gsize]
+        context.properties['C'] = ["Recorded with Camkifu."]
+        context.number()
+        game.nodes.append(context)
+
+        return Kifu(game)
+
+    @staticmethod
+    def parse(filepath):
+        """
+        Create a Kifu reflecting the given file.
+
+        """
+        parser = Parser()
+        f = file(filepath)
+        sgf_string = f.read()
+        f.close()
+        collection = Collection(parser)
+        parser.parse(sgf_string)
+        return Kifu(collection[0])
+
 
 if __name__ == '__main__':
-    kifu = Kifu.parse("/Users/Kohistan/Documents/go/Perso Games/sgfc output.sgf")
-    print kifu
+    colors = ['B', 'W']
+    kifu = Kifu.new()
+    previous = kifu.game.nodes[-1]
+    for i in range(gsize):
+        node = Node(kifu.game, previous)
+        node.properties[colors[i % 2]] = [chr(i+97)+chr(i+97)]
+        kifu.game.nodes.append(node)
+        previous = node
 
-
-
-
-
-
-
-
-
-
-
-
+    f_out = file("/Users/Kohistan/Documents/go/Perso Games/updated.sgf", 'w')
+    kifu.game.parent.output(f_out)
 
 
 

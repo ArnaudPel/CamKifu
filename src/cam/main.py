@@ -7,7 +7,8 @@ from cam.video import VidRecorder, KeyboardInput
 from cam.vthread import Vision
 from config.devconf import vid_out_dir
 from go.kifu import Kifu
-from gui.gobanTk import GobanTk
+from gui.controller import Controller
+from gui.ui import UI
 
 __author__ = 'Kohistan'
 
@@ -21,9 +22,11 @@ def main(gui=True):
 
     if gui:
         root = Tk()
-        goban = GobanTk(root, Kifu())
+        app = UI(root)
+        control = Controller(Kifu.new(), app.goban, app.goban)
+
         imqueue = Queue(maxsize=10)
-        vthread = Vision(goban, imqueue)
+        vthread = Vision(control, imqueue)
 
         def img_update():
             try:
@@ -64,5 +67,5 @@ def record():
 
 
 if __name__ == '__main__':
-    main(gui=False)
+    main(gui=True)
     #record()

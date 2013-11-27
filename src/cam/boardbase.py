@@ -43,6 +43,7 @@ class BoardFinder(VidProcessor):
 
     def ready(self):
         return self.corners.hull is not None
+        #return False
 
     def _detect(self, frame):
         raise NotImplementedError("Abstract method meant to be extended")

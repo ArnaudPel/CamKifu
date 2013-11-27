@@ -1,4 +1,5 @@
 from config.guiconf import gsize
+from go.sgf import Move
 from go.stateerror import StateError
 
 __author__ = 'Kohistan'
@@ -32,23 +33,19 @@ class Rule(object):
 
         """
         if self.last is not None:
-            a, b = coord(self.last)
-            color = self.last[0]
-            self.stones[a][b] = color
+            self.stones[self.last.x][self.last.y] = self.last.color
             self.last = None
             if self.lastdel is not None:
                 self.deleted.append(self.lastdel)
                 for capt in self.lastdel:
-                    x, y = coord(capt)
-                    self.stones[x][y] = 'E'
+                    self.stones[capt.x][capt.y] = 'E'
                 self.lastdel = None
             else:
                 if len(self.deleted):
                     captured = self.deleted.pop()
                     if captured is not None:
                         for move in captured:
-                            x, y = coord(move)
-                            self.stones[x][y] = move[0]
+                            self.stones[move.x][move.y] = move.color
         else:
             raise StateError("Confirming a forbidden state")
 
@@ -64,17 +61,18 @@ class Rule(object):
 
         """
 
-        a, b = coord(move)
-        color = move[0]
+        x_ = move.x
+        y_ = move.y
+        color = move.color
         enem_color = enemy(color)
 
-        if self.stones[a][b] == 'E':
-            self.stones[a][b] = color
+        if self.stones[x_][y_] == 'E':
+            self.stones[x_][y_] = color
             self.lastdel = set()
 
             # check if kill (attack advantage)
             enemies = []
-            for row, col in connected(a, b):
+            for row, col in connected(x_, y_):
                 neighcolor = self.stones[row][col]
                 if neighcolor == enem_color:
                     enemies.append((row, col))
@@ -82,13 +80,13 @@ class Rule(object):
                 group, nblibs = self._data(x, y)
                 if nblibs == 0:
                     for k, l in group:
-                        self.lastdel.add(getmove(enem_color, k, l))
+                        self.lastdel.add(Move(enem_color, k, l))
                     self.last = move
 
                 # check for suicide play if need be
             retval = True, self.lastdel
             if not self.last:
-                _, nblibs = self._data(a, b)
+                _, nblibs = self._data(x_, y_)
                 if not nblibs:
                     retval = False, "Suicide"
                     self.last = None
@@ -96,7 +94,7 @@ class Rule(object):
                     self.last = move
 
             # cancel
-            self.stones[a][b] = 'E'
+            self.stones[x_][y_] = 'E'
         else:
             retval = False, "Occupied"
             self.last = None
@@ -114,10 +112,11 @@ class Rule(object):
         move -- the move to check for undo.
 
         """
-        a, b = coord(move)
-        allowed = self.stones[a][b] == move[0]
+        x_ = move.x
+        y_ = move.y
+        allowed = self.stones[x_][y_] == move.color
         if allowed:
-            self.last = getmove('E', a, b)
+            self.last = Move('E', x_, y_)
             data = self.deleted[-1]
             self.lastdel = None
         else:
@@ -125,7 +124,7 @@ class Rule(object):
             data = "Empty"
         return allowed, data
 
-    def _data(self, a, b, _group=None, _libs=None):
+    def _data(self, x, y, _group=None, _libs=None):
         """
         Returns the list of stones and the number of liberties of the group at (a, b).
 
@@ -133,14 +132,14 @@ class Rule(object):
         _group, _libs -- internal variables used in the recursion, no need to set them from outside.
 
         """
-        color = self.stones[a][b]
+        color = self.stones[x][y]
         if _group is None:
             assert color != 'E'
             _group = []
             _libs = []
-        if (a, b) not in _group:
-            _group.append((a, b))
-            for x, y in connected(a, b):
+        if (x, y) not in _group:
+            _group.append((x, y))
+            for x, y in connected(x, y):
                 neighcolor = self.stones[x][y]
                 if neighcolor == 'E':
                     if (x, y) not in _libs:
@@ -163,7 +162,7 @@ class Rule(object):
         return string
 
 
-def connected(a, b):
+def connected(x, y):
     """
     Yields the (up to) 4 positions connected to (a, b).
 
@@ -180,45 +179,11 @@ def connected(a, b):
 
     """
     for (i, j) in ((-1, 0), (1, 0), (0, 1), (0, -1)):
-        row = a + i
+        row = x + i
         if 0 <= row < gsize:
-            col = b + j
+            col = y + j
             if 0 <= col < gsize:
                 yield row, col
-
-
-def coord(move):
-    """
-    Returns a tuple of integer describing the row and column of the move.
-    move -- a string formatted on 5 characters as follow: "W[ab]"
-            W is the color of the player
-            a is the row
-            b is the column
-
-    >>> coord("W[aa]")
-    (0, 0)
-    >>> coord("W[cd]")
-    (2, 3)
-    >>> coord("B[ss]")
-    (18, 18)
-    """
-    row = move[2]
-    col = move[3]
-    a = ord(row) - 97
-    b = ord(col) - 97
-    return a, b
-
-
-def getmove(color, a, b):
-    """
-    >>> getmove('W', 0, 0)
-    'W[aa]'
-    >>> getmove('W', 2, 3)
-    'W[cd]'
-    >>> getmove('B', 18, 18)
-    'B[ss]'
-    """
-    return color + "[" + chr(a + 97) + chr(b + 97) + "]"
 
 
 def enemy(color):
