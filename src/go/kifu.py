@@ -1,5 +1,6 @@
 from config.guiconf import gsize
 from go.sgf import Collection, GameTree, Node, Parser
+from go.sgfwarning import SgfWarning
 
 __author__ = 'Kohistan'
 
@@ -12,8 +13,9 @@ class Kifu:
     self.game -- the GameTree object backing the recording of this kifu.
 
     """
-    def __init__(self, game):
+    def __init__(self, game, sgffile=None):
         self.game = game
+        self.sgffile = sgffile
 
     def append(self, move):
         node = Node(self.game, self.game.nodes[-1])
@@ -34,6 +36,13 @@ class Kifu:
             return 'B' if current.color == 'W' else 'W'
         else:
             return 'B'
+
+    def save(self):
+        if self.sgffile is not None:
+            with open(self.sgffile, 'w') as f:
+                self.game.output(f)
+        else:
+            raise SgfWarning("No file defined, can't save.")
 
     def __repr__(self):
         return repr(self.game)
@@ -78,10 +87,10 @@ if __name__ == '__main__':
     kifu = Kifu.new()
     previous = kifu.game.nodes[-1]
     for i in range(gsize):
-        node = Node(kifu.game, previous)
-        node.properties[colors[i % 2]] = [chr(i+97)+chr(i+97)]
-        kifu.game.nodes.append(node)
-        previous = node
+        nod = Node(kifu.game, previous)
+        nod.properties[colors[i % 2]] = [chr(i+97)+chr(i+97)]
+        kifu.game.nodes.append(nod)
+        previous = nod
 
     f_out = file("/Users/Kohistan/Documents/go/Perso Games/updated.sgf", 'w')
     kifu.game.parent.output(f_out)

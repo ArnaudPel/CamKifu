@@ -101,7 +101,7 @@ class BackgroundSub(StonesFinder):
                 col = chr(97 + pos[0])
                 for obs in self.observers:
                     print "{0}[{1}{2}]".format(player_color[val], row, col)
-                    obs.pipe("add", (row, col, player_color[val]))
+                    obs.pipe("append", (player_color[val], row, col))
             else:
                 self.lastpos = pos
 

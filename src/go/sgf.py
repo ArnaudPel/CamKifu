@@ -162,9 +162,9 @@ class GameTree:
 
         """
         try:
-            return self[0].lastmove() if len(self) else self.nodes[-1].properties["MN"][0]
+            return self[0].lastmove() if len(self) else self.nodes[-1].getmove()
         except KeyError:
-            return 0
+            return None
 
     def __getitem__(self, item):
         """
@@ -259,22 +259,23 @@ class Node:
         Returns a Move object, or null if this node has no move property.
 
         """
+        number = None
+        try:
+            number = self.properties["MN"][0]
+        except KeyError:
+            pass
+
         move = None
         try:
-            move = Move('B', *self.properties['B'][0])
+            move = Move('B', *self.properties['B'][0], number=number)
         except KeyError:
             try:
-                move = Move('W', *self.properties['W'][0])
+                move = Move('W', *self.properties['W'][0], number=number)
             except KeyError:
                 keys = self.properties.keys()
                 if 'AW' in keys or 'BW' in keys or 'EW' in keys:
-                    number = ''
-                    try:
-                        number = " Move:" + str(self.properties["MN"])
-                    except KeyError:
-                        pass
                     raise SgfWarning("Setup properties detected (not currently supported). "
-                                     "The game may not be rendered correctly." + number)
+                                     "The game may not be rendered correctly. Move:" + str(number))
         return move
 
     def __repr__(self):
@@ -302,10 +303,11 @@ class Move(object):
 
     """
 
-    def __init__(self, color, row, col):
+    def __init__(self, color, row, col, number=-1):
         self.color = color
         self.x = row if type(row) is int else ord(row) - 97
         self.y = col if type(col) is int else ord(col) - 97
+        self.number = number
 
     def getab(self):
         """

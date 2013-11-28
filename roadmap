@@ -1,0 +1,27 @@
+
+
+BEFORE PUBLISH:
+
+- split into 2 separate projects to isolate Go from Vision (save openCV install hassle). try to run that on @Jack.
+- readme
+- write more test (+ code coverage tool ?), including videos and sgf ressources
+- add copyleft ?
+
+
+ON PUBLISH:
+
+- links to openCV install
+- links to PyCharm
+
+
+COMMUNITY :
+
+- channel all printing to a log
+- create a log viewer pane in the gui
+
+- add game-related informations (player names, number of captured, time, ... )
+- allow initial game setup, like handicap stones (automated if possible)
+
+- pause processing
+
+- save user preferences: sgf save directory.

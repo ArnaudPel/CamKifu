@@ -1,5 +1,7 @@
 from Tkconstants import BOTH, LEFT, TOP
+from tkFileDialog import asksaveasfilename
 from Tkinter import Tk, Canvas, Misc
+import traceback
 from ttk import Frame, Button
 
 import numpy as np
@@ -16,39 +18,71 @@ The main user interface.
 
 
 class UI(Frame):
-    
     def __init__(self, master):
         Frame.__init__(self, master)
         self.goban = Goban(self)
         self.init_ui()
         self.closed = False
 
+        # user input part of the gui, delegated to goban ATM. may become lists later
+        self.mousein = self.goban
+        self.keyin = self.goban
+
+        # these are expected to be set from outside, in an attempt to inject dependency via setter
+        self.commands = {}
+
+        # delegate some work to goban
+        self.display = self.goban.display
+        self.erase = self.goban.erase
+        self.highlight = self.goban.highlight
+
     def init_ui(self):
         self.pack(fill=BOTH, expand=1)
         self.goban.pack(side=LEFT)
 
-        b_close = Button(self, text="Close")
-        b_ok = Button(self, text="OK")
-        b_ok.pack(side=TOP, padx=5, pady=5)
-        b_close.pack(side=TOP)
+        b_save = Button(self, text="Save", command=self.save)
+        b_pause = Button(self, text="Pause", command=self.pause)
+        b_pause.pack(side=TOP, padx=5, pady=5)
+        b_save.pack(side=TOP)
 
-        self.bind("<q>", self.close)
+        self.goban.focus_set()
+        self.goban.bind("<q>", self.close)  # dev utility mostly, will probably have to be removed
 
     def close(self, _):
         self.closed = True
+        self.goban.closed = True
         Misc.quit(self)
+
+    def save(self):
+        self.execute("save")
+
+    def pause(self):
+        self.execute("pause")
+
+    def execute(self, command):
+        try:
+            self.commands[command]()
+        except KeyError:
+            print "No \"{0}\" command set, ignoring.".format(command)
+        except Exception:
+            # keep going
+            traceback.print_exc()
+        self.goban.focus_set()
+
+    # DISPLAY METHODS
+
+    def promptsave(self):
+        return asksaveasfilename(defaultextension=".sgf")
 
 
 class Goban(Canvas):
-
     def __init__(self, master):
         Canvas.__init__(self, master, width=gsize * rwidth, height=gsize * rwidth)
         self.border = 3
         self.tkindexes = np.zeros((gsize, gsize), dtype=np.uint16)
         self.highlight_id = -1
-
+        self.closed = False
         self._draw_board()
-        self.bind("<q>", master.close)  # a bit of an aggressive shortcut..
 
     def _draw_board(self):
         """
@@ -93,12 +127,12 @@ class Goban(Canvas):
         self.itemconfigure(oval_id, fill=color)
         self.tkindexes[x_][y_] = oval_id
 
-    def erase(self, coords):
+    def erase(self, moves):
         """
         coords -- the stones to erase from display.
 
         """
-        for move in coords:
+        for move in moves:
             self.delete(self.tkindexes[move.x][move.y])
 
     def highlight(self, move):
@@ -108,21 +142,16 @@ class Goban(Canvas):
 
         """
         self.delete(self.highlight_id)
-        x_ = move.x
-        y_ = move.y
-        x0 = x_ * rwidth + 5 * self.border
-        y0 = y_ * rwidth + 5 * self.border
-        x1 = (x_ + 1) * rwidth - 5 * self.border
-        y1 = (y_ + 1) * rwidth - 5 * self.border
+        if move is not None:
+            x_ = move.x
+            y_ = move.y
+            x0 = x_ * rwidth + 5 * self.border
+            y0 = y_ * rwidth + 5 * self.border
+            x1 = (x_ + 1) * rwidth - 5 * self.border
+            y1 = (y_ + 1) * rwidth - 5 * self.border
 
-        colo = "white" if move.color == 'B' else "black"
-        self.highlight_id = self.create_oval(x0, y0, x1, y1)
-        self.itemconfigure(self.highlight_id, fill=colo)
+            colo = "white" if move.color == 'B' else "black"
+            self.highlight_id = self.create_oval(x0, y0, x1, y1)
+            self.itemconfigure(self.highlight_id, fill=colo)
 
-
-if __name__ == '__main__':
-    root = Tk()
-    #root.geometry("300x200+300+300")
-    app = UI(root)
-    root.mainloop()
 

@@ -2,6 +2,7 @@ from config.guiconf import gsize
 from go.sgf import Move
 from go.stateerror import StateError
 
+
 __author__ = 'Kohistan'
 
 """
@@ -49,7 +50,7 @@ class Rule(object):
         else:
             raise StateError("Confirming a forbidden state")
 
-    def next(self, move):
+    def put(self, move):
         """
         Check if the move passed as argument can be performed.
 
@@ -101,9 +102,9 @@ class Rule(object):
 
         return retval
 
-    def previous(self, move):
+    def remove(self, move):
         """
-        Check if the move passed as argument can be undone.
+        Check if the move passed as argument can be undone. There is no notion of sequence.
 
         Note that the state of this rule object will not be updated after this call,
         meaning that from its point of vue the move has not happened.
@@ -121,7 +122,7 @@ class Rule(object):
             self.lastdel = None
         else:
             self.last = None
-            data = "Empty"
+            data = "Empty" if self.stones[x_][y_] == 'E' else "Wrong Color."
         return allowed, data
 
     def _data(self, x, y, _group=None, _libs=None):

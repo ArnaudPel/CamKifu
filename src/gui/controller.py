@@ -1,9 +1,11 @@
 from Queue import Queue, Full, Empty
 from Tkinter import Tk
+from config.guiconf import rwidth
 from go.kifu import Kifu
 
 from go.rules import Rule
 from go.sgf import Move
+from go.sgfwarning import SgfWarning
 from gui.pipewarning import PipeWarning
 from gui.ui import UI
 
@@ -17,29 +19,33 @@ class Controller():
 
     """
 
-    def __init__(self, kifu, bound, display):
+    def __init__(self, kifu, user_input, display):
         self.kifu = kifu
         self.rules = Rule()
         self.current_mn = 0
 
         self.queue = Queue(10)
-        self.api = {"add": self._append}
+        self.api = {
+            "append": lambda c, x, y: self._put(Move(c, x, y), method=self._append)
+        }
 
         self.display = display
-        self.bound = bound
+        self.input = user_input
+        self.clickloc = None
         self._bind()
 
     def pipe(self, instruction, args):
-        #if self.bound.closed:
-        #    raise PipeWarning("Goban has been closed")
+        if self.input.closed:
+            raise PipeWarning("Target User Interface has been closed.")
         if instruction == "event":
-            self.bound.event_generate(args)
+            # virtual event, comes from self.input itself, neither keyin nor mousein
+            self.input.event_generate(args)
         else:
             try:
                 self.queue.put_nowait((instruction, args))
             except Full:
                 print "Goban instruction queue full, ignoring {0}".format(instruction)
-            self.bound.event_generate("<<execute>>")
+            self.input.event_generate("<<execute>>")
 
     def _execute(self, event):
         """
@@ -61,54 +67,70 @@ class Controller():
         """
         Bind the action listeners.
         """
-        self.bound.bind("<Button-1>", self._click)
-        self.bound.bind("<Button-2>", self._backward)
+        self.input.mousein.bind("<Button-1>", self._click)
+        self.input.mousein.bind("<B1-Motion>", self._drag)
+        self.input.mousein.bind("<ButtonRelease-1>", self._mouse_release)
+        self.input.mousein.bind("<Button-2>", self._backward)
 
-        # todo remove if not needed
-        # the canvas needs the focus to listen the keyboard
-        self.bound.focus_set()
+        self.input.keyin.bind("<Right>", self._forward)
+        self.input.keyin.bind("<Up>", self._forward)
+        self.input.keyin.bind("<Left>", self._backward)
+        self.input.keyin.bind("<Down>", self._backward)
+        self.input.keyin.bind("<p>", self.printself)
 
-        self.bound.bind("<Right>", self._forward)
-        self.bound.bind("<Up>", self._forward)
-        self.bound.bind("<Left>", self._backward)
-        self.bound.bind("<Down>", self._backward)
-        self.bound.bind("<p>", self.printself)
+        # commands from background that have to be executed on the GUI thread.
+        self.input.bind("<<execute>>", self._execute)
 
-        # virtual commands
-        self.bound.bind("<<execute>>", self._execute)
+        # dependency injection attempt
+        try:
+            self.input.commands["save"] = self.save
+        except AttributeError:
+            print "Some commands could not be bound to User Interface."
 
     def _click(self, event):
 
         """
         Internal function to add a move to the kifu and display it. The move
-         is expressed via a mouse click.
+        is expressed via a mouse click.
         """
-        x_ = event.x / 40
-        y_ = event.y / 40
-        move = Move(self.kifu.next_color(), x_, y_)
-        allowed, data = self.rules.next(move)
-        if allowed:
-            self.rules.confirm()
-            self._append(x_, y_, move.color)
-            self.display.erase(data)
-        else:
-            print data
+        self.clickloc = (event.x / rwidth, event.y / rwidth)
+
+    def _mouse_release(self, event):
+        x_ = event.x / rwidth
+        y_ = event.y / rwidth
+        if (x_, y_) == self.clickloc:
+            move = Move(self.kifu.next_color(), x_, y_)
+            self._put(move, method=self._append)
 
     def _forward(self, event):
         """
         Internal function to display the next kifu stone on the goban.
         """
-        if self.current_mn < self.kifu.game.lastmove():
-            self.current_mn += 1
-            move = self.kifu.game.getmove(self.current_mn).getmove()
-            allowed, data = self.rules.next(move)
-            if allowed:
-                self.rules.confirm()
-                self.display.display(move)
+        lastmove = self.kifu.game.lastmove()
+        if lastmove and (self.current_mn < lastmove.number):
+            move = self.kifu.game.getmove(self.current_mn + 1).getmove()
+            self._put(move, method=self.incr_move_number)
+
+    def _put(self, move, method=None, highlight=True):
+        allowed, data = self.rules.put(move)
+        if allowed:
+            self.rules.confirm()
+            self.display.display(move)
+            if highlight:
                 self.display.highlight(move)
-                self.display.erase(data)
-            else:
-                print data
+            self.display.erase(data)
+            if method is not None:
+                method(move)
+        else:
+            print data
+
+    def _append(self, move):
+        last_move = self.kifu.game.lastmove()
+        if not last_move or (self.current_mn == last_move.number):
+            self.kifu.append(move)
+            self.current_mn += 1
+        else:
+            raise NotImplementedError("Cannot create variations for a game yet. Sorry.")
 
     def _backward(self, event):
 
@@ -117,31 +139,55 @@ class Controller():
         """
         if 0 < self.current_mn:
             move = self.kifu.game.getmove(self.current_mn).getmove()
-            allowed, details = self.rules.previous(move)
-            if allowed:
-                self.rules.confirm()
-                self.display.erase([move])
-                self.current_mn -= 1
-                if 0 < self.current_mn:
-                    prev_move = self.kifu.game.getmove(self.current_mn).getmove()
-                    self.display.highlight(prev_move)
-                for move in details:
-                    self.display.display(move)  # put previously dead stones back
-            else:
-                print details
+            self._remove(move, method=self._prev_highlight)
 
-    def _append(self, x, y, color):
-        if self.current_mn == self.kifu.game.lastmove():
-            move = Move(color, x, y)
-            self.kifu.append(move)
-            self.current_mn += 1
-            self.display.display(move)
-            self.display.highlight(move)
+    def _remove(self, move, method=None):
+        allowed, details = self.rules.remove(move)
+        if allowed:
+            self.rules.confirm()
+            self.display.erase([move])
+            for move in details:
+                self.display.display(move)  # put previously dead stones back
+            if method is not None:
+                method(move)
         else:
-            raise NotImplementedError("Cannot create variations for a game yet. Sorry.")
+            print details
+
+    def _prev_highlight(self, _):
+        self.current_mn -= 1
+        if 0 < self.current_mn:
+            prev_move = self.kifu.game.getmove(self.current_mn).getmove()
+            self.display.highlight(prev_move)
+        else:
+            self.display.highlight(None)
+
+    def _drag(self, event):
+        x_ = event.x / rwidth
+        y_ = event.y / rwidth
+        if self.clickloc != (x_, y_):
+            color = self.rules.stones[self.clickloc[0]][self.clickloc[1]]
+            if color in ('B', 'W'):
+                self._remove(Move(color, *self.clickloc))
+                self._put(Move(color, x_, y_), highlight=False)
+                self.clickloc = x_, y_
+
+    def save(self):
+        if self.kifu.sgffile is not None:
+            self.kifu.save()
+        else:
+            sfile = self.display.promptsave()
+            if sfile is not None:
+                self.kifu.sgffile = sfile
+                self.kifu.save()
+            else:
+                print "Saving cancelled."
+
+    def incr_move_number(self, _):
+        self.current_mn += 1
 
     def printself(self, event):
         print self.rules
+
 
 if __name__ == '__main__':
     root = Tk()
@@ -149,5 +195,5 @@ if __name__ == '__main__':
     kifu = Kifu.new()
 
     app = UI(root)
-    control = Controller(kifu, app.goban, app.goban)
+    control = Controller(kifu, app, app)
     root.mainloop()

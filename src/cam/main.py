@@ -23,7 +23,7 @@ def main(gui=True):
     if gui:
         root = Tk()
         app = UI(root)
-        control = Controller(Kifu.new(), app.goban, app.goban)
+        control = Controller(Kifu.new(), app, app)
 
         imqueue = Queue(maxsize=10)
         vthread = Vision(control, imqueue)
