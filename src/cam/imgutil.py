@@ -4,7 +4,7 @@ from sys import float_info
 import cv2
 import numpy as np
 
-from config.guiconf import screenw, screenh
+from golib_conf import screenw, screenh
 
 __author__ = 'Kohistan'
 

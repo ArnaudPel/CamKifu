@@ -1,7 +1,7 @@
 from bisect import insort
 import numpy as np
 from cam.stonesbase import StonesFinder, compare
-from config.guiconf import gsize
+from golib_conf import gsize
 
 __author__ = 'Kohistan'
 

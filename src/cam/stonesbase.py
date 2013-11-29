@@ -3,7 +3,7 @@ import numpy as np
 from cam.boardbase import ordered_hull
 from cam.imgutil import draw_circles
 from cam.video import VidProcessor
-from config.guiconf import gsize
+from golib_conf import gsize
 
 __author__ = 'Kohistan'
 
