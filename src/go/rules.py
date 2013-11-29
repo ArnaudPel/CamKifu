@@ -50,6 +50,11 @@ class Rule(object):
         else:
             raise StateError("Confirming a forbidden state")
 
+    def reset(self):
+        """ Clear any unconfirmed data. """
+        self.last = None
+        self.lastdel = set()
+
     def put(self, move):
         """
         Check if the move passed as argument can be performed.
@@ -61,44 +66,43 @@ class Rule(object):
         move -- the move to check for execution.
 
         """
-
+        self.reset()
         x_ = move.x
         y_ = move.y
         color = move.color
         enem_color = enemy(color)
 
         if self.stones[x_][y_] == 'E':
-            self.stones[x_][y_] = color
-            self.lastdel = set()
+            try:
+                self.stones[x_][y_] = color
 
-            # check if kill (attack advantage)
-            enemies = []
-            for row, col in connected(x_, y_):
-                neighcolor = self.stones[row][col]
-                if neighcolor == enem_color:
-                    enemies.append((row, col))
-            for x, y in enemies:
-                group, nblibs = self._data(x, y)
-                if nblibs == 0:
-                    for k, l in group:
-                        self.lastdel.add(Move(enem_color, k, l))
-                    self.last = move
+                # check if kill (attack advantage)
+                enemies = []
+                for row, col in connected(x_, y_):
+                    neighcolor = self.stones[row][col]
+                    if neighcolor == enem_color:
+                        enemies.append((row, col))
+                for x, y in enemies:
+                    group, nblibs = self._data(x, y)
+                    if nblibs == 0:
+                        for k, l in group:
+                            self.lastdel.add(Move(enem_color, k, l))
+                        self.last = move
 
                 # check for suicide play if need be
-            retval = True, self.lastdel
-            if not self.last:
-                _, nblibs = self._data(x_, y_)
-                if not nblibs:
-                    retval = False, "Suicide"
-                    self.last = None
-                else:
-                    self.last = move
-
-            # cancel
-            self.stones[x_][y_] = 'E'
+                retval = True, self.lastdel
+                if not self.last:
+                    _, nblibs = self._data(x_, y_)
+                    if not nblibs:
+                        retval = False, "Suicide"
+                        self.last = None
+                    else:
+                        self.last = move
+            finally:
+                # rollback
+                self.stones[x_][y_] = 'E'
         else:
             retval = False, "Occupied"
-            self.last = None
 
         return retval
 
@@ -113,15 +117,15 @@ class Rule(object):
         move -- the move to check for undo.
 
         """
+        self.reset()
         x_ = move.x
         y_ = move.y
+
         allowed = self.stones[x_][y_] == move.color
         if allowed:
             self.last = Move('E', x_, y_)
             data = self.deleted[-1]
-            self.lastdel = None
         else:
-            self.last = None
             data = "Empty" if self.stones[x_][y_] == 'E' else "Wrong Color."
         return allowed, data
 

@@ -77,6 +77,7 @@ class Controller():
         self.input.keyin.bind("<Left>", self._backward)
         self.input.keyin.bind("<Down>", self._backward)
         self.input.keyin.bind("<p>", self.printself)
+        self.input.keyin.bind("<Escape>", lambda _: self.display.select(None))
 
         # commands from background that have to be executed on the GUI thread.
         self.input.bind("<<execute>>", self._execute)
@@ -93,7 +94,10 @@ class Controller():
         Internal function to add a move to the kifu and display it. The move
         is expressed via a mouse click.
         """
-        self.clickloc = (event.x / rwidth, event.y / rwidth)
+        x = event.x / rwidth
+        y = event.y / rwidth
+        self.clickloc = (x, y)
+        self.display.select(Move("Dummy", x, y))
 
     def _mouse_release(self, event):
         x_ = event.x / rwidth
@@ -114,13 +118,14 @@ class Controller():
     def _put(self, move, method=None, highlight=True):
         allowed, data = self.rules.put(move)
         if allowed:
+            if method is not None:
+                # executed method before display and confirm, not to display anything in case of exception
+                method(move)
             self.rules.confirm()
             self.display.display(move)
             if highlight:
                 self.display.highlight(move)
             self.display.erase(data)
-            if method is not None:
-                method(move)
         else:
             print data
 

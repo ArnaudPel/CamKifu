@@ -316,6 +316,9 @@ class Move(object):
         """
         return chr(self.x + 97), chr(self.y + 97)
 
+    def copy(self):
+        return Move(self.color, self.x, self.y, self.number)
+
     def __repr__(self):
         # chr coordinates
         #return "{0}[{1}{2}]".format(self.color, *self.getab())
