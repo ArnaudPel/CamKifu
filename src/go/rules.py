@@ -1,3 +1,4 @@
+from threading import RLock
 from config.guiconf import gsize
 from go.sgf import Move
 from go.stateerror import StateError
@@ -14,7 +15,7 @@ made to that state.
 import numpy as np
 
 
-class Rule(object):
+class RuleUnsafe(object):
     """
     This class is not thread safe.
     Its consistency is highly dependent on the good usage of self.confirm()
@@ -24,38 +25,28 @@ class Rule(object):
     def __init__(self):
         self.stones = np.empty((gsize, gsize), dtype=np.str)
         self.stones.fill('E')
-        self.last = None
         self.deleted = []
-        self.lastdel = None  # a set of moves that have been deleted
+
+        self.stones_buff = self.stones.copy()
+        self.deleted_buff = []
 
     def confirm(self):
         """
         Persist the state of the last check, either next() or previous()
 
         """
-        if self.last is not None:
-            self.stones[self.last.x][self.last.y] = self.last.color
-            self.last = None
-            if self.lastdel is not None:
-                self.deleted.append(self.lastdel)
-                for capt in self.lastdel:
-                    self.stones[capt.x][capt.y] = 'E'
-                self.lastdel = None
-            else:
-                if len(self.deleted):
-                    captured = self.deleted.pop()
-                    if captured is not None:
-                        for move in captured:
-                            self.stones[move.x][move.y] = move.color
+        if self.stones_buff is not None:
+            self.stones = self.stones_buff
+            self.deleted = self.deleted_buff
         else:
-            raise StateError("Confirming a forbidden state")
+            raise StateError("Confirmation Denied")
 
     def reset(self):
         """ Clear any unconfirmed data. """
-        self.last = None
-        self.lastdel = set()
+        self.stones_buff = self.stones.copy()
+        self.deleted_buff = list(self.deleted)
 
-    def put(self, move):
+    def put(self, move, reset=True):
         """
         Check if the move passed as argument can be performed.
 
@@ -66,47 +57,44 @@ class Rule(object):
         move -- the move to check for execution.
 
         """
-        self.reset()
+        if reset:
+            self.reset()
         x_ = move.x
         y_ = move.y
         color = move.color
         enem_color = enemy(color)
 
-        if self.stones[x_][y_] == 'E':
-            try:
-                self.stones[x_][y_] = color
+        if self.stones_buff[x_][y_] == 'E':
+            self.stones_buff[x_][y_] = color
 
-                # check if kill (attack advantage)
-                enemies = []
-                for row, col in connected(x_, y_):
-                    neighcolor = self.stones[row][col]
-                    if neighcolor == enem_color:
-                        enemies.append((row, col))
-                for x, y in enemies:
-                    group, nblibs = self._data(x, y)
-                    if nblibs == 0:
-                        for k, l in group:
-                            self.lastdel.add(Move(enem_color, k, l))
-                        self.last = move
+            # check if kill (attack advantage)
+            enemies = []
+            deleted = set()
+            safe = False
+            self.deleted_buff.append(deleted)
+            for row, col in connected(x_, y_):
+                neighcolor = self.stones_buff[row][col]
+                if neighcolor == enem_color:
+                    enemies.append((row, col))
+            for x, y in enemies:
+                group, nblibs = self._data(x, y)
+                if nblibs == 0:
+                    safe = True  # killed at least one enemy
+                    for k, l in group:
+                        deleted.add(Move(enem_color, k, l))
 
-                # check for suicide play if need be
-                retval = True, self.lastdel
-                if not self.last:
-                    _, nblibs = self._data(x_, y_)
-                    if not nblibs:
-                        retval = False, "Suicide"
-                        self.last = None
-                    else:
-                        self.last = move
-            finally:
-                # rollback
-                self.stones[x_][y_] = 'E'
+            # check for suicide play if need be
+            retval = True, deleted
+            if not safe:
+                _, nblibs = self._data(x_, y_)
+                if not nblibs:
+                    retval = False, "Suicide"
         else:
             retval = False, "Occupied"
 
         return retval
 
-    def remove(self, move):
+    def remove(self, move, reset=True):
         """
         Check if the move passed as argument can be undone. There is no notion of sequence.
 
@@ -117,16 +105,17 @@ class Rule(object):
         move -- the move to check for undo.
 
         """
-        self.reset()
+        if reset:
+            self.reset()
         x_ = move.x
         y_ = move.y
 
-        allowed = self.stones[x_][y_] == move.color
+        allowed = self.stones_buff[x_][y_] == move.color
         if allowed:
-            self.last = Move('E', x_, y_)
-            data = self.deleted[-1]
+            data = self.deleted_buff.pop()
+            self.stones_buff[x_][y_] = 'E'
         else:
-            data = "Empty" if self.stones[x_][y_] == 'E' else "Wrong Color."
+            data = "Empty" if self.stones_buff[x_][y_] == 'E' else "Wrong Color."
         return allowed, data
 
     def _data(self, x, y, _group=None, _libs=None):
@@ -137,7 +126,7 @@ class Rule(object):
         _group, _libs -- internal variables used in the recursion, no need to set them from outside.
 
         """
-        color = self.stones[x][y]
+        color = self.stones_buff[x][y]
         if _group is None:
             assert color != 'E'
             _group = []
@@ -145,7 +134,7 @@ class Rule(object):
         if (x, y) not in _group:
             _group.append((x, y))
             for x, y in connected(x, y):
-                neighcolor = self.stones[x][y]
+                neighcolor = self.stones_buff[x][y]
                 if neighcolor == 'E':
                     if (x, y) not in _libs:
                         _libs.append((x, y))
@@ -165,6 +154,26 @@ class Rule(object):
                 string += ' '
             string += "\n"
         return string
+
+
+class Rule(RuleUnsafe):
+
+    def put(self, move, reset=True):
+        with RLock():
+            return super(Rule, self).put(move, reset)
+
+    def remove(self, move, reset=True):
+        with RLock():
+            return super(Rule, self).remove(move, reset)
+
+    def confirm(self):
+        """
+        Top level needs must also acquire a lock to wrap operation (e.g. put or remove) and confirmation.
+        Otherwise another thread can perform an operation, and reset the first operation.
+
+        """
+        with RLock():
+            return super(Rule, self).confirm()
 
 
 def connected(x, y):

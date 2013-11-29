@@ -30,10 +30,12 @@ class UI(Frame):
         self.commands = {}
 
         # delegate some work to goban
+        # todo make that a bit more generic, using registration or something
         self.display = self.goban.display
         self.highlight = self.goban.highlight
         self.select = self.goban.select
         self.erase = self.goban.erase
+        self.relocate = self.goban.relocate
 
     def init_ui(self):
         self.pack(fill=BOTH, expand=1)

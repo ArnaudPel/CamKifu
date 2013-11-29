@@ -1,11 +1,11 @@
 from Queue import Queue, Full, Empty
 from Tkinter import Tk
+from threading import RLock
 from config.guiconf import rwidth
 from go.kifu import Kifu
 
 from go.rules import Rule
 from go.sgf import Move
-from go.sgfwarning import SgfWarning
 from gui.pipewarning import PipeWarning
 from gui.ui import UI
 
@@ -13,7 +13,7 @@ from gui.ui import UI
 __author__ = 'Kohistan'
 
 
-class Controller():
+class ControllerUnsafe(object):
     """
     Class arbitrating the interactions between user input, vision input, and display.
 
@@ -150,9 +150,8 @@ class Controller():
         allowed, details = self.rules.remove(move)
         if allowed:
             self.rules.confirm()
-            self.display.erase([move])
-            for move in details:
-                self.display.display(move)  # put previously dead stones back
+            self.display.erase(move)
+            self.display.display(details)  # put previously dead stones back
             if method is not None:
                 method(move)
         else:
@@ -172,9 +171,18 @@ class Controller():
         if self.clickloc != (x_, y_):
             color = self.rules.stones[self.clickloc[0]][self.clickloc[1]]
             if color in ('B', 'W'):
-                self._remove(Move(color, *self.clickloc))
-                self._put(Move(color, x_, y_), highlight=False)
-                self.clickloc = x_, y_
+                origin = Move(color, *self.clickloc)
+                dest = Move(color, x_, y_)
+                rem_allowed, freed = self.rules.remove(origin)
+                if rem_allowed:
+                    put_allowed, captured = self.rules.put(dest, reset=False)
+                    if put_allowed:
+                        self.rules.confirm()
+                        self.kifu.relocate(origin, dest)
+                        self.display.relocate(origin, dest)
+                        self.display.display(freed)
+                        self.display.erase(captured)
+                        self.clickloc = x_, y_
 
     def save(self):
         if self.kifu.sgffile is not None:
@@ -194,11 +202,22 @@ class Controller():
         print self.rules
 
 
+class Controller(ControllerUnsafe):
+
+    def _put(self, move, method=None, highlight=True):
+        with RLock():
+            super(Controller, self)._put(move, method, highlight)
+
+    def _remove(self, move, method=None):
+        with RLock():
+            super(Controller, self)._remove(move, method)
+
+
 if __name__ == '__main__':
     root = Tk()
     #kifu = Kifu.parse("/Users/Kohistan/Documents/go/Perso Games/MrYamamoto-Kohistan.sgf")
     kifu = Kifu.new()
 
     app = UI(root)
-    control = Controller(kifu, app, app)
+    control = ControllerUnsafe(kifu, app, app)
     root.mainloop()

@@ -27,20 +27,38 @@ class Kifu:
     def pop(self):
         self.game.nodes.pop()
 
-    def current_move(self):
+    def last_move(self):
+        """
+        Note: this is a naive implementation based on the assumption that the game has no children.
+        In other words, that there are not variations at all.
+
+        """
         return self.game.nodes[-1].getmove()
 
     def next_color(self):
-        current = self.current_move()
+        current = self.last_move()
         if current is not None:
             return 'B' if current.color == 'W' else 'W'
         else:
             return 'B'
 
+    def relocate(self, origin, dest):
+        """
+        Note: this is a naive implementation based on the assumption that the game has no children.
+        In other words, that there are not variations at all.
+
+        """
+        for node in self.game.nodes:
+            mv = node.getmove()
+            if mv and mv.x == origin.x and mv.y == origin.y:
+                a, b = dest.getab()
+                node.properties[mv.color] = [a+b]
+
     def save(self):
         if self.sgffile is not None:
             with open(self.sgffile, 'w') as f:
                 self.game.output(f)
+                print "Game saved to: " + self.sgffile
         else:
             raise SgfWarning("No file defined, can't save.")
 

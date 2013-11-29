@@ -37,17 +37,29 @@ class Goban(Canvas):
                 oval = self.create_oval(xcenter - wid, ycenter - wid, xcenter + wid, ycenter + wid)
                 self.itemconfigure(oval, fill="black")
 
-    def display(self, move, highlight=False):
+    def display(self, moves, highlight=False):
         """
         Display a stone on the goban.
 
         """
-        if self.stones[move.x][move.y] is not None:
-            print "Warning: displaying a stone on top of another. Erasing previous stone."
-            self.stones[move.x][move.y].erase()
-        stone = Stone(self, move, highlight)
-        stone.paint()
-        self.stones[move.x][move.y] = stone
+        mves = moves if type(moves) in (list, set) else [moves]
+        for move in mves:
+            if self.stones[move.x][move.y] is not None:
+                print "Warning: displaying a stone on top of another. Erasing previous stone."
+                self.stones[move.x][move.y].erase()
+            stone = Stone(self, move, highlight)
+            stone.paint()
+            self.stones[move.x][move.y] = stone
+
+    def erase(self, moves):
+        """
+        coords -- the stones to erase from display.
+
+        """
+        mves = moves if type(moves) in (list, set) else [moves]
+        for move in mves:
+            self.stones[move.x][move.y].erase()  # clean canvas
+            self.stones[move.x][move.y] = None
 
     def highlight(self, move, keep=False):
         if not keep:
@@ -72,14 +84,17 @@ class Goban(Canvas):
                 if stone is not None:
                     yield stone
 
-    def erase(self, moves):
-        """
-        coords -- the stones to erase from display.
+    def relocate(self, origin, destination):
+        stone = self.stones[origin.x][origin.y]
+        if stone:
+            stone.erase()
+            self.stones[origin.x][origin.y] = None
 
-        """
-        for move in moves:
-            self.stones[move.x][move.y].erase()  # clean canvas
-            self.stones[move.x][move.y] = None
+            stone.setpos(destination.x, destination.y)
+            stone.paint()
+            self.stones[destination.x][destination.y] = stone
+        else:
+            print "Nothing to relocate."
 
 
 tkcolors = {'B': "black", 'W': "white"}
@@ -94,6 +109,10 @@ class Stone(object):
         self.selected = selected
         self.tkindexes = []
         self.border = 3
+
+    def setpos(self, x, y):
+        self._move.x = x
+        self._move.y = y
 
     def paint(self):
         self.erase()  # clear any previous item from self
@@ -158,7 +177,8 @@ class Stone(object):
             self.canvas.itemconfigure(oval_id, outline="red", width=self.border)
             self.tkindexes.append(oval_id)
 
-
+    def copy(self):
+        return Stone(self.canvas, self._move, highlight=self._hl, selected=self.selected)
 
 
 
