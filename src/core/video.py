@@ -2,7 +2,7 @@ from Queue import Full
 from threading import Thread
 import time
 import cv2
-from cam.imgutil import show, draw_str
+from core.imgutil import show, draw_str
 
 __author__ = 'Kohistan'
 

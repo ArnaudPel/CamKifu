@@ -1,6 +1,6 @@
 from bisect import insort
 import numpy as np
-from cam.stonesbase import StonesFinder, compare
+from stone.stonesbase import StonesFinder, compare
 from golib_conf import gsize
 
 __author__ = 'Kohistan'

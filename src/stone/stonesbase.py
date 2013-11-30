@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
-from cam.boardbase import ordered_hull
-from cam.imgutil import draw_circles
-from cam.video import VidProcessor
+from board.boardbase import ordered_hull
+from core.imgutil import draw_circles
+from core.video import VidProcessor
 from golib_conf import gsize
 
 __author__ = 'Kohistan'

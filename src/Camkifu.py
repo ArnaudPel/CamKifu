@@ -1,16 +1,21 @@
 from Queue import Queue, Empty
 from Tkinter import Tk
 import cv2
-from cam.imgutil import show
-from cam.video import VidRecorder, KeyboardInput
+from core.imgutil import show
+from core.video import VidRecorder, KeyboardInput
 
-from cam.vthread import Vision
+from core.vthread import Vision
 from config.devconf import vid_out_dir
 from go.kifu import Kifu
 from gui.controller import Controller
 from gui.ui import UI
 
 __author__ = 'Kohistan'
+
+"""
+Application entry point.
+
+"""
 
 
 def main(gui=True):

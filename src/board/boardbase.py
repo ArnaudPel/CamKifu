@@ -1,8 +1,8 @@
 import sys
 import cv2
 import numpy as np
-from cam.imgutil import draw_circles, draw_lines
-from cam.video import VidProcessor
+from core.imgutil import draw_circles, draw_lines
+from core.video import VidProcessor
 from golib_conf import gsize
 
 __author__ = 'Kohistan'

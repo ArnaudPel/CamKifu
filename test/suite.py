@@ -1,7 +1,7 @@
 from unittest.result import TestResult
+from board import extrapolation
 
 from go import kifu, rules
-from cam import extrapolation
 
 __author__ = 'Kohistan'
 

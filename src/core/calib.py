@@ -6,8 +6,8 @@ from time import sleep, time
 import cv2
 import numpy as np
 
-from cam.imgutil import draw_circles
-from cam.video import VidProcessor
+from core.imgutil import draw_circles
+from core.video import VidProcessor
 from config import calibconf
 
 __author__ = 'Kohistan'

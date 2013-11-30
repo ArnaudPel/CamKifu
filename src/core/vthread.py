@@ -1,8 +1,8 @@
 from threading import Thread
 import cv2
-from cam.board2 import BoardFinderAuto
-from cam.calib import Rectifier
-from cam.stones1 import BackgroundSub
+from board.board2 import BoardFinderAuto
+from core.calib import Rectifier
+from stone.stones1 import BackgroundSub
 
 __author__ = 'Kohistan'
 

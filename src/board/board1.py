@@ -5,9 +5,9 @@ import os
 
 import cv2
 import numpy as np
-from cam.boardbase import BoardFinder
+from board.boardbase import BoardFinder
 
-from cam.imgutil import split_sq, Segment
+from core.imgutil import split_sq, Segment
 from config.devconf import gobanloc_npz
 
 

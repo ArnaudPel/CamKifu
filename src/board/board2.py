@@ -4,9 +4,9 @@ import math
 import cv2
 import numpy as np
 
-from cam.board1 import SegGrid, runmerge
-from cam.boardbase import BoardFinder
-from cam.imgutil import Segment, draw_lines
+from board.board1 import SegGrid, runmerge
+from board.boardbase import BoardFinder
+from core.imgutil import Segment, draw_lines
 
 
 __author__ = 'Kohistan'

@@ -1,6 +1,6 @@
 import numpy as np
 
-from cam.stonesbase import StonesFinder, compare
+from stone.stonesbase import StonesFinder, compare
 from golib_conf import gsize, player_color
 
 __author__ = 'Kohistan'
