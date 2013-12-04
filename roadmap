@@ -3,10 +3,14 @@
 
 BEFORE PUBLISH:
 
-    - split into 2 separate projects to isolate Go from Vision (save openCV install hassle).
-    - have some automated way to build for windows 7-8 / mac (/ linux @Jack)
+    - pause vision thread when user is involved in GUI (+ button to pause it manually)
+    - make vision values proportionnal to frame size (+ other unknown parameters ?)
+    - extract vision parameters to file for easier tuning (maybe via GUI)
+    - cleanup todos
+    - have some automated way to build for windows 7-8 / (/ linux @Jack)
     - readme
     - write more test (+ code coverage tool ?), including videos and sgf ressources
+    - clean the other parts of this file :)
     - (add copyleft)
 
 ---------------------------------------------------------------------------------------------------
@@ -25,6 +29,7 @@ PYTHON
     - channel all printing to a log
     - create a log viewer pane in the gui
     - save user preferences: sgf save directory.
+    - when the board has been lost, pause stones detection, and keep trying board detection every now and then.
 
 GUI
     - ability to navigate to first/last/given move
@@ -39,7 +44,6 @@ GO
     - allow initial game setup, like handicap stones (automated if possible)
 
 CV
-    - pause processing
     - one thread for board location + one for stones, both always running
     - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
     - update background periodically

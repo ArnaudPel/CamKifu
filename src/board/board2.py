@@ -13,8 +13,8 @@ __author__ = 'Kohistan'
 
 
 class BoardFinderAuto(BoardFinder):
-    def __init__(self, cam, rect, imqueue):
-        super(BoardFinderAuto, self).__init__(cam, rect, imqueue)
+    def __init__(self, vmanager, rect):
+        super(BoardFinderAuto, self).__init__(vmanager, rect)
 
     def _detect(self, frame):
 

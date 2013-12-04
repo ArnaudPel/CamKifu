@@ -1,10 +1,9 @@
 """
     Camera calibration script.
 """
-from time import sleep, time
-
 import cv2
-import numpy as np
+from time import sleep, time
+from numpy import uint8, float32, ones, load, array, savez
 
 from core.imgutil import draw_circles
 from core.video import VidProcessor
@@ -38,7 +37,7 @@ def genpattern(x_resol, y_resol):
             centers.append((y, x, 0))  # z=0 for homogeneous coordinates
 
     # draw circles on a new image
-    img = np.ones((x_resol, y_resol), np.uint8)
+    img = ones((x_resol, y_resol), uint8)
     for i in range(x_resol):
         for j in range(y_resol):
             img[i][j] = 255
@@ -52,12 +51,12 @@ class Rectifier(VidProcessor):
     or simply undistort images if the calibration data is already available."
 
     """
-    def __init__(self, camera):
-        super(self.__class__, self).__init__(camera)
+    def __init__(self, vmanager):
+        super(self.__class__, self).__init__(vmanager)
         self.camera_coeffs = None
         self.disto = None
         try:
-            calibdata = np.load(calibconf.npfile)
+            calibdata = load(calibconf.npfile)
             self.camera_coeffs = calibdata[calibconf.camera]
             self.disto = calibdata[calibconf.distortion]
         except IOError or TypeError:
@@ -80,8 +79,8 @@ class Rectifier(VidProcessor):
             _, objectref = genpattern(*self.shape)
             for i in range(len(self.imagepoints)):
                 objectpoints.append(objectref)
-            objectpoints = np.array(objectpoints, dtype=np.float32)
-            imagepoints = np.array(self.imagepoints, dtype=np.float32)
+            objectpoints = array(objectpoints, dtype=float32)
+            imagepoints = array(self.imagepoints, dtype=float32)
 
             # compute calibration
             retval, cam_mtx, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(objectpoints, imagepoints, self.shape)
@@ -89,7 +88,7 @@ class Rectifier(VidProcessor):
                 print
                 print "Calibration completed successfully. Thank you."
                 arrays = {calibconf.camera: cam_mtx, calibconf.distortion: dist_coeffs}
-                np.savez(calibconf.npfile, **arrays)
+                savez(calibconf.npfile, **arrays)
                 print "Calibration data saved to: " + calibconf.npfile
             else:
                 print "Camera calibration failed."

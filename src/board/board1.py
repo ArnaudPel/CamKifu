@@ -335,8 +335,8 @@ def _get_seg(points):
 
 class BoardFinderManual(BoardFinder):
 
-    def __init__(self, camera, rectifier, imqueue):
-        super(BoardFinderManual, self).__init__(camera, rectifier, imqueue)
+    def __init__(self, vmanager, rectifier):
+        super(BoardFinderManual, self).__init__(vmanager, rectifier)
         self.name = "Manual Grid Detection"
         try:
             np_file = np.load(gobanloc_npz)

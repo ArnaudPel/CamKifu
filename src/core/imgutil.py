@@ -1,8 +1,9 @@
-from math import sqrt
-import math
-from sys import float_info
 import cv2
-import numpy as np
+from numpy import zeros, int32, empty_like, ndarray, ones_like, arange, column_stack, flipud
+
+from math import sqrt, floor
+from sys import float_info
+from numpy.ma import minimum, around
 
 from golib_conf import screenw, screenh
 
@@ -80,7 +81,7 @@ def split_sq(img, nbsplits=5, offset=False):
 
 def draw_circles(img, centers, color=(0, 0, 255), radius=5, thickness=1):
     for point in centers:
-        if isinstance(point, np.ndarray) and point.shape == (1, 2):  # bloody vertical points
+        if isinstance(point, ndarray) and point.shape == (1, 2):  # bloody vertical points
             point = point.T
         x = point[0]
         y = point[1]
@@ -129,10 +130,10 @@ def saturate(img):
 
     """
     # todo add doctest for the 50% enhancement + no-overflow of 255 max value
-    maxsv = np.ones_like(img)
+    maxsv = ones_like(img)
     maxsv[:, :, 1:3] *= 255
     saturated = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-    saturated[:, :, 1:3] = np.minimum(maxsv[:, :, 1:3], saturated[:, :, 1:3] * 1.5)
+    saturated[:, :, 1:3] = minimum(maxsv[:, :, 1:3], saturated[:, :, 1:3] * 1.5)
     return cv2.cvtColor(saturated, cv2.COLOR_HSV2RGB)
 
 
@@ -142,16 +143,16 @@ def rgb_histo(img):
     http://opencvpython.blogspot.fr/2012/04/drawing-histogram-in-opencv-python.html
 
     """
-    h = np.zeros((300, 256, 3))
-    bins = np.arange(256).reshape(256, 1)
+    h = zeros((300, 256, 3))
+    bins = arange(256).reshape(256, 1)
     color = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
     for ch, col in enumerate(color):
         hist_item = cv2.calcHist([img], [ch], None, [256], [0, 256])
         cv2.normalize(hist_item, hist_item, 0, 255, cv2.NORM_MINMAX)
-        hist = np.int32(np.around(hist_item))
-        pts = np.column_stack((bins, hist))
+        hist = int32(around(hist_item))
+        pts = column_stack((bins, hist))
         cv2.polylines(h, [pts], False, col)
-    return np.flipud(h)
+    return flipud(h)
 
 
 windows = set()  # todo improve or remove this dev workaround to center windows at startup only
@@ -180,7 +181,7 @@ def show(img, auto_down=True, name="Camkifu", loc=None):
 
 
 def median_blur(img, ksize=(3, 3)):
-    blurred = np.empty_like(img)
+    blurred = empty_like(img)
     midx = ksize[0] / 2
     midy = ksize[1] / 2
     for x in range(img.shape[0]):
@@ -228,7 +229,7 @@ def tohisto(mult_factor, values):
     """
     histo = {}
     for val in values:
-        intv = int(math.floor(val * mult_factor))
+        intv = int(floor(val * mult_factor))
         try:
             histo[intv] += 1
         except KeyError:

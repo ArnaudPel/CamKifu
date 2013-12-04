@@ -1,7 +1,7 @@
 from Queue import Full
 from threading import Thread
-import time
 import cv2
+import time
 from core.imgutil import show, draw_str
 
 __author__ = 'Kohistan'
@@ -13,14 +13,13 @@ class VidProcessor(object):
 
     """
 
-    def __init__(self, camera, rectifier=None, imqueue=None):
+    def __init__(self, vmanager, rectifier=None):
         """
         self.frame_period -- (float) the minimum number of seconds between 2 iterations of frame processing
 
         """
-        self.cam = camera
+        self.vmanager = vmanager
         self.rectifier = rectifier
-        self.imqueue = imqueue
         self.own_images = set()
 
         self.frame_period = 0.2
@@ -38,10 +37,10 @@ class VidProcessor(object):
             start = time.time()
             if self.frame_period < start - self.lastf:
                 self.lastf = start
-                ret, frame = self.cam.read()
+                ret, frame = self.vmanager.cam.read()
                 if ret:
-                     # undistort seems to actually pollute board detection.
-                     # todo remove calibration if it's not actually helping.
+                    # todo remove calibration if it's not actually helping.
+                    # undistort seems to actually pollute board detection.
                     #if self.rectifier is not None:
                         #frame = self.rectifier.undistort(frame)
                     self._doframe(frame)
@@ -62,7 +61,7 @@ class VidProcessor(object):
 
         """
         try:
-            if self.imqueue is not None:
+            if self.vmanager.imqueue is not None:
                 key = self.key
                 if type(key) is not str:
                     key = chr(key)
@@ -84,7 +83,7 @@ class VidProcessor(object):
 
     def pause(self):
         # todo refactor for multi-threaded arch
-        if self.imqueue is None:
+        if self.vmanager.imqueue is None:
             key = None
             while True:
                 # repeating the same key resumes processing. other keys are executed as if nothing happened
@@ -110,8 +109,8 @@ class VidProcessor(object):
         if latency:
             draw_str(img, (40, 20), "latency:  %.1f ms" % (self.latency * 1000))
         try:
-            if self.imqueue is not None:
-                self.imqueue.put_nowait((name, img, self))
+            if self.vmanager.imqueue is not None:
+                self.vmanager.imqueue.put_nowait((name, img, self))
             else:
                 show(img, name=name)  # assume we are on main thread
             self.own_images.add(name)
@@ -120,9 +119,9 @@ class VidProcessor(object):
 
     def _destroy_windows(self):
         for name in self.own_images:
-            if self.imqueue is not None:
+            if self.vmanager.imqueue is not None:
                 # caveat: wait until a slot is available to ensure destruction
-                self.imqueue.put((name, None, None))
+                self.vmanager.imqueue.put((name, None, None))
             else:
                 cv2.destroyWindow(name)
         self.own_images.clear()

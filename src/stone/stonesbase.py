@@ -1,6 +1,8 @@
 import cv2
-import numpy as np
+from numpy import zeros_like, zeros, uint8, int16, sum as npsum
+from numpy.ma import absolute
 from board.boardbase import ordered_hull
+from config.devconf import canonical_size
 from core.imgutil import draw_circles
 from core.video import VidProcessor
 from golib_conf import gsize
@@ -13,34 +15,29 @@ class StonesFinder(VidProcessor):
     Abstract class providing a structure for stones-finding processes.
 
     """
-    
-    def __init__(self, camera, rect, imqueue, transform, canonical_size):
-        super(StonesFinder, self).__init__(camera, rect, imqueue)
-        self.observers = []
-        self._transform = transform
-        self._canonical_size = canonical_size
 
-        # the 2 lines below would benefit from some sort of automation
-        start = canonical_size / gsize / 2
-        end = canonical_size - start
-        self._grid = Grid([(start, start), (end, start), (end, end), (start, end)])
-        self.stones = np.zeros((gsize, gsize), dtype=np.uint8)
+    def __init__(self, vmanager, rect):
+        super(StonesFinder, self).__init__(vmanager, rect)
+
+        self.stones = zeros((gsize, gsize), dtype=uint8)
+        self._grid = Grid(canonical_size)
 
     def _doframe(self, frame):
         if self.undoflag:
             self.interrupt()  # go back to previous processing step
             self.reset()
         else:
-            goban_img = cv2.warpPerspective(frame, self._transform, (self._canonical_size, self._canonical_size))
+            transform = self.vmanager.board_finder.mtx
+            goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
             self._find(goban_img)
 
     def _find(self, img):
         raise NotImplementedError("Abstract method meant to be extended")
 
     def reset(self):
-        self.stones = np.zeros_like(self.stones)
+        self.stones = zeros_like(self.stones)
 
-    def _getzone(self, img, r, c):
+    def _getzones(self, img, r, c):
         """
         Returns the pixel zone corresponding to the given goban intersection.
         The current approximation of a stone area is a cross (optimally should be a disk)
@@ -95,9 +92,13 @@ class Grid(object):
 
     """
 
-    def __init__(self, points):
-        self.pos = np.zeros((gsize, gsize, 2), dtype=np.int16)
-        hull = ordered_hull(points)
+    def __init__(self, size):
+        self.pos = zeros((gsize, gsize, 2), dtype=int16)
+        # the 2 lines below would benefit from some sort of automation
+        start = size / gsize / 2
+        end = size - start
+
+        hull = ordered_hull([(start, start), (end, start), (end, end), (start, end)])
         assert len(hull) == 4, "The points expected here are the 4 corners of the grid."
         for i in range(gsize):
             xup = (hull[0][0] * (gsize - 1 - i) + hull[1][0] * i) / (gsize - 1)
@@ -119,5 +120,5 @@ def compare(reference, current):
     current -- a vector of length 3
 
     """
-    sign = 1 if np.sum(reference) <= np.sum(current) else -1
-    return sign * int(np.sum(np.absolute(current - reference)))
+    sign = 1 if npsum(reference) <= npsum(current) else -1
+    return sign * int(npsum(absolute(current - reference)))

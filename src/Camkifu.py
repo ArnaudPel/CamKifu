@@ -1,14 +1,15 @@
 from Queue import Queue, Empty
 from Tkinter import Tk
 import cv2
+
+from go.kifu import Kifu
+from gui.ui import UI
+
+from core.vmanager import VManager
+from core.controllerv import ControllerV
 from core.imgutil import show
 from core.video import VidRecorder, KeyboardInput
-
-from core.vthread import Vision
 from config.devconf import vid_out_dir
-from go.kifu import Kifu
-from gui.controller import Controller
-from gui.ui import UI
 
 __author__ = 'Kohistan'
 
@@ -28,10 +29,10 @@ def main(gui=True):
     if gui:
         root = Tk()
         app = UI(root)
-        control = Controller(Kifu.new(), app, app)
+        control = ControllerV(Kifu.new(), app, app)
 
         imqueue = Queue(maxsize=10)
-        vthread = Vision(control, imqueue)
+        vthread = VManager(control, imqueue)
 
         def img_update():
             try:
@@ -55,7 +56,7 @@ def main(gui=True):
         finally:
             vthread.request_exit()
     else:
-        vthread = Vision(None, None)
+        vthread = VManager(None, None)
         vthread.run()  # run on the main thread
 
 

@@ -1,5 +1,4 @@
-import numpy as np
-
+from numpy import zeros_like, mean, zeros, int16
 from stone.stonesbase import StonesFinder, compare
 from golib_conf import gsize, player_color
 
@@ -14,11 +13,11 @@ class BackgroundSub(StonesFinder):
     self.stones -- the matrix of stones found so far (0:None, 1:Black, 2:White)
     """
 
-    def __init__(self, camera, rectifier, imqueue, transform, canonical_size):
-        super(BackgroundSub, self).__init__(camera, rectifier, imqueue, transform, canonical_size)
+    def __init__(self, vmanager, rectifier):
+        super(BackgroundSub, self).__init__(vmanager, rectifier)
         self.bindings['s'] = self.reset
 
-        self._background = np.zeros((gsize, gsize, 3), dtype=np.int16)
+        self._background = zeros((gsize, gsize, 3), dtype=int16)
         self.dosample = True
         self.lastpos = None
 
@@ -33,21 +32,21 @@ class BackgroundSub(StonesFinder):
 
     def reset(self):
         super(BackgroundSub, self).reset()
-        self._background = self._background = np.zeros_like(self._background)
+        self._background = self._background = zeros_like(self._background)
         self.lastpos = None
         self.dosample = True
 
     def sample(self, img):
         for x in range(gsize):
             for y in range(gsize):
-                zones, points = self._getzone(img, x, y)
+                zones, points = self._getzones(img, x, y)
                 #copy = img.copy()
                 for i, zone in enumerate(zones):
                     for chan in range(3):
-                        self._background[x][y][chan] = int(np.mean(zone[:, :, chan]))
-                    #cv2.rectangle(copy, points[i][0:2], points[i][2:4], (255, 0, 0), thickness=-1)
-                #show(copy, name="Sampling Zone")
-                #if cv2.waitKey() == 113: raise SystemExit()
+                        self._background[x][y][chan] = int(mean(zone[:, :, chan]))
+                        #cv2.rectangle(copy, points[i][0:2], points[i][2:4], (255, 0, 0), thickness=-1)
+                        #show(copy, name="Sampling Zone")
+                        #if cv2.waitKey() == 113: raise SystemExit()
         print "Image at {0} set as background.".format(hex(id(img)))
 
     def detect(self, img):
@@ -69,12 +68,12 @@ class BackgroundSub(StonesFinder):
             for y in range(gsize):
                 if not self.stones[x][y]:
                     bg = self._background[x][y]
-                    current = np.zeros(3, dtype=np.int16)
-                    zones, points = self._getzone(img, x, y)
+                    current = zeros(3, dtype=int16)
+                    zones, points = self._getzones(img, x, y)
                     delta = 0
                     for i, zone in enumerate(zones):
                         for chan in range(3):
-                            current[chan] = int(np.mean(zone[:, :, chan]))
+                            current[chan] = int(mean(zone[:, :, chan]))
                         delta += compare(bg, current)
                     if delta < -200 or 400 < delta:
                         val = 1 if delta < 0 else 2
@@ -84,13 +83,13 @@ class BackgroundSub(StonesFinder):
                             print "dropped frame: StonesFinder (too many hits)"
                             return
 
-                    #insort(deltas, delta)
-                    #current -= bg
-                    #current = np.absolute(current)
-                    #color = (int(current[0]), int(current[1]), int(current[2]))
-                    #for i in range(2):
-                    #    cv2.rectangle(subtract, points[i][0:2], points[i][2:4], color, thickness=-1)
-        #self._show(subtract, name="Subtract")
+                            #insort(deltas, delta)
+                            #current -= bg
+                            #current = np.absolute(current)
+                            #color = (int(current[0]), int(current[1]), int(current[2]))
+                            #for i in range(2):
+                            #    cv2.rectangle(subtract, points[i][0:2], points[i][2:4], color, thickness=-1)
+            #self._show(subtract, name="Subtract")
         #length = len(deltas)
         #print str(deltas[0:5]) + str(deltas[length-5:length])
 
@@ -99,14 +98,10 @@ class BackgroundSub(StonesFinder):
                 self.stones[pos] = val
                 row = chr(97 + pos[1])
                 col = chr(97 + pos[0])
-                for obs in self.observers:
-                    print "{0}[{1}{2}]".format(player_color[val], row, col)
-                    obs.pipe("append", (player_color[val], row, col))
+                print "{0}[{1}{2}]".format(player_color[val], row, col)
+                self.vmanager.controller.pipe("append", (player_color[val], row, col))
             else:
                 self.lastpos = pos
-
-
-
 
 
 # LEGACY CODE PROBABLY OUT OF DATE AND USE

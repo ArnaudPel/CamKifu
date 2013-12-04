@@ -1,9 +1,10 @@
-import sys
+from sys import maxint
+from numpy import float32, array, vstack
 import cv2
-import numpy as np
+
+from config.devconf import canonical_size as csize
 from core.imgutil import draw_circles, draw_lines
 from core.video import VidProcessor
-from golib_conf import gsize
 
 __author__ = 'Kohistan'
 
@@ -18,18 +19,16 @@ class BoardFinder(VidProcessor):
 
     """
 
-    def __init__(self, camera, rectifier, imqueue):
-        super(BoardFinder, self).__init__(camera, rectifier, imqueue)
+    def __init__(self, vmanager, rectifier):
+        super(BoardFinder, self).__init__(vmanager, rectifier)
         self.corners = GobanCorners()
         self.mtx = None
-        self.size = gsize * 25
 
     def _doframe(self, frame):
         self._detect(frame)
         if self.ready():
-            source = np.array(self.corners.hull, dtype=np.float32)
-            dst = np.array([(0, 0), (self.size, 0), (self.size, self.size), (0, self.size)], dtype=np.float32)
-            # todo optimization: crop the image around the ROI before computing the transform
+            source = array(self.corners.hull, dtype=float32)
+            dst = array([(0, 0), (csize, 0), (csize, csize), (0, csize)], dtype=float32)
             try:
                 self.mtx = cv2.getPerspectiveTransform(source, dst)
                 self.interrupt()
@@ -98,8 +97,8 @@ class GobanCorners():
 def ordered_hull(points):
     hull = []
     idx = 0
-    mind = sys.maxint
-    cvhull = cv2.convexHull(np.vstack(points))
+    mind = maxint
+    cvhull = cv2.convexHull(vstack(points))
     for i in range(len(cvhull)):
         p = cvhull[i][0]
         dist = p[0] ** 2 + p[1] ** 2

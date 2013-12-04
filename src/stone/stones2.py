@@ -7,8 +7,8 @@ __author__ = 'Kohistan'
 
 
 class NeighbourComp(StonesFinder):
-    def __init__(self, camera, rect, imqueue, transform, canonical_size):
-        super(NeighbourComp, self).__init__(camera, rect, imqueue, transform, canonical_size)
+    def __init__(self, vmanager, rect):
+        super(NeighbourComp, self).__init__(vmanager, rect)
         self._colors = np.zeros((gsize, gsize, 3), np.int16)
 
     def _find(self, img):
@@ -17,7 +17,7 @@ class NeighbourComp(StonesFinder):
         # record the mean color for each intersection of the goban.
         for x in range(gsize):
             for y in range(gsize):
-                zones, points = self._getzone(img, x, y)
+                zones, points = self._getzones(img, x, y)
                 for i, zone in enumerate(zones):
                     for chan in range(3):
                         self._colors[x][y][chan] = int(np.mean(zone[:, :, chan]))
