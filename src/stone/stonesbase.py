@@ -23,11 +23,8 @@ class StonesFinder(VidProcessor):
         self._grid = Grid(canonical_size)
 
     def _doframe(self, frame):
-        if self.undoflag:
-            self.interrupt()  # go back to previous processing step
-            self.reset()
-        else:
-            transform = self.vmanager.board_finder.mtx
+        transform = self.vmanager.board_finder.mtx
+        if transform is not None:
             goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
             self._find(goban_img)
 

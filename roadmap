@@ -3,15 +3,15 @@
 
 BEFORE PUBLISH:
 
-    - pause vision thread when user is involved in GUI (+ button to pause it manually)
     - make vision values proportionnal to frame size (+ other unknown parameters ?)
-    - extract vision parameters to file for easier tuning (maybe via GUI)
+    - extract vision (+ time periods) parameters to file for easier tuning (maybe via GUI)
     - cleanup todos
     - have some automated way to build for windows 7-8 / (/ linux @Jack)
     - readme
     - write more test (+ code coverage tool ?), including videos and sgf ressources
     - clean the other parts of this file :)
     - (add copyleft)
+    - document code, especially fields
 
 ---------------------------------------------------------------------------------------------------
 
@@ -20,6 +20,7 @@ ON PUBLISH:
     - links to openCV install
     - links to PyCharm CE  -- may be able to ask for a free license !
     - set issue tracker
+    - convert this file into milestones
 
 ---------------------------------------------------------------------------------------------------
 
@@ -39,11 +40,13 @@ GUI
     - display "ghost" stones, e.g. for intermediate positions when dragging.
     - ability to mark stones with different colors: will be used by vision to display status.
     - auto resize of goban and stones according to size
+    - gui option to use the manual board detection
 
 GO
     - allow initial game setup, like handicap stones (automated if possible)
 
 CV
+    - pause vision thread when user is involved in GUI (+ connect button to pause it manually)
     - one thread for board location + one for stones, both always running
     - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
     - update background periodically

@@ -10,6 +10,7 @@ __author__ = 'Kohistan'
 class VidProcessor(object):
     """
     Class meant to be extended by implementations of video processing.
+    By default the execute() method will keep running, interruption must be asked when needed.
 
     """
 
@@ -23,7 +24,7 @@ class VidProcessor(object):
         self.own_images = set()
 
         self.frame_period = 0.2
-        self.lastf = 0.0
+        self.last_frame = 0.0
         self.undoflag = False
         self._interruptflag = False
 
@@ -35,8 +36,8 @@ class VidProcessor(object):
         self._interruptflag = False
         while not self._interruptflag:
             start = time.time()
-            if self.frame_period < start - self.lastf:
-                self.lastf = start
+            if self.frame_period < start - self.last_frame:
+                self.last_frame = start
                 ret, frame = self.vmanager.cam.read()
                 if ret:
                     # todo remove calibration if it's not actually helping.
@@ -52,6 +53,7 @@ class VidProcessor(object):
                     time.sleep(5)
             else:
                 time.sleep(self.frame_period / 10)  # precision doesn't really matter here
+        self.vmanager.confirm_exit(self)
 
     def checkkey(self):
         """

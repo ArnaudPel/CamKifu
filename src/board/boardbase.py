@@ -1,4 +1,5 @@
 from sys import maxint
+from time import time
 from numpy import float32, array, vstack
 import cv2
 
@@ -12,7 +13,7 @@ __author__ = 'Kohistan'
 class BoardFinder(VidProcessor):
     """
     Abstract class providing a suggestion of common features that should be
-    shared by board (goban) finding algorithms.
+    shared by board-finding algorithms.
 
     The most inflexible part is to hold a self.mtx object when detection has been successful,
     expected to be the matrix used in perspective transforms.
@@ -23,26 +24,23 @@ class BoardFinder(VidProcessor):
         super(BoardFinder, self).__init__(vmanager, rectifier)
         self.corners = GobanCorners()
         self.mtx = None
+        self.last_positive = -1.0  # never
 
     def _doframe(self, frame):
-        self._detect(frame)
-        if self.ready():
-            source = array(self.corners.hull, dtype=float32)
-            dst = array([(0, 0), (csize, 0), (csize, csize), (0, csize)], dtype=float32)
-            try:
-                self.mtx = cv2.getPerspectiveTransform(source, dst)
-                self.interrupt()
-            except cv2.error:
-                print "Please mark a square-like area. The 4 points must form a convex hull."
-                self.undoflag = True
+        if 3 < time() - self.last_positive:
+            if self._detect(frame):
+                source = array(self.corners.hull, dtype=float32)
+                dst = array([(0, 0), (csize, 0), (csize, csize), (0, csize)], dtype=float32)
+                try:
+                    self.mtx = cv2.getPerspectiveTransform(source, dst)
+                    self.last_positive = time()
+                except cv2.error:
+                    print "Please mark a square-like area. The 4 points must form a convex hull."
+                    self.undoflag = True
 
     def perform_undo(self):
         self.mtx = None
         self.undoflag = False
-
-    def ready(self):
-        return self.corners.hull is not None
-        #return False
 
     def _detect(self, frame):
         raise NotImplementedError("Abstract method meant to be extended")
@@ -56,6 +54,9 @@ class GobanCorners():
             self._check()
         else:
             self._points = []
+
+    def ready(self):
+        return self.hull is not None
 
     def add(self, point):
         self._points.append(point)

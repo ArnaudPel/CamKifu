@@ -338,29 +338,38 @@ class BoardFinderManual(BoardFinder):
     def __init__(self, vmanager, rectifier):
         super(BoardFinderManual, self).__init__(vmanager, rectifier)
         self.name = "Manual Grid Detection"
+        self.manual_found = False
         try:
             np_file = np.load(gobanloc_npz)
             for p in np_file["location"]:
                 self.corners.add(p)
+            self.manual_found = True
         except IOError or TypeError:
             pass
 
     def _detect(self, frame):
-        self.corners.paint(frame)
-        self._show(frame, name=self.name)
-        cv2.setMouseCallback(self.name, self.onmouse)
-        if self.undoflag:
-            self.perform_undo()
+        if not self.manual_found:
+            self.corners.paint(frame)
+            self._show(frame, name=self.name)
+            cv2.setMouseCallback(self.name, self.onmouse)
+            if self.undoflag:
+                self.perform_undo()
+            return False
+        else:
+            self.interrupt()
+            return True
 
     #noinspection PyUnusedLocal
     def onmouse(self, event, x, y, flag, param):
-        if event == cv2.cv.CV_EVENT_LBUTTONDOWN and not self.ready():
+        if event == cv2.cv.CV_EVENT_LBUTTONDOWN and not self.corners.ready():
             self.corners.add((x, y))
-            if self.ready():
+            if self.corners.ready():
+                self.manual_found = True
                 np.savez(gobanloc_npz, location=self.corners._points)
 
     def perform_undo(self):
         super(BoardFinderManual, self).perform_undo()
+        self.manual_found = False
         self.corners.pop()
         try:
             os.remove(gobanloc_npz)
