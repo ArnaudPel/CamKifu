@@ -29,7 +29,7 @@ class BoardFinderAuto(BoardFinder):
             area = Area(cv2.contourArea(cont), cont, i)
             insort(sortedconts, area)
         ghost = np.zeros(frame.shape[0:2], dtype=np.uint8)
-        for i in range(3):
+        for i in range(min(3, len(contours))):
             contid = sortedconts[-1 - i].pos
             cv2.drawContours(ghost, contours, contid, (255, 255, 255), thickness=1)
 

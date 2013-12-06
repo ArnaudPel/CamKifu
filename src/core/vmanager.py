@@ -5,14 +5,38 @@ from board.board1 import BoardFinderManual
 from board.board2 import BoardFinderAuto
 from core.calib import Rectifier
 from stone.stones1 import BackgroundSub
-from stone.stones3 import BackgroundSub2
+from stone.stones4 import StoneCont
 
 __author__ = 'Kohistan'
 
 
-class VManager(Thread):
+class VManagerBase(Thread):
     """
-    Master thread for image processing.
+    Abstract vision manager, responsible for creating and coordinating all detection processes.
+
+    """
+
+    def __init__(self, controller):
+        Thread.__init__(self, name="Vision")
+
+        #noinspection PyArgumentList
+        self.cam = cv2.VideoCapture(0)
+
+        self.controller = controller
+        self.board_finder = None
+        self.stones_finder = None
+
+    def request_exit(self):
+        raise NotImplementedError("Abstract method meant to be extended")
+
+    def confirm_exit(self, process):
+        """ A process that terminates is supposed to pass itself here. """
+        pass
+
+
+class VManager(VManagerBase):
+    """
+    Multi-threaded vision manager.
 
     Its fields, notably the board and stones finders, must be regarded as (recursively) volatile.
     Concurrency issues are to be expected.
@@ -20,27 +44,21 @@ class VManager(Thread):
     """
 
     def __init__(self, controller, images):
-        Thread.__init__(self, name="Vision")
-
-        #noinspection PyArgumentList
-        self.cam = cv2.VideoCapture(0)
-        self.controller = controller
+        super(VManager, self).__init__(controller)
+        self.daemon = True
         self.imqueue = images
-
         self.processes = []  # video processors currently running
-        self.board_finder = None
-        self.stones_finder = None
 
     def run(self):
         rectifier = Rectifier(self)
 
         #self.board_finder = BoardFinderManual(self, rectifier)
         self.board_finder = BoardFinderAuto(self, rectifier)
-        self.spawn(self.board_finder)
+        self._spawn(self.board_finder)
 
         #self.stones_finder = NeighbourComp(self, rectifier)
         self.stones_finder = BackgroundSub(self, rectifier)
-        self.spawn(self.stones_finder)
+        self._spawn(self.stones_finder)
 
         running = 1
         while running:
@@ -48,15 +66,10 @@ class VManager(Thread):
                 self.stones_finder.undoflag = False
                 self.board_finder.perform_undo()
                 if self.board_finder not in self.processes:
-                    self.spawn(self.board_finder)
+                    self._spawn(self.board_finder)
             running = len(self.processes)
             sleep(0.3)
         print "Vision processing terminated."
-
-    def spawn(self, process):
-        vt = VisionThread(process)
-        self.processes.append(vt)
-        vt.start()
 
     def request_exit(self):
         message = "Requesting "
@@ -70,11 +83,20 @@ class VManager(Thread):
     def confirm_exit(self, process):
         self.processes.remove(process)
 
+    def _spawn(self, process):
+        vt = VisionThread(process)
+        self.processes.append(vt)
+        vt.start()
+
 
 class VisionThread(Thread):
+    """
+    Wrapper for VidProcessor, to run it in a daemon thread.
 
+    """
     def __init__(self, processor):
         super(VisionThread, self).__init__(name=processor.__class__.__name__)
+        self.daemon = True
 
         # delegate
         self.run = processor.execute

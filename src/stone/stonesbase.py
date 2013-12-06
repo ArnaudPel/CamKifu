@@ -1,5 +1,5 @@
 import cv2
-from numpy import zeros_like, zeros, uint8, int16, sum as npsum
+from numpy import zeros, int16, sum as npsum
 from numpy.ma import absolute
 from board.boardbase import ordered_hull
 from config.devconf import canonical_size
@@ -18,8 +18,6 @@ class StonesFinder(VidProcessor):
 
     def __init__(self, vmanager, rect):
         super(StonesFinder, self).__init__(vmanager, rect)
-
-        self.stones = zeros((gsize, gsize), dtype=uint8)
         self._grid = Grid(canonical_size)
 
     def _doframe(self, frame):
@@ -31,10 +29,7 @@ class StonesFinder(VidProcessor):
     def _find(self, img):
         raise NotImplementedError("Abstract method meant to be extended")
 
-    def reset(self):
-        self.stones = zeros_like(self.stones)
-
-    def _getzones(self, img, r, c):
+    def _getzones(self, img, r, c, proportions=(0.5, 1.0)):
         """
         Returns the pixel zone corresponding to the given goban intersection.
         The current approximation of a stone area is a cross (optimally should be a disk)
@@ -45,7 +40,8 @@ class StonesFinder(VidProcessor):
 
         """
         d, u = 1, 1  # the weights to give to vertical directions (down, up)
-        proportions = [0.5, 1.0]  # needa be floats
+        assert type(proportions[0]) is float, "float required"
+        assert type(proportions[1]) is float, "float required"
 
         p = self._grid.pos[r][c]
         pbefore = self._grid.pos[r - 1][c - 1].copy()
@@ -62,7 +58,8 @@ class StonesFinder(VidProcessor):
         rects = []
         points = []  # for debugging purposes. may be a good thing to clean that out
         # determine start and end point of the rectangle
-        for i in range(2):
+        shapes = 2 if proportions[0] != proportions[1] else 1
+        for i in range(shapes):
             w1 = proportions[i] / 2
             w2 = proportions[1-i] / 2
             start = (int(w1*pbefore[0] + (1-w1)*p[0]), int(w2*pbefore[1] + (1-w2)*p[1]))
@@ -79,6 +76,24 @@ class StonesFinder(VidProcessor):
                 for j in range(19):
                     centers.append(self._grid.pos[i][j])
                     draw_circles(img, centers)
+
+    def suggest(self, color, x, y):
+        """
+        Suggest the add of a new stone to the goban.
+
+        """
+        print "{0}[{1}{2}]".format(color, x, y)
+        self.vmanager.controller.pipe("append", (color, x, y))
+
+    def empties(self):
+        """
+        Enumerate the unoccupied positions of the goban.
+
+        """
+        for x in range(gsize):
+            for y in range(gsize):
+                if self.vmanager.controller.rules[x][y] == 'E':
+                    yield y, x
 
 
 class Grid(object):

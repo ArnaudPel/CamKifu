@@ -1,12 +1,15 @@
 from Queue import Queue, Empty
 from Tkinter import Tk
+from sys import argv
+from core.vmanager_dev import VManagerSeq
 import cv2
 
 from go.kifu import Kifu
+from gui.controller import ControllerBase
 from gui.ui import UI
 
 from core.vmanager import VManager
-from core.controllerv import ControllerV
+from core.controllerv import ControllerV, ControllerVSeq
 from core.imgutil import show
 from core.video import VidRecorder, KeyboardInput
 from config.devconf import vid_out_dir
@@ -56,8 +59,9 @@ def main(gui=True):
         finally:
             vthread.request_exit()
     else:
-        vthread = VManager(None, None)
-        vthread.run()  # run on the main thread
+        # run in dev mode, everything on the main thread
+        vision = VManagerSeq(ControllerVSeq(Kifu.new()))
+        vision.run()
 
 
 def record():
@@ -73,5 +77,9 @@ def record():
 
 
 if __name__ == '__main__':
-    main(gui=True)
+
+    if "nogui" in argv:
+        main(gui=False)
+    else:
+        main()
     #record()

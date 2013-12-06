@@ -1,6 +1,6 @@
-from Queue import Full, Empty
+from Queue import Full, Empty, Queue
 from core.pipewarning import PipeWarning
-from gui.controller import Controller
+from gui.controller import Controller, ControllerBase
 
 __author__ = 'Kohistan'
 
@@ -13,7 +13,7 @@ class ControllerV(Controller):
 
     def __init__(self, kifu, display, user_input):
         super(ControllerV, self).__init__(kifu, user_input, display)
-
+        self.queue = Queue(10)
         # commands from background that have to be executed on the GUI thread.
         self.input.bind("<<execute>>", self._execute)
 
@@ -44,3 +44,16 @@ class ControllerV(Controller):
                     pass  # instruction not implemented here
         except Empty:
             pass
+
+
+class ControllerVSeq(ControllerBase):
+    """
+    Controller with no GUI that is supposed to be run in a single-threaded environment.
+
+    """
+
+    def __init__(self, kifu):
+        super(ControllerVSeq, self).__init__(kifu)
+
+    def pipe(self, instruction, args):
+        self.api[instruction](*args)

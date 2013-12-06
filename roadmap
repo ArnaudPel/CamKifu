@@ -5,7 +5,7 @@ BEFORE PUBLISH:
 
     - make vision values proportionnal to frame size (+ other unknown parameters ?)
     - extract vision (+ time periods) parameters to file for easier tuning (maybe via GUI)
-    - cleanup todos
+    - cleanup todos and commented code
     - have some automated way to build for windows 7-8 / (/ linux @Jack)
     - readme
     - write more test (+ code coverage tool ?), including videos and sgf ressources
@@ -33,6 +33,8 @@ PYTHON
     - when the board has been lost, pause stones detection, and keep trying board detection every now and then.
 
 GUI
+    - add undo command (e.g. moving or deleting a stone)
+    - ability to insert stone (can translate into the ability to set color and number to any stone)
     - ability to navigate to first/last/given move
     - add game-related informations (player names, number of captured, time, ... )
     - display status lights for vision threads.
