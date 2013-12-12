@@ -1,6 +1,8 @@
+from threading import RLock
+from time import time
 import cv2
-from numpy import zeros, int16, sum as npsum
-from numpy.ma import absolute
+from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, ones
+from numpy.ma import absolute, empty_like
 from board.boardbase import ordered_hull
 from config.devconf import canonical_size
 from core.imgutil import draw_circles
@@ -18,7 +20,8 @@ class StonesFinder(VidProcessor):
 
     def __init__(self, vmanager, rect):
         super(StonesFinder, self).__init__(vmanager, rect)
-        self._grid = Grid(canonical_size)
+        self._posgrid = PosGrid(canonical_size)
+        self.mask_cache = None
 
     def _doframe(self, frame):
         transform = self.vmanager.board_finder.mtx
@@ -26,56 +29,16 @@ class StonesFinder(VidProcessor):
             goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
             self._find(goban_img)
 
-    def _find(self, img):
+    def _find(self, goban_img):
         raise NotImplementedError("Abstract method meant to be extended")
 
-    def _getzones(self, img, r, c, proportions=(0.5, 1.0)):
-        """
-        Returns the pixel zone corresponding to the given goban intersection.
-        The current approximation of a stone area is a cross (optimally should be a disk)
-
-        img -- expected to contain the goban pixels only, in the canonical frame.
-        r -- the intersection row index, numpy-like
-        c -- the intersection column index, numpy-like
-
-        """
-        d, u = 1, 1  # the weights to give to vertical directions (down, up)
-        assert type(proportions[0]) is float, "float required"
-        assert type(proportions[1]) is float, "float required"
-
-        p = self._grid.pos[r][c]
-        pbefore = self._grid.pos[r - 1][c - 1].copy()
-        pafter = self._grid.pos[min(r + 1, gsize - 1)][min(c + 1, gsize - 1)].copy()
-        if r == 0:
-            pbefore[0] = -p[0]
-        elif r == gsize - 1:
-            pafter[0] = 2 * img.shape[0] - p[0] - 2
-        if c == 0:
-            pbefore[1] = -p[1]
-        elif c == gsize - 1:
-            pafter[1] = 2 * img.shape[1] - p[1] - 2
-
-        rects = []
-        points = []  # for debugging purposes. may be a good thing to clean that out
-        # determine start and end point of the rectangle
-        shapes = 2 if proportions[0] != proportions[1] else 1
-        for i in range(shapes):
-            w1 = proportions[i] / 2
-            w2 = proportions[1-i] / 2
-            start = (int(w1*pbefore[0] + (1-w1)*p[0]), int(w2*pbefore[1] + (1-w2)*p[1]))
-            end = (int((1-w1)*p[0] + w1*pafter[0]), int((1-w2)*p[1] + w2*pafter[1]))
-            rects.append(img[start[0]: end[0], start[1]: end[1]].copy())  # todo try to remove this copy()
-            points.append((start[1], start[0], end[1], end[0]))
-
-        return rects, points
-
     def _drawgrid(self, img):
-        if self._grid is not None:
+        if self._posgrid is not None:
             centers = []
             for i in range(19):
                 for j in range(19):
-                    centers.append(self._grid.pos[i][j])
-                    draw_circles(img, centers)
+                    centers.append(self._posgrid[i][j])
+            draw_circles(img, centers)
 
     def suggest(self, color, x, y):
         """
@@ -95,12 +58,80 @@ class StonesFinder(VidProcessor):
                 if self.vmanager.controller.rules[x][y] == 'E':
                     yield y, x
 
+    def _getzones(self, img, r, c, cursor=1.0):
+        """
+        Returns the pixel zone corresponding to the given goban intersection.
+        The current approximation of a stone area is a cross (optimally should be a disk)
 
-class Grid(object):
+        img -- expected to contain the goban pixels only, in the canonical frame.
+        r -- the intersection row index, numpy-like
+        c -- the intersection column index, numpy-like
+        proportions -- must be floats
+
+        """
+        assert isinstance(cursor, float)
+        p = self._posgrid[r][c]
+        pbefore = self._posgrid[r - 1][c - 1].copy()
+        pafter = self._posgrid[min(r + 1, gsize - 1)][min(c + 1, gsize - 1)].copy()
+        if r == 0:
+            pbefore[0] = -p[0]
+        elif r == gsize - 1:
+            pafter[0] = 2 * img.shape[0] - p[0] - 2
+        if c == 0:
+            pbefore[1] = -p[1]
+        elif c == gsize - 1:
+            pafter[1] = 2 * img.shape[1] - p[1] - 2
+
+        # determine start and end point of the rectangle
+        w = cursor / 2
+        sx = max(0, int(w * pbefore[0] + (1 - w) * p[0]))
+        sy = max(0, int(w * pbefore[1] + (1 - w) * p[1]))
+        ex = min(img.shape[0], int((1 - w) * p[0] + w * pafter[0]))
+        ey = min(img.shape[1], int((1 - w) * p[1] + w * pafter[1]))
+
+        # todo remove this copy() and leave it to caller
+        return img[sx: ex, sy: ey].copy(), (sx, sy, ex, ey)
+
+    # def _getmask(self, img, r, c):
+    #     mask = empty_like(img, dtype=bool)
+    #     a, b = self._posgrid[r][c]
+    #
+    #     r2 = r + 1 if r < gsize - 1 else r - 1
+    #     c2 = c + 1 if c < gsize - 1 else c - 1
+    #     a1, b1 = self._posgrid[r2][c2]
+    #     rad = min(abs(a-a1), abs(b-b1)) / 2
+    #
+    #     y, x = ogrid[-a:img.shape[0]-a, -b: img.shape[1] - b]  # todo check if there isn't a more direct way
+    #     layer = x*x + y*y <= rad*rad
+    #
+    #     nblayers = img.shape[2] if 2 < len(img.shape) else 1
+    #     for z in range(nblayers):
+    #         mask[:, :, z] = layer
+    #     return mask
+    #
+    def getmask(self, frame):
+        if self.mask_cache is None:
+            print "initializing mask"
+            self.mask_cache = empty_like(frame)
+            mask = empty(frame.shape[0:2], dtype=uint8)
+            for row in range(gsize):
+                for col in range(gsize):
+                    zone, (sx, sy, ex, ey) = self._getzones(frame, row, col)  # todo expose proportions ?
+                    a = zone.shape[0] / 2
+                    b = zone.shape[1] / 2
+                    r = min(a, b)
+                    y, x = ogrid[-a:zone.shape[0]-a, -b: zone.shape[1] - b]
+                    zmask = x*x + y*y <= r*r
+                    mask[sx: ex, sy: ey] = zmask
+            for i in range(self.mask_cache.shape[2]):
+                self.mask_cache[:, :, i] = mask
+        return self.mask_cache
+
+
+class PosGrid(object):
     """
     Store the location of each intersection of the goban.
-    The aim of splitting that part in a separate class is to allow for a more automated and robust
-    version to be developed.
+    Can be extended to provide an evolutive version.
 
     """
 
@@ -116,11 +147,51 @@ class Grid(object):
             xup = (hull[0][0] * (gsize - 1 - i) + hull[1][0] * i) / (gsize - 1)
             xdown = (hull[3][0] * (gsize - 1 - i) + hull[2][0] * i) / (gsize - 1)
             for j in range(gsize):
-                self.pos[i][j][0] = (xup * (gsize - 1 - j) + xdown * j) / (gsize - 1)
+                self[i][j][0] = (xup * (gsize - 1 - j) + xdown * j) / (gsize - 1)
 
                 yleft = (hull[0][1] * (gsize - 1 - j) + hull[3][1] * j) / (gsize - 1)
                 yright = (hull[1][1] * (gsize - 1 - j) + hull[2][1] * j) / (gsize - 1)
-                self.pos[i][j][1] = (yleft * (gsize - 1 - i) + yright * i) / (gsize - 1)
+                self[i][j][1] = (yleft * (gsize - 1 - i) + yright * i) / (gsize - 1)
+
+    def __getitem__(self, item):
+        return self.pos.__getitem__(item)
+
+    def __getslice__(self, i, j):
+        return self.pos.__getslice__(i, j)
+
+
+class ScoreGrid(object):
+    """
+    Can be used to arbitrate between several stone detection algorithms.
+    Values are automatically deprecated, based on their age.
+
+    """
+
+    def __init__(self):
+        self._grids = {}
+        self._thresholds = {}
+        self._rlock = RLock()
+
+        self.deprec_time = 3.0  # number of seconds a value is regarded as meaningful
+
+    def get_all(self):
+        totals = zeros((gsize, gsize), dtype=int16)  # the grid of total score for each stone
+        with self._rlock:
+            thresh = sum(self._thresholds.itervalues())
+            tps = time()
+            for grid in self._grids.values():
+                totals += (grid[::0] * self.deprec_time) / (-grid[::1] + tps)
+            totals[totals < thresh] = 0  # mask values under threshold
+            return totals
+
+    def set(self, key, grid, thresh_contrib):
+        with self._rlock:  # may not be needed here, but just in case
+            self._grids[key] = grid
+            self._thresholds[key] = thresh_contrib
+
+    def delete(self, key):
+        del self._grids[key]
+        del self._thresholds[key]
 
 
 def compare(reference, current):

@@ -17,10 +17,9 @@ class NeighbourComp(StonesFinder):
         # record the mean color for each intersection of the goban.
         for x in range(gsize):
             for y in range(gsize):
-                zones, points = self._getzones(img, x, y)
-                for i, zone in enumerate(zones):
-                    for chan in range(3):
-                        self._colors[x][y][chan] = int(np.mean(zone[:, :, chan]))
+                zone, _ = self._getzones(img, x, y)
+                for chan in range(3):
+                    self._colors[x][y][chan] = int(np.mean(zone[:, :, chan]))
 
         deltas = []
         for x, y in self.empties():
