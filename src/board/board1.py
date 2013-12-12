@@ -44,7 +44,7 @@ def hough(gray, prepare=True):
         return []
 
 
-def find_segments(img):
+def find_segments(img, nbsplits=5):
     """
     Split the image into squares, call Hough on each square.
     Returns all segments found in two lists. The first contains the segments deemed "horizontal",
@@ -55,7 +55,7 @@ def find_segments(img):
 
     hsegs = []
     vsegs = []
-    chunks = list(split_sq(img, nbsplits=5))
+    chunks = list(split_sq(img, nbsplits=nbsplits))
     #chunks.extend(split_sq(img, nbsplits=10, offset=True))  # todo connect that if needing more segments
     for chunk in chunks:
         segments = hough(chunk.mat)
@@ -85,6 +85,26 @@ if __name__ == '__main__':
     print zip(range(sub.shape[1]), range(sub.shape[0]))
 
 
+class SegGridIter(object):
+    def __init__(self, grid):
+        self.grid = grid
+        self.idx = -1
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        self.idx += 1
+        l1 = len(self.grid.hsegs)
+        if self.idx < l1:
+            return self.grid.hsegs[self.idx]
+        elif self.idx - l1 < len(self.grid.vsegs):
+            return self.grid.vsegs[self.idx - l1]
+        else:
+            assert self.idx == len(self.grid), "Should describe entire grid once and only once."  # todo remove
+            raise StopIteration
+
+
 class SegGrid:
     def __init__(self, hsegs, vsegs, img):
         assert isinstance(hsegs, list), "hsegs must be of type list."
@@ -101,6 +121,9 @@ class SegGrid:
         hsegs.sort()
         vsegs.sort()
         return SegGrid(hsegs, vsegs, self.img)
+
+    def __iter__(self):
+        return SegGridIter(self)
 
     def __len__(self):
         return len(self.hsegs) + len(self.vsegs)

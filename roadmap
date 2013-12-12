@@ -1,8 +1,11 @@
 
+Duality arises from Unity, -- But do not be attached to this Unity
+
 ---------------------------------------------------------------------------------------------------
 
 BEFORE PUBLISH:
 
+    - implement ko in rules :)
     - make vision values proportionnal to frame size (+ other unknown parameters ?)
     - extract vision (+ time periods) parameters to file for easier tuning (maybe via GUI)
     - cleanup todos and commented code
@@ -29,29 +32,30 @@ CODE ROADMAP FOR COMMUNITY :
 PYTHON
     - channel all printing to a log
     - create a log viewer pane in the gui
-    - save user preferences: sgf save directory.
-    - when the board has been lost, pause stones detection, and keep trying board detection every now and then.
+    - save user preferences: {sgf save directory, ...}.
 
 GUI
     - add undo command (e.g. moving or deleting a stone)
-    - ability to insert stone (can translate into the ability to set color and number to any stone)
+    - ability to insert stone (i.e. insert a move in the main sequence without creating a variation)
     - ability to navigate to first/last/given move
     - add game-related informations (player names, number of captured, time, ... )
-    - display status lights for vision threads.
     - warn when correcting a stone further from its location (e.g. reddening background or circle around stone)
-    - display "ghost" stones, e.g. for intermediate positions when dragging.
-    - ability to mark stones with different colors: will be used by vision to display status.
-    - auto resize of goban and stones according to size
-    - gui option to use the manual board detection
+    - display "ghost" stones, e.g. for intermediate positions when dragging. or on mouse hover.
+    - auto resize of goban and stones according to window size.
+
+    - API allowing the display of status lights (to be used by vision).
+    - API allowing to mark stones with colors (to be used by vision).
+    OR implement above by extending the GUI from Camkifu in some clever way.
 
 GO
     - allow initial game setup, like handicap stones (automated if possible)
+    - implement score count / estimation
 
 CV
     - pause vision thread when user is involved in GUI (+ connect button to pause it manually)
-    - one thread for board location + one for stones, both always running
     - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
     - update background periodically
+    - gui option to use the manual board detection when auto is failing.
 
 ---------------------------------------------------------------------------------------------------
 

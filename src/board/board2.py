@@ -6,7 +6,7 @@ import numpy as np
 
 from board.board1 import SegGrid, runmerge
 from board.boardbase import BoardFinder
-from core.imgutil import Segment, draw_lines
+from core.imgutil import Segment, draw_lines, sort_conts
 
 
 __author__ = 'Kohistan'
@@ -24,10 +24,7 @@ class BoardFinderAuto(BoardFinder):
         contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) == 0:
             return False
-        sortedconts = []
-        for i, cont in enumerate(contours):
-            area = Area(cv2.contourArea(cont), cont, i)
-            insort(sortedconts, area)
+        sortedconts = sort_conts(contours)
         ghost = np.zeros(frame.shape[0:2], dtype=np.uint8)
         for i in range(min(3, len(contours))):
             contid = sortedconts[-1 - i].pos
@@ -68,16 +65,3 @@ class BoardFinderAuto(BoardFinder):
     def perform_undo(self):
         super(BoardFinderAuto, self).perform_undo()
         self.corners.clear()
-
-
-class Area(object):
-    def __init__(self, area, contour, pos):
-        self.area = area
-        self.contour = contour
-        self.pos = pos
-
-    def __gt__(self, other):
-        return other.area < self.area
-
-    def __lt__(self, other):
-        return self.area < other.area

@@ -16,13 +16,14 @@ class VManagerBase(Thread):
 
     """
 
-    def __init__(self, controller):
+    def __init__(self, controller, imqueue=None):
         Thread.__init__(self, name="Vision")
+        self.controller = controller
+        self.imqueue = imqueue
 
         #noinspection PyArgumentList
         self.cam = cv2.VideoCapture(0)
 
-        self.controller = controller
         self.board_finder = None
         self.stones_finder = None
 
@@ -43,16 +44,15 @@ class VManager(VManagerBase):
 
     """
 
-    def __init__(self, controller, images):
-        super(VManager, self).__init__(controller)
+    def __init__(self, controller, imqueue):
+        super(VManager, self).__init__(controller, imqueue)
         self.daemon = True
-        self.imqueue = images
         self.processes = []  # video processors currently running
 
     def run(self):
         rectifier = Rectifier(self)
 
-        #self.board_finder = BoardFinderManual(self, rectifier)
+        # self.board_finder = BoardFinderManual(self, rectifier)
         self.board_finder = BoardFinderAuto(self, rectifier)
         self._spawn(self.board_finder)
 

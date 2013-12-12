@@ -1,18 +1,15 @@
 from Queue import Queue, Empty
 from Tkinter import Tk
 from sys import argv
-from core.vmanager_dev import VManagerSeq
+from dev.vmanager_dev import VManagerSeq
 import cv2
 
 from go.kifu import Kifu
-from gui.controller import ControllerBase
 from gui.ui import UI
 
 from core.vmanager import VManager
 from core.controllerv import ControllerV, ControllerVSeq
 from core.imgutil import show
-from core.video import VidRecorder, KeyboardInput
-from config.devconf import vid_out_dir
 
 __author__ = 'Kohistan'
 
@@ -64,22 +61,9 @@ def main(gui=True):
         vision.run()
 
 
-def record():
-    #noinspection PyArgumentList
-    cam = cv2.VideoCapture(0)
-    recorder = VidRecorder(cam, vid_out_dir, "Plaizac 1")
-
-    kbin = KeyboardInput(recorder)
-    kbin.daemon = True
-    kbin.start()
-
-    recorder.execute()
-
-
 if __name__ == '__main__':
 
     if "nogui" in argv:
         main(gui=False)
     else:
         main()
-    #record()

@@ -1,3 +1,4 @@
+from bisect import insort
 import cv2
 from numpy import zeros, int32, empty_like, ndarray, ones_like, arange, column_stack, flipud
 
@@ -235,6 +236,41 @@ def tohisto(mult_factor, values):
         except KeyError:
             histo[intv] = 1
     return histo
+
+
+def sort_conts(contours):
+    """
+    Sort contours by increasing area.
+    contours -- an iterable, as returned by cv2.findContours()
+
+    Return -- a sorted list of Area objects. The position of each area corresponds to the contour's position
+     in the provided list.
+
+    """
+    sortedconts = []
+    for i, cont in enumerate(contours):
+        insort(sortedconts, Area(cont, i))
+    return sortedconts
+
+
+class Area(object):
+    """
+    The area of a contour, as computed by openCV.
+
+    """
+    def __init__(self, contour, pos, value=None):
+        self.contour = contour
+        self.value = cv2.contourArea(contour) if value is None else value
+        self.pos = pos
+
+    def __gt__(self, other):
+        return other.value < self.value
+
+    def __lt__(self, other):
+        return self.value < other.value
+
+    def __repr__(self):
+        return "{0} pix2".format(self.value)
 
 
 class Chunk:
