@@ -14,8 +14,12 @@ class ControllerV(Controller):
     def __init__(self, kifu, display, user_input):
         super(ControllerV, self).__init__(kifu, user_input, display)
         self.queue = Queue(10)
+
+        self.paused = Switch()  # alternate between paused and running state
+        self.input.commands["pause"] = lambda: self._pause(self.paused.toggle())
+
         # commands from background that have to be executed on the GUI thread.
-        self.input.bind("<<execute>>", self._execute)
+        self.input.bind("<<execute>>", self._cmd)
 
     def pipe(self, instruction, args):
         if self.input.closed:
@@ -30,9 +34,9 @@ class ControllerV(Controller):
                 print "Goban instruction queue full, ignoring {0}".format(instruction)
             self.input.event_generate("<<execute>>")
 
-    def _execute(self, event):
+    def _cmd(self, event):
         """
-        See self.api for the list of executables.
+        See self.api for the list of executable commands.
 
         """
         try:
@@ -44,6 +48,14 @@ class ControllerV(Controller):
                     pass  # instruction not implemented here
         except Empty:
             pass
+
+    def _pause(self, boolean):
+        """
+        To be set by Vision processes that would agree to pause on user demand.
+        Pause if boolean is True, else resume.
+
+        """
+        pass
 
 
 class ControllerVSeq(ControllerBase):
@@ -57,3 +69,17 @@ class ControllerVSeq(ControllerBase):
 
     def pipe(self, instruction, args):
         self.api[instruction](*args)
+
+
+class Switch(object):
+
+    def __init__(self, on=True):
+        self._on = on
+
+    def toggle(self):
+        """
+        Return the current state and negate it.
+
+        """
+        self._on = not self._on
+        return not self._on

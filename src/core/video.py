@@ -1,7 +1,6 @@
 from Queue import Full
-from threading import Thread
 import cv2
-import time
+from time import sleep, time
 from core.imgutil import show, draw_str
 
 __author__ = 'Kohistan'
@@ -25,8 +24,10 @@ class VidProcessor(object):
 
         self.frame_period = 0.2
         self.last_frame = 0.0
+
         self.undoflag = False
         self._interruptflag = False
+        self.pausedflag = False
 
         self.bindings = {'p': self.pause, 'q': self.interrupt, 'z': self.undo}
         self.key = None
@@ -35,7 +36,8 @@ class VidProcessor(object):
     def execute(self):
         self._interruptflag = False
         while not self._interruptflag:
-            start = time.time()
+            self._checkpause()
+            start = time()
             if self.frame_period < start - self.last_frame:
                 self.last_frame = start
                 ret, frame = self.vmanager.cam.read()
@@ -46,13 +48,13 @@ class VidProcessor(object):
                         #frame = self.rectifier.undistort(frame)
                     self._doframe(frame)
                     self.checkkey()
-                    self.latency = time.time() - start
+                    self.latency = time() - start
                 else:
                     print "Could not read camera for {0}.".format(str(type(self)))
                     self.latency = 0.0
-                    time.sleep(5)
+                    sleep(5)
             else:
-                time.sleep(self.frame_period / 10)  # precision doesn't really matter here
+                sleep(self.frame_period / 10)  # precision doesn't really matter here
         self.vmanager.confirm_exit(self)
 
     def checkkey(self):
@@ -84,22 +86,38 @@ class VidProcessor(object):
         self._interruptflag = True
         self._destroy_windows()
 
-    def pause(self):
-        # todo refactor for multi-threaded arch
-        if self.vmanager.imqueue is None:
-            key = None
-            while True:
-                # repeating the same key resumes processing. other keys are executed as if nothing happened
-                try:
-                    key = chr(cv2.waitKey(500))
-                    if key in self.bindings:
-                        break
-                except ValueError:
-                    pass
-            if (key is not None) and key != 'p':
-                command = self.bindings[key]
-                if command is not None:
-                    command()
+    def pause(self, boolean=None):
+        if boolean is not None:
+            self.pausedflag = boolean
+        else:
+            self.pausedflag = not self.pausedflag
+
+    def _checkpause(self):
+        """
+        Multi-threaded env: will sleep thread as long as self.pausedflag is True.
+        Single-threaded env: will keep calling cv.waitKey until a valid command is pressed.
+
+        """
+        if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
+            if self.pausedflag:
+                while self.pausedflag:
+                    sleep(0.1)
+        else:  # supposedly in single-threaded dev mode
+            if self.pausedflag:
+                key = None
+                while True:
+                    # repeating the same key resumes processing. other keys are executed as if nothing happened
+                    try:
+                        key = chr(cv2.waitKey(500))
+                        if key in self.bindings:
+                            break
+                    except ValueError:
+                        pass
+                if (key is not None) and key != 'p':
+                    command = self.bindings[key]
+                    if command is not None:
+                        command()
+                self.pausedflag = False
 
     def undo(self):
         self.undoflag = True

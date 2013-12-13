@@ -48,6 +48,7 @@ class VManager(VManagerBase):
     def __init__(self, controller, imqueue):
         super(VManager, self).__init__(controller, imqueue)
         self.daemon = True
+        self.controller._pause = self._pause
         self.processes = []  # video processors currently running
 
     def run(self):
@@ -89,6 +90,10 @@ class VManager(VManagerBase):
         self.processes.append(vt)
         vt.start()
 
+    def _pause(self, boolean):
+        for process in self.processes:
+            process.pause(boolean)
+
 
 class VisionThread(Thread):
     """
@@ -102,6 +107,7 @@ class VisionThread(Thread):
         # delegate
         self.run = processor.execute
         self.interrupt = processor.interrupt
+        self.pause = processor.pause
 
     def __eq__(self, other):
         """
