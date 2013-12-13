@@ -5,6 +5,7 @@ from board.board1 import BoardFinderManual
 from board.board2 import BoardFinderAuto
 from core.calib import Rectifier
 from stone.stones1 import BackgroundSub
+from stone.stones2 import NeighbourComp
 from stone.stones4 import StoneCont
 
 __author__ = 'Kohistan'
@@ -56,8 +57,8 @@ class VManager(VManagerBase):
         self.board_finder = BoardFinderAuto(self, rectifier)
         self._spawn(self.board_finder)
 
-        #self.stones_finder = NeighbourComp(self, rectifier)
-        self.stones_finder = BackgroundSub(self, rectifier)
+        # self.stones_finder = BackgroundSub(self, rectifier)
+        self.stones_finder = NeighbourComp(self, rectifier)
         self._spawn(self.stones_finder)
 
         running = 1

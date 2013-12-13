@@ -1,6 +1,7 @@
 from bisect import insort
-import numpy as np
-from stone.stonesbase import StonesFinder, compare
+import cv2
+from numpy import int32, zeros, empty, sum as npsum, mean
+from stone.stonesbase import StonesFinder, compare, evalz
 from golib_conf import gsize
 
 __author__ = 'Kohistan'
@@ -9,46 +10,64 @@ __author__ = 'Kohistan'
 class NeighbourComp(StonesFinder):
     def __init__(self, vmanager, rect):
         super(NeighbourComp, self).__init__(vmanager, rect)
-        self._colors = np.zeros((gsize, gsize, 3), np.int16)
+        self.lastpos = None
 
-    def _find(self, img):
-        self._drawgrid(img)
-        self._show(img)
-        # record the mean color for each intersection of the goban.
-        for x in range(gsize):
-            for y in range(gsize):
-                zone, _ = self._getzones(img, x, y)
+    def _find(self, goban_img):
+        filtered = cv2.medianBlur(goban_img, 7)
+        # filtered = goban_img
+        filtered *= self.getmask(filtered)
+        disp_img = filtered.copy()
+
+        # evaluate each empty intersection of the goban
+        sample = zeros((gsize, gsize, 3), int32)
+        empties = list(self.empties())  # cache the empty positions to be consistent
+        for x, y in empties:
+                zone, _ = self._getzones(filtered, x, y)
                 for chan in range(3):
-                    self._colors[x][y][chan] = int(np.mean(zone[:, :, chan]))
+                    sample[x][y][chan] = evalz(zone, chan)
+        sample /= self.zone_area  # use mean
 
+        pos = None
+        color = 'E'
         deltas = []
-        for x, y in self.empties():
-            #r = np.zeros(8, np.int16)
-            #g = np.zeros(8, np.int16)
-            #b = np.zeros(8, np.int16)
-            r = []
-            g = []
-            b = []
+        values = zeros((gsize, gsize), dtype=int32)
+        for x, y in empties:
+            neighs = zeros((8, 3), dtype=int32)
             idx = 0
             for i in (-1, 0, 1):
                 for j in (-1, 0, 1):
                     if i or j != 0:
-                        try:
-                            meancol = self._colors[x + i][y + j]
-                            #r[idx] = meancol[0]
-                            #g[idx] = meancol[1]
-                            #b[idx] = meancol[2]
-                            r.append(meancol[0])
-                            g.append(meancol[1])
-                            b.append(meancol[2])
-                        except IndexError:
-                            pass
+                        if (0 <= x + i < gsize) and (0 <= y + j < gsize):
+                            neighs[idx] = sample[x + i, y + j]
+                            idx += 1
 
-                        idx += 1
-            neighcol = (np.mean(r), np.mean(g), np.mean(b))
-            insort(deltas, compare(neighcol, self._colors[x][y]))
+            neighsmean = npsum(neighs, axis=0) / idx  # mean color of neighbors
+            delta = compare(neighsmean, sample[x][y])
+
+            if not -200 <= delta <= 200:
+                color = 'B' if delta < 0 else 'W'
+                if pos is None:
+                    pos = x, y
+                else:
+                    print "dropped frame: {0} (2 hits)".format(self.__class__.__name__)
+                    # self._drawvalues(disp_img, sample)
+                    # self._show(disp_img, name="Goban frame")
+                    pos = None
+                    break
+
+            insort(deltas, delta)
+            values[x, y] = delta / 10
         length = len(deltas)
         print str(deltas[0:5]) + str(deltas[length - 5:length])
+
+        if pos is not None:
+            if self.lastpos == pos:
+                self.suggest(color, pos[1], pos[0])  # purposely rotated
+            else:
+                self.lastpos = pos
+
+        self._drawvalues(disp_img, values)
+        self._show(disp_img, name="Goban frame")
 
 
 

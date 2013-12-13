@@ -5,7 +5,7 @@ from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, o
 from numpy.ma import absolute, empty_like
 from board.boardbase import ordered_hull
 from config.devconf import canonical_size
-from core.imgutil import draw_circles
+from core.imgutil import draw_circles, draw_str
 from core.video import VidProcessor
 from golib_conf import gsize
 
@@ -41,17 +41,26 @@ class StonesFinder(VidProcessor):
                     centers.append(self._posgrid[i][j])
             draw_circles(img, centers)
 
+    def _drawvalues(self, img, values):
+        for row in range(gsize):
+            for col in range(gsize):
+                x, y = self._posgrid[row, col]
+                draw_str(img, (x-10, y+2), str(values[row, col]))
+
     def suggest(self, color, x, y):
         """
         Suggest the add of a new stone to the goban.
 
         """
-        print "{0}[{1}{2}]".format(color, x, y)
+        row = 19 - y
+        col = chr(x + (65 if x < 9 else 66))  # kgs weirdo
+        print "{0}[{1}{2}]".format(color, col, row)
         self.vmanager.controller.pipe("append", (color, x, y))
 
     def empties(self):
         """
         Enumerate the unoccupied positions of the goban.
+        Note: May be updated by another thread while yielding results.
 
         """
         for x in range(gsize):
@@ -137,8 +146,7 @@ class StonesFinder(VidProcessor):
         return self.mask_cache
 
 
-
-def evalz(chan, zone):
+def evalz(zone, chan):
     return int(npsum(zone[:, :, chan]))
 
 

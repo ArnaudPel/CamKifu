@@ -6,6 +6,7 @@ from core.calib import Rectifier
 from core.vmanager import VManagerBase
 from stone.stones1 import BackgroundSub
 #from stone.stones4 import StoneCont
+from stone.stones2 import NeighbourComp
 from stone.stones4 import StoneCont
 from stone.stones5 import StonesHough
 
@@ -30,8 +31,8 @@ class VManagerSeq(VManagerBase):
         # self.board_finder = BoardFinderManual(self, rectifier)
         self.board_finder = BoardFinderAuto(self, rectifier)
 
-        self.stones_finder = BackgroundSub(self, rectifier)
-        #self.stones_finder = NeighbourComp(self, rectifier)
+        # self.stones_finder = BackgroundSub(self, rectifier)
+        self.stones_finder = NeighbourComp(self, rectifier)
         # self.stones_finder = StoneCont(self, rectifier)
         # self.stones_finder = StonesHough(self, rectifier)
 

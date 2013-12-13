@@ -15,6 +15,7 @@ BEFORE PUBLISH:
     - clean the other parts of this file :)
     - (add copyleft)
     - document code, especially fields
+    - move as much dev code as possible out of the way
 
 ---------------------------------------------------------------------------------------------------
 

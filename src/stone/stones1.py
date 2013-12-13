@@ -34,7 +34,7 @@ class BackgroundSub(StonesFinder):
             self.dosample = False
         else:
             self.detect(filtered)
-        self._drawgrid(filtered)
+        # self._drawgrid(filtered)
         self._show(filtered, name="Goban frame")
 
     def reset(self):
@@ -43,13 +43,16 @@ class BackgroundSub(StonesFinder):
         self.dosample = True
 
     def sample(self, img):
-        for x in range(gsize):
-            for y in range(gsize):
+        """
+        Update the background data (mean color) of each empty intersection.
+        Occupied intersections are left untouched -> better to have old background data than setting a stone as bg.
+
+        """
+        for x, y in self.empties():
                 zone, points = self._getzones(img, x, y)
                 #copy = img.copy()
                 for chan in range(3):
-                    self._background[x, y, chan] = evalz(chan, zone)
-        self._background /= self.zone_area
+                    self._background[x, y, chan] = evalz(zone, chan) / self.zone_area
                 #cv2.rectangle(copy, points[0:2], points[2:4], (255, 0, 0), thickness=-1)
                 #self._show(copy, name="Sampling Zone")
                 #if cv2.waitKey() == 113: raise SystemExit()
@@ -67,23 +70,23 @@ class BackgroundSub(StonesFinder):
         """
         assert len(self._background) == gsize, "At least one sample must have been run to provide comparison data."
         pos = None
-        val = 0
+        color = 'E'
         # subtract = zeros_like(img)
         sample = empty_like(self._background)
         deltas = []
         for x, y in self.empties():
             zone, points = self._getzones(img, x, y)
             for chan in range(3):
-                sample[x, y, chan] = evalz(chan, zone) / self.zone_area  # needs to be divided now
+                sample[x, y, chan] = evalz(zone, chan) / self.zone_area
             delta = compare(self._background[x][y], sample[x, y])
 
-            if delta < -100 or 100 < delta:
-                val = 1 if delta < 0 else 2
+            if not -100 < delta < 100:
+                color = 'B' if delta < 0 else 'W'
                 if pos is None:
                     pos = x, y
                 else:
-                    # todo allow for one (maybe two) neighbour stones to have been polluted by current stone, and ignore ??
-                    print "dropped frame: StonesFinder (2 hits)"
+                    # todo allow for 1 (maybe 2) neighbour stones to have been polluted by current stone, and ignore ??
+                    print "dropped frame: {0} (2 hits)".format(self.__class__.__name__)
                     return
 
             insort(deltas, delta)
@@ -99,7 +102,7 @@ class BackgroundSub(StonesFinder):
 
         if pos is not None:
             if self.lastpos == pos:
-                self.suggest(player_color[val], pos[1], pos[0])  # purposely rotated
+                self.suggest(color, pos[1], pos[0])  # purposely rotated
                 sample[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
                 self._background = sample
                 sampled(img)
