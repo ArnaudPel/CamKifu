@@ -1,8 +1,8 @@
 from bisect import insort
 import cv2
-from numpy import zeros_like, zeros, uint8, int32, ogrid, empty, empty_like, mean, sum as npsum
+from numpy import zeros_like, zeros, uint8, int32, empty, empty_like, mean, sum as npsum
 from numpy.ma import absolute
-from stone.stonesbase import StonesFinder, compare
+from stone.stonesbase import StonesFinder, compare, evalz
 from golib_conf import gsize, player_color
 
 __author__ = 'Kohistan'
@@ -30,12 +30,11 @@ class BackgroundSub(StonesFinder):
         filtered = cv2.medianBlur(goban_img, 7)
         filtered *= self.getmask(filtered)
         if self.dosample:
-            self.initarea(filtered)
             self.sample(filtered)
             self.dosample = False
         else:
             self.detect(filtered)
-        # self._drawgrid(filtered)
+        self._drawgrid(filtered)
         self._show(filtered, name="Goban frame")
 
     def reset(self):
@@ -49,13 +48,12 @@ class BackgroundSub(StonesFinder):
                 zone, points = self._getzones(img, x, y)
                 #copy = img.copy()
                 for chan in range(3):
-                    self._background[x][y][chan] = int(npsum(zone[:, :, chan]))
+                    self._background[x, y, chan] = evalz(chan, zone)
         self._background /= self.zone_area
-        print self._background[0:5, 0:5, 0:5]
                 #cv2.rectangle(copy, points[0:2], points[2:4], (255, 0, 0), thickness=-1)
                 #self._show(copy, name="Sampling Zone")
                 #if cv2.waitKey() == 113: raise SystemExit()
-        print "Image at {0} set as background.".format(hex(id(img)))
+        sampled(img)
 
     def detect(self, img):
         """
@@ -71,27 +69,26 @@ class BackgroundSub(StonesFinder):
         pos = None
         val = 0
         # subtract = zeros_like(img)
-        # deltas = []
+        sample = empty_like(self._background)
+        deltas = []
         for x, y in self.empties():
-            bg = self._background[x][y]
-            current = zeros(3, dtype=int32)
             zone, points = self._getzones(img, x, y)
             for chan in range(3):
-                current[chan] = int(npsum(zone[:, :, chan]))
-            current /= self.zone_area
-            delta = compare(bg, current)
+                sample[x, y, chan] = evalz(chan, zone) / self.zone_area  # needs to be divided now
+            delta = compare(self._background[x][y], sample[x, y])
 
-            if delta < -1500 or 1500 < delta:
+            if delta < -100 or 100 < delta:
                 val = 1 if delta < 0 else 2
                 if pos is None:
                     pos = x, y
                 else:
-                    print "dropped frame: StonesFinder (too many hits)"
+                    # todo allow for one (maybe two) neighbour stones to have been polluted by current stone, and ignore ??
+                    print "dropped frame: StonesFinder (2 hits)"
                     return
 
-            # insort(deltas, delta)
-        # length = len(deltas)
-        # print str(deltas[0:5]) + str(deltas[length-5:length])
+            insort(deltas, delta)
+        length = len(deltas)
+        print str(deltas[0:5]) + str(deltas[length-5:length])
 
         # subtract = zeros_like(img)
         #     current -= bg
@@ -103,14 +100,15 @@ class BackgroundSub(StonesFinder):
         if pos is not None:
             if self.lastpos == pos:
                 self.suggest(player_color[val], pos[1], pos[0])  # purposely rotated
+                sample[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
+                self._background = sample
+                sampled(img)
             else:
                 self.lastpos = pos
 
-    def initarea(self, img):
-        zone, _ = self._getzones(self.getmask(img), 0, 0)
-        self.zone_area = npsum(zone[0:2])
 
-
+def sampled(img):
+    print "Image at {0} set as background.".format(hex(id(img)))
 
 
 

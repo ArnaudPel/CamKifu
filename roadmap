@@ -8,7 +8,7 @@ BEFORE PUBLISH:
     - implement ko in rules :)
     - make vision values proportionnal to frame size (+ other unknown parameters ?)
     - extract vision (+ time periods) parameters to file for easier tuning (maybe via GUI)
-    - cleanup todos and commented code
+    - cleanup todos / commented code / asserts (?)
     - have some automated way to build for windows 7-8 / (/ linux @Jack)
     - readme
     - write more test (+ code coverage tool ?), including videos and sgf ressources

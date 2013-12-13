@@ -71,10 +71,11 @@ class VidProcessor(object):
                 key = chr(cv2.waitKey(50))  # for when running on main thread
 
             command = self.bindings[key]
-            print key
             if command is not None:
                 print "executing command '{0}'".format(key)
                 command()
+            else:
+                print "no command for '{0}'".format(key)
         except (TypeError, KeyError, ValueError):
             pass  # not interested in non-char keys ATM
         self.key = None

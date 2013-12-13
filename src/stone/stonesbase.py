@@ -1,7 +1,7 @@
 from threading import RLock
 from time import time
 import cv2
-from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, ones
+from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, ones, sum
 from numpy.ma import absolute, empty_like
 from board.boardbase import ordered_hull
 from config.devconf import canonical_size
@@ -22,6 +22,7 @@ class StonesFinder(VidProcessor):
         super(StonesFinder, self).__init__(vmanager, rect)
         self._posgrid = PosGrid(canonical_size)
         self.mask_cache = None
+        self.zone_area = None
 
     def _doframe(self, frame):
         transform = self.vmanager.board_finder.mtx
@@ -123,9 +124,22 @@ class StonesFinder(VidProcessor):
                     y, x = ogrid[-a:zone.shape[0]-a, -b: zone.shape[1] - b]
                     zmask = x*x + y*y <= r*r
                     mask[sx: ex, sy: ey] = zmask
+
+            # duplicate mask to match image depth
             for i in range(self.mask_cache.shape[2]):
                 self.mask_cache[:, :, i] = mask
+
+            # store the area of one zone for normalizing purposes
+            zone, _ = self._getzones(mask, 0, 0)
+            self.zone_area = npsum(zone)
+            print "area={0}".format(self.zone_area)
+
         return self.mask_cache
+
+
+
+def evalz(chan, zone):
+    return int(npsum(zone[:, :, chan]))
 
 
 class PosGrid(object):
