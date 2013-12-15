@@ -26,6 +26,7 @@ class VManagerSeq(VManagerBase):
         self.current_proc = None
 
     def run(self):
+        super(VManagerSeq, self).run()
         rectifier = Rectifier(self)
 
         # self.board_finder = BoardFinderManual(self, rectifier)

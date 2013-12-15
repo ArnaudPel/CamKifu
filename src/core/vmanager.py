@@ -22,11 +22,14 @@ class VManagerBase(Thread):
         self.controller = controller
         self.imqueue = imqueue
 
-        #noinspection PyArgumentList
-        self.cam = cv2.VideoCapture(0)
-
+        self.cam = None  # initialized in run()
         self.board_finder = None
         self.stones_finder = None
+
+    def run(self):
+        if self.cam is None:
+            #noinspection PyArgumentList
+            self.cam = cv2.VideoCapture(0)
 
     def request_exit(self):
         raise NotImplementedError("Abstract method meant to be extended")
@@ -52,6 +55,7 @@ class VManager(VManagerBase):
         self.processes = []  # video processors currently running
 
     def run(self):
+        super(VManager, self).run()
         rectifier = Rectifier(self)
 
         # self.board_finder = BoardFinderManual(self, rectifier)

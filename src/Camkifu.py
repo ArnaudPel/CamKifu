@@ -29,6 +29,7 @@ def main(gui=True):
     if gui:
         root = Tk()
         app = VUI(root)
+        app.pack()
         control = ControllerV(Kifu.new(), app, app)
 
         imqueue = Queue(maxsize=10)
