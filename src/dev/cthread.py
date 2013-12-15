@@ -4,7 +4,7 @@ from time import sleep
 from core.warnings import PipeWarning
 from go.kifu import Kifu
 from gui.controller import Controller
-from gui.ui import UI
+from vgui.vui import VUI
 
 __author__ = 'Kohistan'
 
@@ -35,7 +35,7 @@ class AutoClick(Thread):
 if __name__ == '__main__':
     root = Tk()
     kifu = Kifu.parse("/Users/Kohistan/Documents/go/Perso Games/MrYamamoto-Kohistan.sgf")
-    app = UI(root)
+    app = VUI(root)
     control = Controller(kifu, app, app)
 
     cthread = AutoClick(control)

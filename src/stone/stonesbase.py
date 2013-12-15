@@ -68,7 +68,10 @@ class StonesFinder(VidProcessor):
                 if self.vmanager.controller.rules[x][y] == 'E':
                     yield y, x
 
-    def _getzones(self, img, r, c, cursor=1.0):
+    def getcolors(self):
+        return self.vmanager.controller.rules.copystones()
+
+    def _getzone(self, img, r, c, cursor=1.0):
         """
         Returns the pixel zone corresponding to the given goban intersection.
         The current approximation of a stone area is a cross (optimally should be a disk)
@@ -126,7 +129,7 @@ class StonesFinder(VidProcessor):
             mask = empty(frame.shape[0:2], dtype=uint8)
             for row in range(gsize):
                 for col in range(gsize):
-                    zone, (sx, sy, ex, ey) = self._getzones(frame, row, col)  # todo expose proportions ?
+                    zone, (sx, sy, ex, ey) = self._getzone(frame, row, col)  # todo expose proportions ?
                     a = zone.shape[0] / 2
                     b = zone.shape[1] / 2
                     r = min(a, b)
@@ -139,7 +142,7 @@ class StonesFinder(VidProcessor):
                 self.mask_cache[:, :, i] = mask
 
             # store the area of one zone for normalizing purposes
-            zone, _ = self._getzones(mask, 0, 0)
+            zone, _ = self._getzone(mask, 0, 0)
             self.zone_area = npsum(zone)
             print "area={0}".format(self.zone_area)
 

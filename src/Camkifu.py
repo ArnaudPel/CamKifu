@@ -5,7 +5,7 @@ from dev.vmanager_dev import VManagerSeq
 import cv2
 
 from go.kifu import Kifu
-from gui.ui import UI
+from vgui.vui import VUI
 
 from core.vmanager import VManager
 from core.controllerv import ControllerV, ControllerVSeq
@@ -28,7 +28,7 @@ def main(gui=True):
 
     if gui:
         root = Tk()
-        app = UI(root)
+        app = VUI(root)
         control = ControllerV(Kifu.new(), app, app)
 
         imqueue = Queue(maxsize=10)

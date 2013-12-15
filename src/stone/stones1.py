@@ -49,7 +49,7 @@ class BackgroundSub(StonesFinder):
 
         """
         for x, y in self.empties():
-                zone, points = self._getzones(img, x, y)
+                zone, points = self._getzone(img, x, y)
                 #copy = img.copy()
                 for chan in range(3):
                     self._background[x, y, chan] = evalz(zone, chan) / self.zone_area
@@ -75,7 +75,7 @@ class BackgroundSub(StonesFinder):
         sample = empty_like(self._background)
         deltas = []
         for x, y in self.empties():
-            zone, points = self._getzones(img, x, y)
+            zone, points = self._getzone(img, x, y)
             for chan in range(3):
                 sample[x, y, chan] = evalz(zone, chan) / self.zone_area
             delta = compare(self._background[x][y], sample[x, y])
