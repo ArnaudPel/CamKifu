@@ -5,10 +5,8 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
-    - ability to change the color of a stone
     - ability to navigate to first/last/given move
-    - add "nothing found" on board finder frames, to indicate it is working
-    - transparent file / live input
+    - adapt VidProcessor to improve video file handling (right now, very slow)
     - gui option to use the manual board detection when auto is failing
     - allow initial game setup, like handicap stones (automated if possible)
     - pause vision threads when user is involved in a long GUI operation (like open / save)

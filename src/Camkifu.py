@@ -1,5 +1,6 @@
 from Queue import Queue, Empty
 from Tkinter import Tk
+import Golib
 from sys import argv
 import cv2
 
@@ -20,21 +21,24 @@ Application entry point.
 """
 
 
-def main(gui=True):
+def main(video=0, nogui=False, sgf=None):
     """
     gui --  Set to false to run the vision on main thread. Handy when needing to
             display images from inside loops during dev.
+    video -- A file to use as video input.
 
     """
+    if nogui:
+        # run in dev mode, everything on the main thread
+        vision = VManagerSeq(ControllerVSeq(kifufile=sgf), video=video)
+        vision.run()
 
-    if gui:
+    else:
         root = Tk()
         app = VUI(root)
         app.pack()
-        control = ControllerV(app, app)
-
         imqueue = Queue(maxsize=10)
-        vthread = VManager(control, imqueue)
+        vthread = VManager(ControllerV(app, app, kifufile=sgf), imqueue, video=video)
 
         def img_update():
             try:
@@ -57,15 +61,16 @@ def main(gui=True):
             root.mainloop()
         finally:
             vthread.request_exit()
-    else:
-        # run in dev mode, everything on the main thread
-        vision = VManagerSeq(ControllerVSeq())
-        vision.run()
+
+
+def get_argparser():
+    parser = Golib.get_argparser()
+    vhelp = "File to use as video feed. If absent, a live camera feed will is used."
+    parser.add_argument("-v", "--video", help=vhelp, default=0)
+    parser.add_argument("--nogui", help="Run without tkinter GUI.", action="store_true")
+    return parser
 
 
 if __name__ == '__main__':
-
-    if "nogui" in argv:
-        main(gui=False)
-    else:
-        main()
+    args = get_argparser().parse_args()
+    main(video=args.video, nogui=args.nogui, sgf=args.sgf)

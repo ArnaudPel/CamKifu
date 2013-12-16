@@ -4,7 +4,7 @@ from numpy import float32, array, vstack
 import cv2
 
 from config.devconf import canonical_size as csize
-from core.imgutil import draw_circles, draw_lines
+from core.imgutil import draw_circles, draw_lines, draw_str
 from core.video import VidProcessor
 
 __author__ = 'Kohistan'

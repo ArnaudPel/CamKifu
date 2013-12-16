@@ -6,7 +6,7 @@ import numpy as np
 
 from board.board1 import SegGrid, runmerge
 from board.boardbase import BoardFinder
-from core.imgutil import Segment, draw_lines, sort_conts
+from core.imgutil import Segment, draw_lines, sort_conts, draw_str
 
 
 __author__ = 'Kohistan'
@@ -59,7 +59,8 @@ class BoardFinderAuto(BoardFinder):
                         self.corners.add(grid.hsegs[i].intersection(grid.vsegs[j]))
 
         self.corners.paint(median)
-        self._show(median, "Median")
+        draw_str(median, (40, 40), "Ok" if found else "Looking for board..")
+        self._show(median, "Board Finder Auto")
         return found
 
     def perform_undo(self):

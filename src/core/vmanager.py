@@ -17,19 +17,20 @@ class VManagerBase(Thread):
 
     """
 
-    def __init__(self, controller, imqueue=None):
+    def __init__(self, controller, imqueue=None, video=0):
         Thread.__init__(self, name="Vision")
         self.controller = controller
         self.imqueue = imqueue
 
-        self.cam = None  # initialized in run()
+        self.video = video
+        self.cam = None  # initialized in run() with video argument
         self.board_finder = None
         self.stones_finder = None
 
     def run(self):
         if self.cam is None:
             #noinspection PyArgumentList
-            self.cam = cv2.VideoCapture(0)
+            self.cam = cv2.VideoCapture(self.video)
 
     def request_exit(self):
         raise NotImplementedError("Abstract method meant to be extended")
@@ -48,8 +49,8 @@ class VManager(VManagerBase):
 
     """
 
-    def __init__(self, controller, imqueue):
-        super(VManager, self).__init__(controller, imqueue)
+    def __init__(self, controller, imqueue=None, video=0):
+        super(VManager, self).__init__(controller, imqueue=imqueue, video=video)
         self.daemon = True
         self.controller._pause = self._pause
         self.processes = []  # video processors currently running

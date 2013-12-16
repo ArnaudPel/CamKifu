@@ -21,8 +21,8 @@ class VManagerSeq(VManagerBase):
 
     """
 
-    def __init__(self, controller):
-        super(VManagerSeq, self).__init__(controller)
+    def __init__(self, controller=None, video=0):
+        super(VManagerSeq, self).__init__(controller, video=video)
         self.current_proc = None
 
     def run(self):
