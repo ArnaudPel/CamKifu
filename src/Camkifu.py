@@ -1,10 +1,11 @@
 from Queue import Queue, Empty
 from Tkinter import Tk
 from sys import argv
-from dev.vmanager_dev import VManagerSeq
 import cv2
 
-from go.kifu import Kifu
+import golib_conf
+golib_conf.appname = "Camkifu"
+from dev.vmanager_dev import VManagerSeq
 from vgui.vui import VUI
 
 from core.vmanager import VManager
@@ -30,7 +31,7 @@ def main(gui=True):
         root = Tk()
         app = VUI(root)
         app.pack()
-        control = ControllerV(Kifu.new(), app, app)
+        control = ControllerV(app, app)
 
         imqueue = Queue(maxsize=10)
         vthread = VManager(control, imqueue)
@@ -58,7 +59,7 @@ def main(gui=True):
             vthread.request_exit()
     else:
         # run in dev mode, everything on the main thread
-        vision = VManagerSeq(ControllerVSeq(Kifu.new()))
+        vision = VManagerSeq(ControllerVSeq())
         vision.run()
 
 

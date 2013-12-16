@@ -5,7 +5,7 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
-    - ability to insert stone (i.e. insert a move in the main sequence without creating a variation)
+    - ability to change the color of a stone
     - ability to navigate to first/last/given move
     - add "nothing found" on board finder frames, to indicate it is working
     - transparent file / live input

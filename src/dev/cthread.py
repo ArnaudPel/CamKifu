@@ -33,10 +33,10 @@ class AutoClick(Thread):
             print pwa
 
 if __name__ == '__main__':
+    kifu = "/Users/Kohistan/Documents/go/Perso Games/MrYamamoto-Kohistan.sgf"
     root = Tk()
-    kifu = Kifu.parse("/Users/Kohistan/Documents/go/Perso Games/MrYamamoto-Kohistan.sgf")
     app = VUI(root)
-    control = Controller(kifu, app, app)
+    control = Controller(app, app, kifu)
 
     cthread = AutoClick(control)
     cthread.start()

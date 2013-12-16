@@ -22,3 +22,22 @@ Wish List (decreasing priority):
     (*) In the meantime, the suggestion is to save into a file and use your favorite SGF editor.
 
     To request a feature, please use the issue tracker.
+
+
+How to:
+Modify the stones on the goban:
+    As of Dec. 2013, variations are not supported in a game. This may imply frustrating behavior of the goban, compared to already-in-place editors. Hopefully this situation will be forgotten soon. Below are the current features available.
+    Put a stone on the goban:
+        - left-click to append a stone to game. This can only be done when the goban is displaying the last stone of the game
+        -
+
+
+
+
+
+Contribution:
+Code:
+    Keeping in mind the OCP, a few class hierarchies have been put to good use. Hopefully they will provide extension points for further developments.
+
+Guidance:
+    Any advice regarding architecture improvements will be received with sharp interest, wether it ends up being put to use or not.

@@ -11,8 +11,8 @@ class ControllerV(Controller):
 
     """
 
-    def __init__(self, kifu, display, user_input):
-        super(ControllerV, self).__init__(kifu, user_input, display)
+    def __init__(self, user_input, display, kifufile=None):
+        super(ControllerV, self).__init__(user_input, display, kifufile)
         self.queue = Queue(10)
 
         self.paused = Switch()  # alternate between paused and running state
@@ -64,8 +64,8 @@ class ControllerVSeq(ControllerBase):
 
     """
 
-    def __init__(self, kifu):
-        super(ControllerVSeq, self).__init__(kifu)
+    def __init__(self, kifufile=None):
+        super(ControllerVSeq, self).__init__(kifufile=kifufile)
 
     def pipe(self, instruction, args):
         self.api[instruction](*args)
