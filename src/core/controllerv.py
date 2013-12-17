@@ -66,6 +66,30 @@ class ControllerV(Controller):
     def add_sfinder(self, label, callback, select=False):
         self.display.add_sf(label, callback, select=select)
 
+    def _open(self):
+        self._pause(True)
+        super(ControllerV, self)._open()
+        self._pause(False)
+
+    def _save(self):
+        self._pause(True)
+        super(ControllerV, self)._save()
+        self._pause(False)
+
+    def __setattr__(self, name, value):
+
+        # special case for the current move number,
+        if name == "current_mn" and value is not None:
+            try:
+                if value < self.kifu.last_move().number:
+                    self._pause(True)
+                else:
+                    self._pause(self.paused.get())
+            except AttributeError:
+                pass  # most likely last_move() has returned null
+
+        return super(ControllerV, self).__setattr__(name, value)
+
 
 class ControllerVSeq(ControllerBase):
     """
@@ -81,8 +105,7 @@ class ControllerVSeq(ControllerBase):
 
 
 class Switch(object):
-
-    def __init__(self, on=True):
+    def __init__(self, on=False):
         self._on = on
 
     def toggle(self):
@@ -91,4 +114,7 @@ class Switch(object):
 
         """
         self._on = not self._on
-        return not self._on
+        return self._on
+
+    def get(self):
+        return self._on

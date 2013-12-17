@@ -7,16 +7,13 @@ BEFORE PUBLISH:
 
     - ability to navigate to first/last/given move
     - adapt VidProcessor to improve video file handling (right now, very slow)
-    - gui option to use the manual board detection when auto is failing
     - allow initial game setup, like handicap stones (automated if possible)
-    - pause vision threads when user is involved in a long GUI operation (like open / save)
-    - gui choice of detection algorithm
     - readme
     - make vision values as dynamic as possible (frame size, ...)
+    - write more test (+ code coverage tool ?), including videos and sgf ressources
 
     - move as much dev code as possible out of the way
     - cleanup todos / commented code / asserts (?)
-    - write more test (+ code coverage tool ?), including videos and sgf ressources
     - document code, especially fields
     - have some automated way to build for windows 7-8 / (/ linux @Jack)
     - license
@@ -39,7 +36,6 @@ ON PUBLISH:
 CODE ROADMAP FOR COMMUNITY :
 
 PYTHON
-    - "file to load" CLI argument
     - channel all printing to a log
     - create a log viewer pane in the gui
     - save user preferences: {sgf save dir, ...}.
