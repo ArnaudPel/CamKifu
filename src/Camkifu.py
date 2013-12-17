@@ -1,14 +1,17 @@
 from Queue import Queue, Empty
 from Tkinter import Tk
-import Golib
-from sys import argv
+import platform
+import os
 import cv2
 
 import golib_conf
+# keep this line above other project imports to keep appname right
 golib_conf.appname = "Camkifu"
+
 from dev.vmanager_dev import VManagerSeq
 from vgui.vui import VUI
 
+import Golib
 from core.vmanager import VManager
 from core.controllerv import ControllerV, ControllerVSeq
 from core.imgutil import show
@@ -34,7 +37,7 @@ def main(video=0, nogui=False, sgf=None):
         vision.run()
 
     else:
-        root = Tk()
+        root = Tk(className="Camkifu")
         app = VUI(root)
         app.pack()
         imqueue = Queue(maxsize=10)
@@ -58,6 +61,12 @@ def main(video=0, nogui=False, sgf=None):
         vthread.start()
         try:
             root.after(0, img_update)
+
+            # mac OS special, to bring app to front at startup
+            if "Darwin" in platform.system():
+                os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
+
+            Golib.center(root)
             root.mainloop()
         finally:
             vthread.request_exit()

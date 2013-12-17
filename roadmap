@@ -60,6 +60,7 @@ GO
     - implement / connect score estimation
 
 CV
+    - provide vidprocessors with their last successful run (interruption awareness)
     - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
     - update background periodically
     - when board detected at a new location, invalidate all moves found since previous detection

@@ -57,16 +57,16 @@ class VManager(VManagerBase):
 
     def run(self):
         super(VManager, self).run()
-        rectifier = Rectifier(self)
 
-        # self.board_finder = BoardFinderManual(self, rectifier)
-        self.board_finder = BoardFinderAuto(self, rectifier)
-        self._spawn(self.board_finder)
+        rect = Rectifier(self)
 
-        # self.stones_finder = BackgroundSub(self, rectifier)
-        self.stones_finder = NeighbourComp(self, rectifier)
-        self._spawn(self.stones_finder)
+        self.controller.pipe("bfinder", ("Automatic", lambda: self.set_bf(BoardFinderAuto(self, rect)), True))
+        self.controller.pipe("bfinder", ("Manual", lambda: self.set_bf(BoardFinderManual(self, rect))))
 
+        self.controller.pipe("sfinder", ("Bg Sub", lambda: self.set_sf(BackgroundSub(self, rect)), True))
+        self.controller.pipe("sfinder", ("Neigh Comp", lambda: self.set_sf(NeighbourComp(self, rect))))
+
+        # todo remove that block and keep the bf_manual alive instead ?
         running = 1
         while running:
             if self.stones_finder.undoflag:
@@ -89,15 +89,35 @@ class VManager(VManagerBase):
 
     def confirm_exit(self, process):
         self.processes.remove(process)
+        print "{0} terminated.".format(process.__class__.__name__)
 
     def _spawn(self, process):
         vt = VisionThread(process)
         self.processes.append(vt)
+        print "{0} starting.".format(process.__class__.__name__)
         vt.start()
 
     def _pause(self, boolean):
         for process in self.processes:
             process.pause(boolean)
+
+    def set_bf(self, board_finder):
+        if self.board_finder is not None:
+            self.board_finder.interrupt()
+            while self.board_finder in self.processes:
+                sleep(0.1)
+            del self.board_finder  # just in case, help garbage collector
+        self.board_finder = board_finder
+        self._spawn(self.board_finder)
+
+    def set_sf(self, stones_finder):
+        if self.stones_finder is not None:
+            self.stones_finder.interrupt()
+            while self.stones_finder in self.processes:
+                sleep(0.1)
+            del self.stones_finder  # just in case, help garbage collector
+        self.stones_finder = stones_finder
+        self._spawn(self.stones_finder)
 
 
 class VisionThread(Thread):

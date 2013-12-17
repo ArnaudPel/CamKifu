@@ -1,1 +1,2 @@
-all clear
+
+when the kifu is not at the last move, pause vision, cause variations are forbidden, and moves will be refused.

@@ -21,6 +21,9 @@ class ControllerV(Controller):
         # commands from background that have to be executed on the GUI thread.
         self.input.bind("<<execute>>", self._cmd)
 
+        self.api["bfinder"] = self.add_bfinder
+        self.api["sfinder"] = self.add_sfinder
+
     def pipe(self, instruction, args):
         if self.input.closed:
             raise PipeWarning("Target User Interface has been closed.")
@@ -56,6 +59,12 @@ class ControllerV(Controller):
 
         """
         pass
+
+    def add_bfinder(self, label, callback, select=False):
+        self.display.add_bf(label, callback, select=select)
+
+    def add_sfinder(self, label, callback, select=False):
+        self.display.add_sf(label, callback, select=select)
 
 
 class ControllerVSeq(ControllerBase):
