@@ -1,6 +1,7 @@
 from time import sleep
 import cv2
 from threading import Thread
+from cv2.cv import CV_CAP_PROP_POS_AVI_RATIO
 from board.board1 import BoardFinderManual
 from board.board2 import BoardFinderAuto
 from core.calib import Rectifier
@@ -17,20 +18,24 @@ class VManagerBase(Thread):
 
     """
 
-    def __init__(self, controller, imqueue=None, video=0):
+    def __init__(self, controller, imqueue=None, video=0, bounds=(0, 1)):
         Thread.__init__(self, name="Vision")
         self.controller = controller
         self.imqueue = imqueue
 
         self.video = video
-        self.cam = None  # initialized in run() with video argument
+        self.capt = None  # initialized in run() with video argument
+        self.bounds = bounds
+
         self.board_finder = None
         self.stones_finder = None
 
     def run(self):
-        if self.cam is None:
+        if self.capt is None:
             #noinspection PyArgumentList
-            self.cam = cv2.VideoCapture(self.video)
+            self.capt = cv2.VideoCapture(self.video)
+            # set the beginning of video files. is ignored by live camera
+            self.capt.set(CV_CAP_PROP_POS_AVI_RATIO, self.bounds[0])
 
     def request_exit(self):
         raise NotImplementedError("Abstract method meant to be extended")
@@ -49,8 +54,8 @@ class VManager(VManagerBase):
 
     """
 
-    def __init__(self, controller, imqueue=None, video=0):
-        super(VManager, self).__init__(controller, imqueue=imqueue, video=video)
+    def __init__(self, controller, imqueue=None, video=0, bounds=(0, 1)):
+        super(VManager, self).__init__(controller, imqueue=imqueue, video=video, bounds=bounds)
         self.daemon = True
         self.controller._pause = self._pause
         self.processes = []  # video processors currently running

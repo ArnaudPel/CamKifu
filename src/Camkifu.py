@@ -24,7 +24,7 @@ Application entry point.
 """
 
 
-def main(video=0, nogui=False, sgf=None):
+def main(video=0, nogui=False, sgf=None, bounds=(0, 1)):
     """
     gui --  Set to false to run the vision on main thread. Handy when needing to
             display images from inside loops during dev.
@@ -33,7 +33,7 @@ def main(video=0, nogui=False, sgf=None):
     """
     if nogui:
         # run in dev mode, everything on the main thread
-        vision = VManagerSeq(ControllerVSeq(kifufile=sgf), video=video)
+        vision = VManagerSeq(ControllerVSeq(kifufile=sgf), video=video, bounds=bounds)
         vision.run()
 
     else:
@@ -41,7 +41,7 @@ def main(video=0, nogui=False, sgf=None):
         app = VUI(root)
         app.pack()
         imqueue = Queue(maxsize=10)
-        vthread = VManager(ControllerV(app, app, kifufile=sgf), imqueue, video=video)
+        vthread = VManager(ControllerV(app, app, kifufile=sgf), imqueue, video=video, bounds=bounds)
 
         def img_update():
             try:
@@ -61,12 +61,12 @@ def main(video=0, nogui=False, sgf=None):
         vthread.start()
         try:
             root.after(0, img_update)
+            Golib.center(root)
 
             # mac OS special, to bring app to front at startup
             if "Darwin" in platform.system():
                 os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
 
-            Golib.center(root)
             root.mainloop()
         finally:
             vthread.request_exit()
@@ -76,10 +76,14 @@ def get_argparser():
     parser = Golib.get_argparser()
     vhelp = "File to use as video feed. If absent, a live camera feed will is used."
     parser.add_argument("-v", "--video", help=vhelp, default=0)
-    parser.add_argument("--nogui", help="Run without tkinter GUI.", action="store_true")
+
+    bhelp = "Video file bounds, expressed as ratios in [0, 1]. See openCV VideoCapture.set()"
+    parser.add_argument("-b", "--bounds", default=(0, 1), help=bhelp, type=float, nargs=2, metavar="R")
+
+    parser.add_argument("--nogui", help="Run without Tkinter GUI.", action="store_true")
     return parser
 
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    main(video=args.video, nogui=args.nogui, sgf=args.sgf)
+    main(video=args.video, nogui=args.nogui, sgf=args.sgf, bounds=args.bounds)

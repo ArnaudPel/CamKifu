@@ -1,4 +1,5 @@
 from Queue import Full
+from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
 import cv2
 from time import sleep, time
 from core.imgutil import show, draw_str
@@ -34,13 +35,15 @@ class VidProcessor(object):
         self.latency = 0.0
 
     def execute(self):
+        capture = self.vmanager.capt
+        end = self.vmanager.bounds[1]
         self._interruptflag = False
-        while not self._interruptflag:
+        while not self._interruptflag and (capture.get(POS_RATIO) < end):
             self._checkpause()
             start = time()
             if self.frame_period < start - self.last_frame:
                 self.last_frame = start
-                ret, frame = self.vmanager.cam.read()
+                ret, frame = capture.read()
                 if ret:
                     # todo remove calibration if it's not actually helping.
                     # undistort seems to actually pollute board detection.

@@ -16,8 +16,10 @@ class VUI(UI):
         m_detect.add_cascade(label="Stones", menu=self.m_stones)
         self.menubar.insert_cascade(0, label="Detection", menu=m_detect)
 
+        b_run = Button(self.buttons, text="Run", command=lambda: self.execute("run"))
         b_pause = Button(self.buttons, text="Pause", command=lambda: self.execute("pause"))
-        b_pause.grid(row=4, column=0, columnspan=2)
+        b_run.grid(row=4, column=0)
+        b_pause.grid(row=4, column=1)
 
         # annoying Tkinter way to select radiobuttons -- see add_bf() and add_sf()
         self.radvar_bf = StringVar()

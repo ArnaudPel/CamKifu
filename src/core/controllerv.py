@@ -15,14 +15,19 @@ class ControllerV(Controller):
         super(ControllerV, self).__init__(user_input, display, kifufile)
         self.queue = Queue(10)
 
-        self.paused = Switch()  # alternate between paused and running state
-        self.input.commands["pause"] = lambda: self._pause(self.paused.toggle())
+        self.input.commands["run"] = self._run
+        self.input.commands["pause"] = lambda: self._pause(self.paused.true())
 
         # commands from background that have to be executed on the GUI thread.
         self.input.bind("<<execute>>", self._cmd)
 
         self.api["bfinder"] = self.add_bfinder
         self.api["sfinder"] = self.add_sfinder
+
+        if kifufile is not None:
+            self._goto(722)  # get kifu ready to ramble
+
+        self.paused = Pause()
 
     def pipe(self, instruction, args):
         if self.input.closed:
@@ -60,6 +65,12 @@ class ControllerV(Controller):
         """
         pass
 
+    def _run(self):
+        if self.at_last_move():
+            self._pause(self.paused.false())
+        else:
+            self.log("Processing can't create variation in game. Please navigate to the last move.")
+
     def add_bfinder(self, label, callback, select=False):
         self.display.add_bf(label, callback, select=select)
 
@@ -82,9 +93,9 @@ class ControllerV(Controller):
         if name == "current_mn" and value is not None:
             try:
                 if value < self.kifu.last_move().number:
-                    self._pause(True)
+                    self._pause(True)  # don't update Pause object here
                 else:
-                    self._pause(self.paused.get())
+                    self._pause(self.paused.__nonzero__())
             except AttributeError:
                 pass  # most likely last_move() has returned null
 
@@ -104,17 +115,18 @@ class ControllerVSeq(ControllerBase):
         self.api[instruction](*args)
 
 
-class Switch(object):
-    def __init__(self, on=False):
-        self._on = on
+class Pause(object):
 
-    def toggle(self):
-        """
-        Return the current state and negate it.
+    def __init__(self, paused=False):
+        self.paused = paused
 
-        """
-        self._on = not self._on
-        return self._on
+    def true(self):
+        self.paused = True
+        return self.paused
 
-    def get(self):
-        return self._on
+    def false(self):
+        self.paused = False
+        return self.paused
+
+    def __nonzero__(self):
+        return self.paused

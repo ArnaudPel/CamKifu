@@ -5,12 +5,11 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
-    - ability to navigate to first/last/given move
+    - write more test (+ code coverage tool ?), including videos and sgf ressources
     - adapt VidProcessor to improve video file handling (right now, very slow)
     - allow initial game setup, like handicap stones (automated if possible)
     - readme
     - make vision values as dynamic as possible (frame size, ...)
-    - write more test (+ code coverage tool ?), including videos and sgf ressources
 
     - move as much dev code as possible out of the way
     - cleanup todos / commented code / asserts (?)
