@@ -17,7 +17,7 @@ class VUI(UI):
         self.menubar.insert_cascade(0, label="Detection", menu=m_detect)
 
         b_pause = Button(self.buttons, text="Pause", command=lambda: self.execute("pause"))
-        b_pause.grid(row=3, column=0)
+        b_pause.grid(row=4, column=0, columnspan=2)
 
         # annoying Tkinter way to select radiobuttons -- see add_bf() and add_sf()
         self.radvar_bf = StringVar()
