@@ -5,7 +5,10 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
+    - if deleting last stone, select previous stone (+highl) in order to ease rollback
+    - securise "New Game" menu to avoid accidental game loss (either ask confirm (w maybe changes tracking) or save temp previous)
     - write more test (+ code coverage tool ?), including videos and sgf ressources
+    - extend Tauber sgf instead of modifying it
     - adapt VidProcessor to improve video file handling (right now, very slow)
     - allow initial game setup, like handicap stones (automated if possible)
     - readme
@@ -29,6 +32,7 @@ ON PUBLISH:
     - add myself to:
             http://stackoverflow.com/q/5742140/777285  (+ crawl from there)
             kgs and igs profiles
+    - hammer keywords online (go, weiqi, baduk, igo, camera, recording, video) to be found
 
 ---------------------------------------------------------------------------------------------------
 
@@ -58,7 +62,7 @@ CV
     - provide vidprocessors with their last successful run (interruption awareness)
     - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
     - update background periodically
-    - when board detected at a new location, invalidate all moves found since previous detection
+    - when board detected at a new location, invalidate all moves found since previous detection (stones buffer)
     - bg-sub: update B/W thresholds dynamically (per zone ?). Increase on detect, lower on user stone add.
     - ability to provide image file as input (for testing)
 
