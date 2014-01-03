@@ -186,6 +186,7 @@ class PosGrid(object):
 
 
 class ScoreGrid(object):
+    # todo park that somewhere else or del
     """
     Can be used to arbitrate between several stone detection algorithms.
     Values are automatically deprecated, based on their age.

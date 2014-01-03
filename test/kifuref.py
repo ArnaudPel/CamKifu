@@ -21,11 +21,11 @@ class KifuChecker(Kifu):
             self.check()
 
     def check(self):
-        # fail at first move difference
         if self.failfast:
             idx = 1
             ref_mv = self.ref.getmove_at(idx)
             while ref_mv:
+                # fail at first move difference
                 mv = self.getmove_at(idx)
                 if mv != ref_mv:
                     msg = "At move {0}: expected {1}, got {2}".format(idx, ref_mv, mv)
@@ -34,8 +34,7 @@ class KifuChecker(Kifu):
                 ref_mv = self.ref.getmove_at(idx)
 
         # extract diff data between move sequences
-        else:
-            return SequenceMatcher(a=(self.ref.get_main_seq()), b=(self.get_main_seq()))
+        return SequenceMatcher(a=(self.ref.get_main_seq()), b=(self.get_main_seq()))
 
 
 def print_matcher(matcher):
@@ -67,8 +66,13 @@ def print_matcher(matcher):
         miss = miss.ljust(mlen)
 
         # display matching items
-        for i in range(block[0], block[0]+block[2]):
-            good += str(matcher.a[i]) + " "
+        if 4 < block[2]:
+            good += str(matcher.a[block[0]])
+            good += "... ({0} more) ...".format(block[2]-2)
+            good += str(matcher.a[block[0] + block[2]-1])
+        else:
+            for i in range(block[0], block[0]+block[2]):
+                good += str(matcher.a[i]) + " "
         unex = unex.ljust(len(good))
         miss = miss.ljust(len(good))
     print "Matched   : " + good
@@ -77,7 +81,7 @@ def print_matcher(matcher):
     print "Ratio     : " + str(matcher.ratio())
 
 
-def tk_sequence(matcher, master=None):
+def display_matcher(matcher, master=None):
     """
     Return a Tkinter display of the matcher information.
     Interpretation:
@@ -100,26 +104,31 @@ def tk_sequence(matcher, master=None):
         unex = ""
         for i in range(idx2, block[1]):
             unex += str(matcher.b[i]) + " "
-        Label(master=sequence, text=unex, fg="gray").pack(side=LEFT)
+        Label(master=sequence, text=unex, fg="dark gray").pack(side=LEFT)
         idx2 = block[1] + block[2]
 
         # display matching items
         match = ""
-        for i in range(block[0], block[0] + block[2]):
-            match += str(matcher.a[i]) + " "
-        Label(master=sequence, text=match, fg="green").pack(side=LEFT)
+        if 4 < block[2]:
+            match += str(matcher.a[block[0]])
+            match += "... ({0} more) ...".format(block[2]-2)
+            match += str(matcher.a[block[0] + block[2]-1])
+        else:
+            for i in range(block[0], block[0] + block[2]):
+                match += str(matcher.a[i]) + " "
+        Label(master=sequence, text=match, fg="dark green").pack(side=LEFT)
     return sequence
 
 
 if __name__ == '__main__':
-    ref = "/Users/Kohistan/Documents/Go/Perso Games/reference.sgf"
-    sgf = "/Users/Kohistan/Documents/Go/Perso Games/experience.sgf"
+    ref = "/Users/Kohistan/Documents/Go/Perso Games/Number6-Kohistan.sgf"
+    sgf = "/Users/Kohistan/Documents/Go/Perso Games/Number6-Kohistan.sgf"
     checker = KifuChecker(reffile=ref, sgffile=sgf)
     m = checker.check()
     print_matcher(m)
 
     root = Tk()
-    frame = tk_sequence(m, root)
+    frame = display_matcher(m, root)
     frame.pack()
     root.mainloop()
 

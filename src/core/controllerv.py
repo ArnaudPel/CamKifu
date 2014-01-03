@@ -4,16 +4,18 @@ from gui.controller import Controller, ControllerBase
 
 __author__ = 'Kohistan'
 
+commands_size = 10
+
 
 class ControllerV(Controller):
     """
-    Extension responsible for handling Vision threads inputs.
+    Extension adding handling of Vision threads to the default GUI controller.
 
     """
 
     def __init__(self, user_input, display, kifufile=None):
         super(ControllerV, self).__init__(user_input, display, kifufile)
-        self.queue = Queue(10)
+        self.queue = Queue(commands_size)
 
         self.input.commands["run"] = self._run
         self.input.commands["pause"] = lambda: self._pause(self.paused.true())
@@ -39,16 +41,24 @@ class ControllerV(Controller):
             try:
                 self.queue.put_nowait((instruction, args))
             except Full:
-                print "Goban instruction queue full, ignoring {0}".format(instruction)
+                print "Controller instruction queue full, ignoring {0}".format(instruction)
             self.input.event_generate("<<execute>>")
 
     def _cmd(self, event):
         """
+        Try to empty the piped commands queue.
+        This method will not execute more than a fixed number of commands, in order to prevent
+        infinite looping. Such infinite looping could occur if this method fails to keep up with
+        other threads piping commands.
+        Keeping flow smooth is paramount here, as this is likely to be run on the main (GUI) thread.
+
         See self.api for the list of executable commands.
 
         """
         try:
-            while True:
+            count = 0
+            while count < commands_size:
+                count += 1
                 instruction, args = self.queue.get_nowait()
                 try:
                     self.api[instruction](*args)
@@ -66,6 +76,10 @@ class ControllerV(Controller):
         pass
 
     def _run(self):
+        """
+        Ask vision processes to run / resume.
+
+        """
         if self.at_last_move():
             self._pause(self.paused.false())
         else:
@@ -89,7 +103,7 @@ class ControllerV(Controller):
 
     def __setattr__(self, name, value):
 
-        # special case for the current move number,
+        # watch "current move number" field, and stop vision when user is browsing previous moves.
         if name == "current_mn" and value is not None:
             try:
                 if value < self.kifu.last_move().number:
@@ -108,10 +122,11 @@ class ControllerVSeq(ControllerBase):
 
     """
 
-    def __init__(self, kifufile=None):
-        super(ControllerVSeq, self).__init__(kifufile=kifufile)
-
     def pipe(self, instruction, args):
+        """
+        Execute command straight away (assumption of single-threaded environment).
+
+        """
         self.api[instruction](*args)
 
 

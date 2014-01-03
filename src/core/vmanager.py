@@ -14,7 +14,7 @@ __author__ = 'Kohistan'
 
 class VManagerBase(Thread):
     """
-    Abstract vision manager, responsible for creating and coordinating all detection processes.
+    Abstract vision manager, responsible for creating and coordinating all video detection processes.
 
     """
 
@@ -65,6 +65,8 @@ class VManager(VManagerBase):
 
         rect = Rectifier(self)
 
+        # register "board finders" and "stones finders" with the controller.
+        # it's up to it to start them via the provided callbacks.
         self.controller.pipe("bfinder", ("Automatic", lambda: self.set_bf(BoardFinderAuto(self, rect)), True))
         self.controller.pipe("bfinder", ("Manual", lambda: self.set_bf(BoardFinderManual(self, rect))))
 

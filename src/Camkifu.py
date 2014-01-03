@@ -41,13 +41,13 @@ def main(video=0, nogui=False, sgf=None, bounds=(0, 1)):
         app = VUI(root)
         app.pack()
         imqueue = Queue(maxsize=10)
-        vthread = VManager(ControllerV(app, app, kifufile=sgf), imqueue, video=video, bounds=bounds)
+        vthread = VManager(ControllerV(app, app, kifufile=sgf), imqueue=imqueue, video=video, bounds=bounds)
 
         def img_update():
+            # method to display opencv images on the GUI thread (otherwise it fails)
             try:
                 while True:
-                    elem = imqueue.get_nowait()
-                    name, img, vidproc = elem
+                    name, img, vidproc = imqueue.get_nowait()
                     if img is not None:
                         show(img, name=name)
                         key = cv2.waitKey(20)

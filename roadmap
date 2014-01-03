@@ -5,16 +5,15 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
-    - if deleting last stone, select previous stone (+highl) in order to ease rollback
-    - securise "New Game" menu to avoid accidental game loss (either ask confirm (w maybe changes tracking) or save temp previous)
     - write more test (+ code coverage tool ?), including videos and sgf ressources
     - extend Tauber sgf instead of modifying it
     - adapt VidProcessor to improve video file handling (right now, very slow)
-    - allow initial game setup, like handicap stones (automated if possible)
     - readme
     - make vision values as dynamic as possible (frame size, ...)
+    - remove calibration prompt !!
+    - replace controller.pipe() with regular methods ??
 
-    - move as much dev code as possible out of the way
+    - move as much dev code as possible out of the way (have a general look)
     - cleanup todos / commented code / asserts (?)
     - document code, especially fields
     - have some automated way to build for windows 7-8 / (/ linux @Jack)
@@ -59,6 +58,7 @@ GO
     - implement / connect score estimation
 
 CV
+    - allow initial game setup auto detection, like handicap stones
     - provide vidprocessors with their last successful run (interruption awareness)
     - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
     - update background periodically
