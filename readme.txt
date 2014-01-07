@@ -1,5 +1,6 @@
 
 The aim of this software is to record Go games played onto physical boards, by means of video processing. The main drive is to be able to completely focus into the game, and still be able to review it afterwards.
+As of 04/01/14, the main value of this software is to provide a testing framework for go-vision algorithms. Hopefully most of the necessary features to quickly throw an idea into code and test it are available.
 
 Current Features (Dec. 2013):
     Automatic detection of the board (+ manual detection available in case of failure)
@@ -40,6 +41,8 @@ Modify the stones on the goban:
 
 
 Contribution:
+--> CL means Command Line
+
 Projects:
     In an attempt to enforce separation of concerns, non-vision Go features are developped as a separate module, named Golib. As of 03/01/14, imports of Golib made in Camkifu are phrased as if both source directories have been merged. Pycharm handles that in Preferences | Project Dependencies. Contributions to improve this module management for non-Pycharm users are welcome.
 
@@ -49,5 +52,12 @@ Code:
         - controller.py and controllerv.py provide levels for MVC interaction.
         - vmanager.py classes can be extended to tune vision threads management.
 
+Testing:
+    - camkifutest.py class can be used to provide a reference kifu to check against during processing.
+    - To process a sub-part of a video file, see CL argument -b / --bounds.
+
 Guidance:
     Any advice regarding architecture improvements will be received with sharp interest, wether it ends up being put to use or not.
+
+
+

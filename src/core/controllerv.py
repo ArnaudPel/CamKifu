@@ -13,15 +13,23 @@ class ControllerV(Controller):
 
     """
 
-    def __init__(self, user_input, display, kifufile=None):
-        super(ControllerV, self).__init__(user_input, display, kifufile)
+    def __init__(self, user_input, display, kifufile=None, video=0, bounds=(0, 1)):
+        super(ControllerV, self).__init__(user_input, display, kifufile=kifufile)
         self.queue = Queue(commands_size)
-
-        self.input.commands["run"] = self._run
-        self.input.commands["pause"] = lambda: self._pause(self.paused.true())
+        self.video = video
+        self.bounds = bounds
 
         # commands from background that have to be executed on the GUI thread.
         self.input.bind("<<execute>>", self._cmd)
+
+        try:
+            self.input.commands["run"] = self._run
+            self.input.commands["pause"] = lambda: self._pause(self.paused.true())
+            self.input.commands["vidfile"] = self._openvideo
+            self.input.commands["vidlive"] = self._openlive
+        except AttributeError as ae:
+            self.log("Some commands could not be bound to User Interface.")
+            self.log(ae)
 
         self.api["bfinder"] = self.add_bfinder
         self.api["sfinder"] = self.add_sfinder
@@ -91,10 +99,20 @@ class ControllerV(Controller):
     def add_sfinder(self, label, callback, select=False):
         self.display.add_sf(label, callback, select=select)
 
-    def _open(self):
+    def _opensgf(self):
         self._pause(True)
-        super(ControllerV, self)._open()
+        super(ControllerV, self)._opensgf()
         self._pause(False)
+
+    def _openvideo(self):
+        self._pause(True)
+        vidfile = self.display.promptopen()
+        if len(vidfile):
+            self.video = vidfile
+        self._pause(False)
+
+    def _openlive(self):
+        self.video = 0
 
     def _save(self):
         self._pause(True)
@@ -121,6 +139,11 @@ class ControllerVSeq(ControllerBase):
     Controller with no GUI that is supposed to be run in a single-threaded environment.
 
     """
+
+    def __init__(self, kifufile=None, video=0, bounds=(0, 1)):
+        super(ControllerVSeq, self).__init__(kifufile=kifufile)
+        self.video = video
+        self.bounds = bounds
 
     def pipe(self, instruction, args):
         """

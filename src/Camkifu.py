@@ -33,7 +33,7 @@ def main(video=0, nogui=False, sgf=None, bounds=(0, 1)):
     """
     if nogui:
         # run in dev mode, everything on the main thread
-        vision = VManagerSeq(ControllerVSeq(kifufile=sgf), video=video, bounds=bounds)
+        vision = VManagerSeq(ControllerVSeq(kifufile=sgf, video=video, bounds=bounds))
         vision.run()
 
     else:
@@ -41,7 +41,8 @@ def main(video=0, nogui=False, sgf=None, bounds=(0, 1)):
         app = VUI(root)
         app.pack()
         imqueue = Queue(maxsize=10)
-        vthread = VManager(ControllerV(app, app, kifufile=sgf), imqueue=imqueue, video=video, bounds=bounds)
+        controller = ControllerV(app, app, kifufile=sgf, video=video, bounds=bounds)
+        vthread = VManager(controller, imqueue=imqueue)
 
         def img_update():
             # method to display opencv images on the GUI thread (otherwise it fails)
@@ -74,7 +75,7 @@ def main(video=0, nogui=False, sgf=None, bounds=(0, 1)):
 
 def get_argparser():
     parser = Golib.get_argparser()
-    vhelp = "File to use as video feed. If absent, a live camera feed will is used."
+    vhelp = "Filename, or device, as used in cv2.VideoCapture(). Defaults to device \"0\"."
     parser.add_argument("-v", "--video", help=vhelp, default=0)
 
     bhelp = "Video file bounds, expressed as ratios in [0, 1]. See openCV VideoCapture.set()"

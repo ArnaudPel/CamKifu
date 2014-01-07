@@ -21,12 +21,12 @@ class VManagerSeq(VManagerBase):
 
     """
 
-    def __init__(self, controller=None, video=0, bounds=(0, 1)):
-        super(VManagerSeq, self).__init__(controller, video=video, bounds=bounds)
+    def __init__(self, controller=None):
+        super(VManagerSeq, self).__init__(controller)
         self.current_proc = None
 
     def run(self):
-        super(VManagerSeq, self).run()
+        self.init_capt()
         rectifier = Rectifier(self)
 
         # self.board_finder = BoardFinderManual(self, rectifier)

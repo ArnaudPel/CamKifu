@@ -18,24 +18,26 @@ class VManagerBase(Thread):
 
     """
 
-    def __init__(self, controller, imqueue=None, video=0, bounds=(0, 1)):
+    def __init__(self, controller, imqueue=None):
         Thread.__init__(self, name="Vision")
         self.controller = controller
         self.imqueue = imqueue
 
-        self.video = video
         self.capt = None  # initialized in run() with video argument
-        self.bounds = bounds
+        self.current_video = None
 
         self.board_finder = None
         self.stones_finder = None
 
-    def run(self):
-        if self.capt is None:
-            #noinspection PyArgumentList
-            self.capt = cv2.VideoCapture(self.video)
-            # set the beginning of video files. is ignored by live camera
-            self.capt.set(CV_CAP_PROP_POS_AVI_RATIO, self.bounds[0])
+    def init_capt(self):
+        if self.capt is not None:
+            self.capt.release()
+        #noinspection PyArgumentList
+        self.capt = cv2.VideoCapture(self.controller.video)
+        self.current_video = self.controller.video
+
+        # set the beginning of video files. is ignored by live camera
+        self.capt.set(CV_CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
 
     def request_exit(self):
         raise NotImplementedError("Abstract method meant to be extended")
@@ -54,15 +56,15 @@ class VManager(VManagerBase):
 
     """
 
-    def __init__(self, controller, imqueue=None, video=0, bounds=(0, 1)):
-        super(VManager, self).__init__(controller, imqueue=imqueue, video=video, bounds=bounds)
+    def __init__(self, controller, imqueue=None):
+        super(VManager, self).__init__(controller, imqueue=imqueue)
         self.daemon = True
         self.controller._pause = self._pause
         self.processes = []  # video processors currently running
+        self.restart = False
 
     def run(self):
-        super(VManager, self).run()
-
+        self.init_capt()
         rect = Rectifier(self)
 
         # register "board finders" and "stones finders" with the controller.
@@ -76,14 +78,27 @@ class VManager(VManagerBase):
         # todo remove that block and keep the bf_manual alive instead ?
         running = 1
         while running:
+            # todo rethink this undo concept maybe
             if self.stones_finder.undoflag:
                 self.stones_finder.undoflag = False
                 self.board_finder.perform_undo()
                 if self.board_finder not in self.processes:
                     self._spawn(self.board_finder)
             running = len(self.processes)
+
+            # watch for video input changes.
+            if self.current_video != self.controller.video:
+                # global restart to avoid fatal "PyEval_RestoreThread: NULL tstate"
+                self.restart = True
+                self.request_exit()
             sleep(0.3)
-        print "Vision processing terminated."
+
+        if self.restart:
+            self.restart = False
+            print "Vision processing restarting."
+            self.run()
+        else:
+            print "Vision processing terminated."
 
     def request_exit(self):
         message = "Requesting "

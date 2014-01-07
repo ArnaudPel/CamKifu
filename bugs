@@ -2,3 +2,12 @@
 bugs
 
 inserting a stone on a position that will be used later blocks navigation when reaching said position
+when file passed as argument is not present, the title should be "New game"
+fix "Goto move" dialog text + don't go back to begining if cancelled !!
+
+when opening board finder manual: destroy window boardfinder auto
+when making a non-square-like area in bf manual, the finder quits. Should reset or restart.
+
+when vision is paused, display it on the cv image(s)
+
+don't save grid location if it is not a square (actually don't use saved version at all from Tk)

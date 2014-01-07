@@ -16,6 +16,11 @@ class VUI(UI):
         m_detect.add_cascade(label="Stones", menu=self.m_stones)
         self.menubar.insert_cascade(0, label="Detection", menu=m_detect)
 
+        m_video = Menu(self.menubar)
+        m_video.add_command(label="Video File...", command=lambda: self.execute("vidfile"))
+        m_video.add_command(label="Live video", command=lambda: self.execute("vidlive"))
+        self.menubar.insert_cascade(0, label="Video", menu=m_video)
+
         b_run = Button(self.buttons, text="Run", command=lambda: self.execute("run"))
         b_pause = Button(self.buttons, text="Pause", command=lambda: self.execute("pause"))
         b_run.grid(row=4, column=0)

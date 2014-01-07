@@ -35,15 +35,14 @@ class VidProcessor(object):
         self.latency = 0.0
 
     def execute(self):
-        capture = self.vmanager.capt
-        end = self.vmanager.bounds[1]
+        end = self.vmanager.controller.bounds[1]
         self._interruptflag = False
-        while not self._interruptflag and (capture.get(POS_RATIO) < end):
+        while not self._interruptflag and (self.vmanager.capt.get(POS_RATIO) < end):
             self._checkpause()
             start = time()
             if self.frame_period < start - self.last_frame:
                 self.last_frame = start
-                ret, frame = capture.read()
+                ret, frame = self.vmanager.capt.read()
                 if ret:
                     # todo remove calibration if it's not actually helping.
                     # undistort seems to actually pollute board detection.
@@ -91,8 +90,10 @@ class VidProcessor(object):
 
     def pause(self, boolean=None):
         if boolean is not None:
+            # set provided value
             self.pausedflag = boolean
         else:
+            # no value provided, interpret as a toggle
             self.pausedflag = not self.pausedflag
 
     def _checkpause(self):
