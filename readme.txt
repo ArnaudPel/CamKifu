@@ -52,6 +52,9 @@ Code:
         - controller.py and controllerv.py provide levels for MVC interaction.
         - vmanager.py classes can be extended to tune vision threads management.
 
+Go:
+    A seemingly weird position decription may be used in some places, were the 'I' column has disapeared. This is how CGoban displays moves, so as it is my main Go Editor I have adapted to it.
+
 Testing:
     - camkifutest.py class can be used to provide a reference kifu to check against during processing.
     - To process a sub-part of a video file, see CL argument -b / --bounds.

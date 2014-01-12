@@ -45,17 +45,15 @@ class StonesFinder(VidProcessor):
         for row in range(gsize):
             for col in range(gsize):
                 x, y = self._posgrid[row, col]
-                draw_str(img, (x-10, y+2), str(values[row, col]))
+                draw_str(img, (x - 10, y + 2), str(values[row, col]))
 
     def suggest(self, color, x, y):
         """
         Suggest the add of a new stone to the goban.
 
         """
-        row = 19 - y
-        col = chr(x + (65 if x < 9 else 66))  # kgs weirdo
-        print "{0}[{1}{2}]".format(color, col, row)
-        self.vmanager.controller.pipe("append", (color, x, y))
+        print vision_to_kgs(color, x, y)
+        self.vmanager.controller.pipe("append", (color, y, x))  # purposely rotated
 
     def empties(self):
         """
@@ -133,8 +131,8 @@ class StonesFinder(VidProcessor):
                     a = zone.shape[0] / 2
                     b = zone.shape[1] / 2
                     r = min(a, b)
-                    y, x = ogrid[-a:zone.shape[0]-a, -b: zone.shape[1] - b]
-                    zmask = x*x + y*y <= r*r
+                    y, x = ogrid[-a:zone.shape[0] - a, -b: zone.shape[1] - b]
+                    zmask = x * x + y * y <= r * r
                     mask[sx: ex, sy: ey] = zmask
 
             # duplicate mask to match image depth
@@ -231,3 +229,51 @@ def compare(reference, current):
     """
     sign = 1 if npsum(reference) <= npsum(current) else -1
     return sign * int(npsum(absolute(current - reference)))
+
+
+class DummyFinder(StonesFinder):
+    """
+    Can be used to simulate the detection of an arbitrary sequence of stones.
+    Useful to test "test code". Double use of word 'test' intended :)
+
+    """
+
+    def __init__(self, vmanager, rect, sequence):
+        super(DummyFinder, self).__init__(vmanager, rect)
+        self.iterator = iter(sequence)
+
+    def _find(self, goban_img):
+        try:
+            move = self.iterator.next()
+            self.suggest(*kgs_to_vision(move))
+        except StopIteration:
+            self.interrupt()
+
+
+# todo unify conversion methods below in Move class ?
+def vision_to_kgs(color, x, y):
+    """
+    Convert a move from the the vision coordinate frame to CGoban coordinate frame.
+
+    """
+    row = 19 - x
+    col = chr(y + (65 if y < 8 else 66))  # CGoban 3 (KGS) weirdo
+    return "{0}[{1}{2}]".format(color, col, row)
+
+
+def kgs_to_vision(string):
+    """
+    Convert a move from the CGoban coordinate frame to the vision coordinate frame.
+
+    """
+    col = ord(string[2])
+    y = col - (65 if col < 73 else 66)
+    x = int(string[3:5]) if len(string) == 6 else int(string[3:4])
+    return string[0], 19 - x, y
+
+# if __name__ == '__main__':
+#     for i in range(gsize):
+#         for j in range(gsize):
+#             coords = 'B', i, j
+#             assert coords == kgs_to_vision(vision_to_kgs(*coords))
+#             print vision_to_kgs(*coords)

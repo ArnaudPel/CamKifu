@@ -8,6 +8,7 @@ from core.calib import Rectifier
 from stone.stones1 import BackgroundSub
 from stone.stones2 import NeighbourComp
 from stone.stones4 import StoneCont
+from stone.stonesbase import DummyFinder
 
 __author__ = 'Kohistan'
 
@@ -69,9 +70,12 @@ class VManager(VManagerBase):
 
         # register "board finders" and "stones finders" with the controller.
         # it's up to it to start them via the provided callbacks.
-        self.controller.pipe("bfinder", ("Automatic", lambda: self.set_bf(BoardFinderAuto(self, rect)), True))
-        self.controller.pipe("bfinder", ("Manual", lambda: self.set_bf(BoardFinderManual(self, rect))))
+        self.controller.pipe("bfinder", ("Automatic", lambda: self.set_bf(BoardFinderAuto(self, rect))))
+        self.controller.pipe("bfinder", ("Manual", lambda: self.set_bf(BoardFinderManual(self, rect)), True))
 
+        dummy_sf = DummyFinder(self, rect, ["W[H8]", "B[J8]", "W[K12]", "B[F12]", "W[F11]", "B[H10]",
+                                            "W[J14]", "B[J12]", "W[J11]", "B[J13]", "W[K13]"])
+        self.controller.pipe("sfinder", ("Test SF", lambda: self.set_sf(dummy_sf)))
         self.controller.pipe("sfinder", ("Bg Sub", lambda: self.set_sf(BackgroundSub(self, rect)), True))
         self.controller.pipe("sfinder", ("Neigh Comp", lambda: self.set_sf(NeighbourComp(self, rect))))
 
@@ -112,6 +116,9 @@ class VManager(VManagerBase):
     def confirm_exit(self, process):
         self.processes.remove(process)
         print "{0} terminated.".format(process.__class__.__name__)
+        if process is self.board_finder and process.mtx is None:
+            # board finder exits without providing board location. that's a show stopper
+            self.request_exit()
 
     def _spawn(self, process):
         vt = VisionThread(process)
@@ -168,8 +175,6 @@ class VisionThread(Thread):
                 return (self.run == other.run) and (self.interrupt == other.interrupt)
             except AttributeError:
                 return False
-
-
 
 
 

@@ -24,16 +24,31 @@ Application entry point.
 """
 
 
-def main(video=0, nogui=False, sgf=None, bounds=(0, 1)):
+def img_update(imqueue):
+    # method to display opencv images on the GUI thread (otherwise it fails)
+    try:
+        while True:
+            name, img, vidproc = imqueue.get_nowait()
+            if img is not None:
+                show(img, name=name)
+                key = cv2.waitKey(20)
+                vidproc.key = key
+            else:
+                cv2.destroyWindow(name)
+    except Empty:
+        pass
+
+
+def main(video=0, singleth=False, sgf=None, bounds=(0, 1)):
     """
-    gui --  Set to false to run the vision on main thread. Handy when needing to
+    singleth --  Set to True to run everything on the main thread. Handy when in need to
             display images from inside loops during dev.
-    video -- A file to use as video input.
+    video -- Filename or device descriptor, as used in cv2.VideoCapture().
 
     """
-    if nogui:
+    if singleth:
         # run in dev mode, everything on the main thread
-        vision = VManagerSeq(ControllerVSeq(kifufile=sgf, video=video, bounds=bounds))
+        vision = VManagerSeq(ControllerVSeq(sgffile=sgf, video=video, bounds=bounds))
         vision.run()
 
     else:
@@ -41,27 +56,16 @@ def main(video=0, nogui=False, sgf=None, bounds=(0, 1)):
         app = VUI(root)
         app.pack()
         imqueue = Queue(maxsize=10)
-        controller = ControllerV(app, app, kifufile=sgf, video=video, bounds=bounds)
+        controller = ControllerV(app, app, sgffile=sgf, video=video, bounds=bounds)
         vthread = VManager(controller, imqueue=imqueue)
 
-        def img_update():
-            # method to display opencv images on the GUI thread (otherwise it fails)
-            try:
-                while True:
-                    name, img, vidproc = imqueue.get_nowait()
-                    if img is not None:
-                        show(img, name=name)
-                        key = cv2.waitKey(20)
-                        vidproc.key = key
-                    else:
-                        cv2.destroyWindow(name)
-            except Empty:
-                pass
-            root.after(5, img_update)
+        def tk_routine():
+            img_update(imqueue)
+            root.after(5, tk_routine)
 
         vthread.start()
         try:
-            root.after(0, img_update)
+            root.after(0, tk_routine)
             Golib.center(root)
 
             # mac OS special, to bring app to front at startup
@@ -76,15 +80,15 @@ def main(video=0, nogui=False, sgf=None, bounds=(0, 1)):
 def get_argparser():
     parser = Golib.get_argparser()
     vhelp = "Filename, or device, as used in cv2.VideoCapture(). Defaults to device \"0\"."
-    parser.add_argument("-v", "--video", help=vhelp, default=0)
+    parser.add_argument("-v", "--video", default=0, help=vhelp)
 
     bhelp = "Video file bounds, expressed as ratios in [0, 1]. See openCV VideoCapture.set()"
-    parser.add_argument("-b", "--bounds", default=(0, 1), help=bhelp, type=float, nargs=2, metavar="R")
+    parser.add_argument("-b", "--bounds", default=(0, 1), type=float, nargs=2, metavar="R", help=bhelp)
 
-    parser.add_argument("--nogui", help="Run without Tkinter GUI.", action="store_true")
+    parser.add_argument("--singlethread", help="Run without Tkinter GUI.", action="store_true")
     return parser
 
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    main(video=args.video, nogui=args.nogui, sgf=args.sgf, bounds=args.bounds)
+    main(video=args.video, singleth=args.singlethread, sgf=args.sgf, bounds=args.bounds)

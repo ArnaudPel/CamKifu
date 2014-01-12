@@ -13,10 +13,11 @@ class KifuChecker(Kifu):
 
     """
 
-    def __init__(self, reffile, sgffile=None, failfast=False):
+    def __init__(self, reffile, sgffile=None, failfast=False, bounds=(0, 1000)):
         Kifu.__init__(self, sgffile=sgffile)
         self.ref = Kifu(sgffile=reffile)
         self.failfast = failfast
+        self.bounds = bounds
         if failfast:
             self.check()
 
@@ -28,13 +29,16 @@ class KifuChecker(Kifu):
                 # fail at first move difference
                 mv = self.getmove_at(idx)
                 if mv != ref_mv:
-                    msg = "At move {0}: expected {1}, got {2}".format(idx, ref_mv, mv)
+                    msg = "At move {0}: expected {1}, got {2}.  (failfast mode is on)".format(idx, ref_mv, mv)
                     raise AssertionError(msg)
                 idx += 1
                 ref_mv = self.ref.getmove_at(idx)
 
         # extract diff data between move sequences
-        return SequenceMatcher(a=(self.ref.get_main_seq()), b=(self.get_main_seq()))
+        f, l = self.bounds
+        ref = self.ref.get_move_seq(first=f, last=l)
+        seq = self.get_move_seq(first=f, last=l)
+        return SequenceMatcher(a=ref, b=seq)
 
 
 def print_matcher(matcher):
@@ -50,13 +54,11 @@ def print_matcher(matcher):
     idx1 = idx2 = 0
     for block in blocks:
         # display items from reference that have been missed
-        for i in range(idx1, block[0]):
-            miss += str(matcher.a[i]) + " "
+        miss += concat(matcher.a, idx1, block[0])
         idx1 = block[0] + block[2]
 
         # display items that are not present in ref (or at least not at this pos)
-        for i in range(idx2, block[1]):
-            unex += str(matcher.b[i]) + " "
+        unex += concat(matcher.b, idx2, block[1])
         idx2 = block[1] + block[2]
 
         # keep vertical alignment
@@ -66,13 +68,7 @@ def print_matcher(matcher):
         miss = miss.ljust(mlen)
 
         # display matching items
-        if 4 < block[2]:
-            good += str(matcher.a[block[0]])
-            good += "... ({0} more) ...".format(block[2]-2)
-            good += str(matcher.a[block[0] + block[2]-1])
-        else:
-            for i in range(block[0], block[0]+block[2]):
-                good += str(matcher.a[i]) + " "
+        good += concat(matcher.a, block[0], block[0] + block[2])
         unex = unex.ljust(len(good))
         miss = miss.ljust(len(good))
     print "Matched   : " + good
@@ -94,30 +90,39 @@ def display_matcher(matcher, master=None):
     blocks = matcher.get_matching_blocks()
     for block in blocks:
         # display items from reference that have been missed
-        miss = ""
-        for i in range(idx1, block[0]):
-            miss += str(matcher.a[i]) + " "
+        miss = concat(matcher.a, idx1, block[0])
         Label(master=sequence, text=miss, fg="red").pack(side=LEFT)
         idx1 = block[0] + block[2]
 
         # display items that are not present in ref (or at least not at this pos)
-        unex = ""
-        for i in range(idx2, block[1]):
-            unex += str(matcher.b[i]) + " "
+        unex = concat(matcher.b, idx2, block[1])
         Label(master=sequence, text=unex, fg="dark gray").pack(side=LEFT)
         idx2 = block[1] + block[2]
 
         # display matching items
-        match = ""
-        if 4 < block[2]:
-            match += str(matcher.a[block[0]])
-            match += "... ({0} more) ...".format(block[2]-2)
-            match += str(matcher.a[block[0] + block[2]-1])
-        else:
-            for i in range(block[0], block[0] + block[2]):
-                match += str(matcher.a[i]) + " "
+        match = concat(matcher.a, block[0], block[0] + block[2])
         Label(master=sequence, text=match, fg="dark green").pack(side=LEFT)
     return sequence
+
+
+def concat(seq, start, end):
+    """
+    Utility to display a portion of a sequence as a string, and replace with a count when the portion is too long.
+
+    start -- index of first element to concatenate, inclusive.
+    end -- index of last element to concatenate, exclusive.
+    seq -- contains the elements.
+
+    """
+    string = ""
+    if 4 < end - start:
+        string += str(seq[start])
+        string += " .. (%s more) .. " % (end - start - 2)
+        string += str(seq[end - 1])
+    else:
+        for i in range(start, end):
+            string += str(seq[i]) + " "
+    return string
 
 
 if __name__ == '__main__':

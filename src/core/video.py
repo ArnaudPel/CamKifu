@@ -21,7 +21,7 @@ class VidProcessor(object):
         """
         self.vmanager = vmanager
         self.rectifier = rectifier
-        self.own_images = set()
+        self.own_images = {}
 
         self.frame_period = 0.2
         self.last_frame = 0.0
@@ -105,7 +105,11 @@ class VidProcessor(object):
         if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
             if self.pausedflag:
                 while self.pausedflag:
+                    # re-show last images, in order to re-activate the waitkey()
+                    for name, img in self.own_images.iteritems():
+                        self._show(img, name=name)
                     sleep(0.1)
+                    self.checkkey()
         else:  # supposedly in single-threaded dev mode
             if self.pausedflag:
                 key = None
@@ -138,12 +142,12 @@ class VidProcessor(object):
                 self.vmanager.imqueue.put_nowait((name, img, self))
             else:
                 show(img, name=name)  # assume we are on main thread
-            self.own_images.add(name)
+            self.own_images[name] = img
         except Full:
             print "Image queue full, not showing {0}".format(hex(id(img)))
 
     def _destroy_windows(self):
-        for name in self.own_images:
+        for name in self.own_images.iterkeys():
             if self.vmanager.imqueue is not None:
                 # caveat: wait until a slot is available to ensure destruction
                 self.vmanager.imqueue.put((name, None, None))

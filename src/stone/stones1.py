@@ -68,12 +68,15 @@ class BackgroundSub(StonesFinder):
                 2: black position
 
         """
+        # todo improvement: only check for one (maybe 2) lines around goban. As long as they are
+        #   undisturbed, it means a stone cannot possibly have been put.
+        #   Unless thread has been interrupted for very long though
         assert len(self._background) == gsize, "At least one sample must have been run to provide comparison data."
         pos = None
         color = 'E'
         # subtract = zeros_like(img)
         sample = empty_like(self._background)
-        deltas = []
+        # deltas = []
         for x, y in self.empties():
             zone, points = self._getzone(img, x, y)
             for chan in range(3):
@@ -89,9 +92,9 @@ class BackgroundSub(StonesFinder):
                     print "dropped frame: {0} (2 hits)".format(self.__class__.__name__)
                     return
 
-            insort(deltas, delta)
-        length = len(deltas)
-        print str(deltas[0:5]) + str(deltas[length-5:length])
+            # insort(deltas, delta)
+        # length = len(deltas)
+        # print str(deltas[0:5]) + str(deltas[length-5:length])
 
         # subtract = zeros_like(img)
         #     current -= bg
@@ -102,7 +105,7 @@ class BackgroundSub(StonesFinder):
 
         if pos is not None:
             if self.lastpos == pos:
-                self.suggest(color, pos[1], pos[0])  # purposely rotated
+                self.suggest(color, *pos)
                 sample[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
                 self._background = sample
                 sampled(img)

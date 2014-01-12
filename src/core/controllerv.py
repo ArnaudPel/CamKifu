@@ -13,8 +13,8 @@ class ControllerV(Controller):
 
     """
 
-    def __init__(self, user_input, display, kifufile=None, video=0, bounds=(0, 1)):
-        super(ControllerV, self).__init__(user_input, display, kifufile=kifufile)
+    def __init__(self, user_input, display, sgffile=None, video=0, bounds=(0, 1)):
+        super(ControllerV, self).__init__(user_input, display, sgffile=sgffile)
         self.queue = Queue(commands_size)
         self.video = video
         self.bounds = bounds
@@ -34,7 +34,7 @@ class ControllerV(Controller):
         self.api["bfinder"] = self.add_bfinder
         self.api["sfinder"] = self.add_sfinder
 
-        if kifufile is not None:
+        if sgffile is not None:
             self._goto(722)  # get kifu ready to ramble
 
         self.paused = Pause()
@@ -140,8 +140,8 @@ class ControllerVSeq(ControllerBase):
 
     """
 
-    def __init__(self, kifufile=None, video=0, bounds=(0, 1)):
-        super(ControllerVSeq, self).__init__(kifufile=kifufile)
+    def __init__(self, sgffile=None, video=0, bounds=(0, 1)):
+        super(ControllerVSeq, self).__init__(sgffile=sgffile)
         self.video = video
         self.bounds = bounds
 

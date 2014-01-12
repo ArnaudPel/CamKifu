@@ -9,6 +9,7 @@ BEFORE PUBLISH:
     - extend Tauber sgf instead of modifying it
     - adapt VidProcessor to improve video file handling (right now, very slow)
     - readme
+    - extract finders config from VManager (read about reflexion again)
     - make vision values as dynamic as possible (frame size, ...)
     - remove calibration prompt !!
     - replace controller.pipe() with regular methods ??
@@ -18,7 +19,7 @@ BEFORE PUBLISH:
     - document code, especially fields
     - have some automated way to build for windows 7-8 / (/ linux @Jack)
     - license
-    - clean up this file :)
+    - clean up and mark down this file :)
 
 ---------------------------------------------------------------------------------------------------
 
@@ -38,10 +39,11 @@ ON PUBLISH:
 CODE ROADMAP FOR COMMUNITY :
 
 PYTHON
-    - channel all printing to a log
+    - channel all printing to a decent log
     - create a log viewer pane in the gui
     - save user preferences: {sgf save dir, ...}.
     - extract vision (+ time periods) parameters to file for easier tuning (maybe via GUI)
+    - try and see if some references could not be weakened  (http://docs.python.org/2/library/weakref.html)
 
 GUI
     - add undo command (e.g. moving or deleting a stone)
@@ -65,6 +67,7 @@ CV
     - when board detected at a new location, invalidate all moves found since previous detection (stones buffer)
     - bg-sub: update B/W thresholds dynamically (per zone ?). Increase on detect, lower on user stone add.
     - ability to provide image file as input (for testing)
+    - ability to naviguate movie file, based on already detected moves. Eg test has passed but for a few elems, provide a way to jump before them yet as close as possible.
 
 ---------------------------------------------------------------------------------------------------
 
