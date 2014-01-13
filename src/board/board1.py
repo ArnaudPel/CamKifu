@@ -371,16 +371,16 @@ class BoardFinderManual(BoardFinder):
             pass
 
     def _detect(self, frame):
+        detected = False
         if not self.manual_found:
-            self.corners.paint(frame)
-            self._show(frame, name=self.name)
             cv2.setMouseCallback(self.name, self.onmouse)
             if self.undoflag:
                 self.perform_undo()
-            return False
         else:
-            self.interrupt()
-            return True
+            detected = True
+        self.corners.paint(frame)
+        self._show(frame, name=self.name)
+        return detected
 
     #noinspection PyUnusedLocal
     def onmouse(self, event, x, y, flag, param):

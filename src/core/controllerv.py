@@ -124,7 +124,7 @@ class ControllerV(Controller):
         # watch "current move number" field, and stop vision when user is browsing previous moves.
         if name == "current_mn" and value is not None:
             try:
-                if value < self.kifu.last_move().number:
+                if value < self.kifu.lastmove().number:
                     self._pause(True)  # don't update Pause object here
                 else:
                     self._pause(self.paused.__nonzero__())

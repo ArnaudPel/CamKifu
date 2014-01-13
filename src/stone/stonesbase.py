@@ -3,7 +3,7 @@ from time import time
 import cv2
 from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, ones, sum
 from numpy.ma import absolute, empty_like
-from board.boardbase import ordered_hull
+from board.boardbase import order_hull
 from config.devconf import canonical_size
 from core.imgutil import draw_circles, draw_str
 from core.video import VidProcessor
@@ -164,7 +164,7 @@ class PosGrid(object):
         start = size / gsize / 2
         end = size - start
 
-        hull = ordered_hull([(start, start), (end, start), (end, end), (start, end)])
+        hull = order_hull([(start, start), (end, start), (end, end), (start, end)])
         assert len(hull) == 4, "The points expected here are the 4 corners of the grid."
         for i in range(gsize):
             xup = (hull[0][0] * (gsize - 1 - i) + hull[1][0] * i) / (gsize - 1)

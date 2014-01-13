@@ -24,7 +24,7 @@ class BoardFinder(VidProcessor):
         super(BoardFinder, self).__init__(vmanager, rectifier)
         self.corners = GobanCorners()
         self.mtx = None
-        self.last_positive = -1.0  # never
+        self.last_positive = -1.0  # last time the board was detected
 
     def _doframe(self, frame):
         if 3 < time() - self.last_positive:
@@ -85,8 +85,11 @@ class GobanCorners():
         return "Corners:" + str(self._points)
 
     def _check(self):
-        if len(self._points) == 4:
-            self.hull = ordered_hull(self._points)
+        if 3 < len(self._points):
+            cvhull = cv2.convexHull(vstack(self._points))
+            self.hull = order_hull([x[0] for x in cvhull])
+            if len(self.hull) != 4:
+                self.hull = None
         else:
             self.hull = None
 
@@ -95,19 +98,24 @@ class GobanCorners():
         self._check()
 
 
-def ordered_hull(points):
+def order_hull(cvhull):
+    """
+    Re-order the hull points so that:
+        - the first point is the one showing at the upper left on the image.
+        - the points are ordered clockwise.
+
+    """
     hull = []
     idx = 0
     mind = maxint
-    cvhull = cv2.convexHull(vstack(points))
     for i in range(len(cvhull)):
-        p = cvhull[i][0]
+        p = cvhull[i]
         dist = p[0] ** 2 + p[1] ** 2
         if dist < mind:
             mind = dist
             idx = i
     for i in range(idx, idx + len(cvhull)):
-        p = cvhull[i % len(cvhull)][0]
+        p = cvhull[i % len(cvhull)]
         hull.append((p[0], p[1]))
     return hull
 

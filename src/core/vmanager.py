@@ -131,20 +131,24 @@ class VManager(VManagerBase):
             process.pause(boolean)
 
     def set_bf(self, board_finder):
-        if self.board_finder is not None:
-            self.board_finder.interrupt()
-            while self.board_finder in self.processes:
-                sleep(0.1)
-            del self.board_finder  # just in case, help garbage collector
+        # always have at least one bf running to keep sf alive
+        tostop = self.board_finder
+
         self.board_finder = board_finder
         self._spawn(self.board_finder)
+
+        if tostop is not None:
+            tostop.interrupt()
+            while tostop in self.processes:
+                sleep(0.1)
+            del tostop  # may help prevent misuse
 
     def set_sf(self, stones_finder):
         if self.stones_finder is not None:
             self.stones_finder.interrupt()
             while self.stones_finder in self.processes:
                 sleep(0.1)
-            del self.stones_finder  # just in case, help garbage collector
+            del self.stones_finder  # may help prevent misuse
         self.stones_finder = stones_finder
         self._spawn(self.stones_finder)
 

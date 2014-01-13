@@ -5,6 +5,7 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
+    - don't consume movie time during manual grid detection
     - write more test (+ code coverage tool ?), including videos and sgf ressources
     - extend Tauber sgf instead of modifying it
     - adapt VidProcessor to improve video file handling (right now, very slow)

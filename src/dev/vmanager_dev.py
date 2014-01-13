@@ -29,11 +29,11 @@ class VManagerSeq(VManagerBase):
         self.init_capt()
         rectifier = Rectifier(self)
 
-        # self.board_finder = BoardFinderManual(self, rectifier)
-        self.board_finder = BoardFinderAuto(self, rectifier)
+        self.board_finder = BoardFinderManual(self, rectifier)
+        # self.board_finder = BoardFinderAuto(self, rectifier)
 
-        # self.stones_finder = BackgroundSub(self, rectifier)
-        self.stones_finder = NeighbourComp(self, rectifier)
+        self.stones_finder = BackgroundSub(self, rectifier)
+        # self.stones_finder = NeighbourComp(self, rectifier)
         # self.stones_finder = StoneCont(self, rectifier)
         # self.stones_finder = StonesHough(self, rectifier)
 

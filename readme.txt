@@ -57,7 +57,7 @@ Go:
 
 Testing:
     - camkifutest.py class can be used to provide a reference kifu to check against during processing.
-    - To process a sub-part of a video file, see CL argument -b / --bounds.
+    - testing options (like processing a subpart of a file, checking against a subpart of a reference sgf) can be found in camkifutest.py, in the form of CL arguments.
 
 Guidance:
     Any advice regarding architecture improvements will be received with sharp interest, wether it ends up being put to use or not.

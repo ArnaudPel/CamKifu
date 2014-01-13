@@ -57,6 +57,7 @@ class VidProcessor(object):
                     sleep(5)
             else:
                 sleep(self.frame_period / 10)  # precision doesn't really matter here
+        self._destroy_windows()
         self.vmanager.confirm_exit(self)
 
     def checkkey(self):
@@ -86,7 +87,6 @@ class VidProcessor(object):
 
     def interrupt(self):
         self._interruptflag = True
-        self._destroy_windows()
 
     def pause(self, boolean=None):
         if boolean is not None:
