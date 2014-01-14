@@ -1,5 +1,5 @@
 from threading import RLock
-from time import time
+from time import time, sleep
 import cv2
 from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, ones, sum
 from numpy.ma import absolute, empty_like
@@ -7,6 +7,7 @@ from board.boardbase import order_hull
 from config.devconf import canonical_size
 from core.imgutil import draw_circles, draw_str
 from core.video import VidProcessor
+from go.sgf import Move
 from golib_conf import gsize
 
 __author__ = 'Kohistan'
@@ -47,13 +48,13 @@ class StonesFinder(VidProcessor):
                 x, y = self._posgrid[row, col]
                 draw_str(img, (x - 10, y + 2), str(values[row, col]))
 
-    def suggest(self, color, x, y):
+    def suggest(self, move):
         """
         Suggest the add of a new stone to the goban.
 
         """
-        print vision_to_kgs(color, x, y)
-        self.vmanager.controller.pipe("append", (color, y, x))  # purposely rotated
+        print move
+        self.vmanager.controller.pipe("append", [move])
 
     def empties(self):
         """
@@ -238,42 +239,15 @@ class DummyFinder(StonesFinder):
 
     """
 
-    def __init__(self, vmanager, rect, sequence):
+    def __init__(self, vmanager, rect, ctype, sequence):
         super(DummyFinder, self).__init__(vmanager, rect)
         self.iterator = iter(sequence)
+        self.ctype = ctype
 
     def _find(self, goban_img):
         try:
             move = self.iterator.next()
-            self.suggest(*kgs_to_vision(move))
+            sleep(2)  # wait for a (potential) gui to be initialized
+            self.suggest(Move(self.ctype, string=move))
         except StopIteration:
             self.interrupt()
-
-
-# todo unify conversion methods below in Move class ?
-def vision_to_kgs(color, x, y):
-    """
-    Convert a move from the the vision coordinate frame to CGoban coordinate frame.
-
-    """
-    row = 19 - x
-    col = chr(y + (65 if y < 8 else 66))  # CGoban 3 (KGS) weirdo
-    return "{0}[{1}{2}]".format(color, col, row)
-
-
-def kgs_to_vision(string):
-    """
-    Convert a move from the CGoban coordinate frame to the vision coordinate frame.
-
-    """
-    col = ord(string[2])
-    y = col - (65 if col < 73 else 66)
-    x = int(string[3:5]) if len(string) == 6 else int(string[3:4])
-    return string[0], 19 - x, y
-
-# if __name__ == '__main__':
-#     for i in range(gsize):
-#         for j in range(gsize):
-#             coords = 'B', i, j
-#             assert coords == kgs_to_vision(vision_to_kgs(*coords))
-#             print vision_to_kgs(*coords)

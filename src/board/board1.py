@@ -4,6 +4,7 @@ import random
 import os
 
 import cv2
+from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
 import numpy as np
 from board.boardbase import BoardFinder
 
@@ -359,9 +360,15 @@ def _get_seg(points):
 class BoardFinderManual(BoardFinder):
 
     def __init__(self, vmanager, rectifier):
+        """
+        self.capture_pos -- used to lock the position of cvCapture when waiting for user to locate goban.
+                            has no impact on live cam, but prevent unwanted frames consumption for files.
+
+        """
         super(BoardFinderManual, self).__init__(vmanager, rectifier)
         self.name = "Manual Grid Detection"
         self.manual_found = False
+        self.capture_pos = None
         try:
             np_file = np.load(gobanloc_npz)
             for p in np_file["location"]:
@@ -371,16 +378,27 @@ class BoardFinderManual(BoardFinder):
             pass
 
     def _detect(self, frame):
-        detected = False
+        if self.undoflag:
+            self.perform_undo()
         if not self.manual_found:
-            cv2.setMouseCallback(self.name, self.onmouse)
-            if self.undoflag:
-                self.perform_undo()
+            self._lockpos()
+            detected = False
         else:
+            self._standby()
             detected = True
         self.corners.paint(frame)
         self._show(frame, name=self.name)
         return detected
+
+    def _lockpos(self):
+        if self.capture_pos is None:
+            self.capture_pos = self.vmanager.capt.get(POS_RATIO)
+        else:
+            self.vmanager.capt.set(POS_RATIO, self.capture_pos)
+        cv2.setMouseCallback(self.name, self.onmouse)
+
+    def _standby(self):
+        self.capture_pos = None
 
     #noinspection PyUnusedLocal
     def onmouse(self, event, x, y, flag, param):
@@ -388,6 +406,7 @@ class BoardFinderManual(BoardFinder):
             self.corners.add((x, y))
             if self.corners.ready():
                 self.manual_found = True
+                # todo comment that before publish
                 np.savez(gobanloc_npz, location=self.corners._points)
 
     def perform_undo(self):

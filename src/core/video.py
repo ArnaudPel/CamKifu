@@ -24,7 +24,7 @@ class VidProcessor(object):
         self.own_images = {}
 
         self.frame_period = 0.2
-        self.last_frame = 0.0
+        self.last_read = 0.0
 
         self.undoflag = False
         self._interruptflag = False
@@ -40,8 +40,8 @@ class VidProcessor(object):
         while not self._interruptflag and (self.vmanager.capt.get(POS_RATIO) < end):
             self._checkpause()
             start = time()
-            if self.frame_period < start - self.last_frame:
-                self.last_frame = start
+            if self.frame_period < start - self.last_read:
+                self.last_read = start
                 ret, frame = self.vmanager.capt.read()
                 if ret:
                     # todo remove calibration if it's not actually helping.
@@ -137,6 +137,9 @@ class VidProcessor(object):
         """
         if latency:
             draw_str(img, (40, 20), "latency:  %.1f ms" % (self.latency * 1000))
+        if self.pausedflag:
+            for img in self.own_images.itervalues():
+                draw_str(img, (img.shape[0]/2-30, img.shape[1] / 2), "PAUSED")
         try:
             if self.vmanager.imqueue is not None:
                 self.vmanager.imqueue.put_nowait((name, img, self))

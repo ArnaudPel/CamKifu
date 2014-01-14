@@ -73,7 +73,7 @@ class VManager(VManagerBase):
         self.controller.pipe("bfinder", ("Automatic", lambda: self.set_bf(BoardFinderAuto(self, rect))))
         self.controller.pipe("bfinder", ("Manual", lambda: self.set_bf(BoardFinderManual(self, rect)), True))
 
-        dummy_sf = DummyFinder(self, rect, ["W[H8]", "B[J8]", "W[K12]", "B[F12]", "W[F11]", "B[H10]",
+        dummy_sf = DummyFinder(self, rect, "kgs", ["W[H8]", "B[J8]", "W[K12]", "B[F12]", "W[F11]", "B[H10]",
                                             "W[J14]", "B[J12]", "W[J11]", "B[J13]", "W[K13]"])
         self.controller.pipe("sfinder", ("Test SF", lambda: self.set_sf(dummy_sf)))
         self.controller.pipe("sfinder", ("Bg Sub", lambda: self.set_sf(BackgroundSub(self, rect)), True))

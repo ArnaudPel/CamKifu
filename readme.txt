@@ -47,20 +47,21 @@ Projects:
     In an attempt to enforce separation of concerns, non-vision Go features are developped as a separate module, named Golib. As of 03/01/14, imports of Golib made in Camkifu are phrased as if both source directories have been merged. Pycharm handles that in Preferences | Project Dependencies. Contributions to improve this module management for non-Pycharm users are welcome.
 
 Code:
-    Contribution to any part of the code is obviously welcome at this early stage of the project. Keeping in mind the OCP though, a few class hierarchies are candidates for extension.
+    Keeping in mind the OCP, a few class hierarchies are candidates for extension.
         - stonesbase.py and boardbase.py both provide base classes for detection.
         - controller.py and controllerv.py provide levels for MVC interaction.
-        - vmanager.py classes can be extended to tune vision threads management.
+        - vmanager.py classes can be extended to tune vision threads management (life and interactions).
 
 Go:
-    A seemingly weird position decription may be used in some places, were the 'I' column has disapeared. This is how CGoban displays moves, so as it is my main Go Editor I have adapted to it.
+    A seemingly weird position decription may be used in some places, were the 'I' column has disapeared. This is how CGoban 3 displays moves. As it is my main Go Editor I have adapted to it.
 
 Testing:
     - camkifutest.py class can be used to provide a reference kifu to check against during processing.
     - testing options (like processing a subpart of a file, checking against a subpart of a reference sgf) can be found in camkifutest.py, in the form of CL arguments.
+    - possibility to save the last location of the board for BoardFinderManual. look for ".savez(gobanloc_npz)" as commented code of that class. As of 14/01/14, it is in onmouse().
 
 Guidance:
-    Any advice regarding architecture improvements will be received with sharp interest, wether it ends up being put to use or not.
+    Any advice regarding architecture improvement will be received with sharp interest, wether it ends up being put to use or not.
 
 
 

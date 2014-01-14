@@ -1,6 +1,8 @@
 from bisect import insort
+from collections import defaultdict
 import cv2
 from numpy import int32, zeros, empty, sum as npsum, mean
+from go.sgf import Move
 from stone.stonesbase import StonesFinder, compare, evalz
 from golib_conf import gsize
 
@@ -20,33 +22,28 @@ class NeighbourComp(StonesFinder):
 
         # evaluate each empty intersection of the goban
         sample = zeros((gsize, gsize, 3), int32)
-        empties = list(self.empties())  # cache the empty positions to be consistent
-        for x, y in empties:
-                zone, _ = self._getzones(filtered, x, y)
+        empties = list(self.empties())  # todo is caching still needed ?
+
+        for x in range(gsize):
+            for y in range(gsize):
+                zone, _ = self._getzone(filtered, x, y)
                 for chan in range(3):
                     sample[x][y][chan] = evalz(zone, chan)
         sample /= self.zone_area  # use mean
 
         pos = None
-        color = 'E'
-        deltas = []
-        values = zeros((gsize, gsize), dtype=int32)
+        color = None
+        # deltas = []
+        # values = zeros((gsize, gsize), dtype=int32)
+        colors = self.getcolors()
         for x, y in empties:
-            neighs = zeros((8, 3), dtype=int32)
-            idx = 0
-            for i in (-1, 0, 1):
-                for j in (-1, 0, 1):
-                    if i or j != 0:
-                        if (0 <= x + i < gsize) and (0 <= y + j < gsize):
-                            neighs[idx] = sample[x + i, y + j]
-                            idx += 1
-
-            neighsmean = npsum(neighs, axis=0) / idx  # mean color of neighbors
-            delta = compare(neighsmean, sample[x][y])
-
-            if not -200 <= delta <= 200:
-                color = 'B' if delta < 0 else 'W'
+            neighs = defaultdict(default_factory=lambda: [])
+            for k, l in neighbours(x, y):
+                neighs[colors[k][l]] = sample[k, l]
+            current_color = self.compute_color(neighs)
+            if current_color != 'E':
                 if pos is None:
+                    color = current_color
                     pos = x, y
                 else:
                     print "dropped frame: {0} (2 hits)".format(self.__class__.__name__)
@@ -55,20 +52,31 @@ class NeighbourComp(StonesFinder):
                     pos = None
                     break
 
-            insort(deltas, delta)
-            values[x, y] = delta / 10
-        length = len(deltas)
-        print str(deltas[0:5]) + str(deltas[length - 5:length])
+            # insort(deltas, delta)
+            # values[x, y] = delta / 10
+        # length = len(deltas)
+        # print str(deltas[0:5]) + str(deltas[length - 5:length])
 
         if pos is not None:
             if self.lastpos == pos:
-                self.suggest(color, pos[1], pos[0])  # purposely rotated
+                self.suggest(Move("cv", ctuple=(color, pos[0], pos[1])))
             else:
                 self.lastpos = pos
 
-        self._drawvalues(disp_img, values)
+        # self._drawvalues(disp_img, values)
         self._show(disp_img, name="Goban frame")
 
+    @staticmethod
+    def compute_color(neighs):
+        pass
+
+
+def neighbours(x, y):
+    for i in (-1, 0, 1):
+        for j in (-1, 0, 1):
+            if i or j != 0:
+                if (0 <= x + i < gsize) and (0 <= y + j < gsize):
+                    yield x + i, y + j
 
 
 

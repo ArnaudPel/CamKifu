@@ -1,8 +1,4 @@
 
 bugs
 
-inserting a stone on a position that will be used later blocks navigation when reaching said position
-
-when vision is paused, display it on the cv image(s)
-
-don't save grid location if it is not a square (actually don't use saved version at all from Tk)
+all clear

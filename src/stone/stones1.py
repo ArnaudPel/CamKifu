@@ -2,6 +2,7 @@ from bisect import insort
 import cv2
 from numpy import zeros_like, zeros, uint8, int32, empty, empty_like, mean, sum as npsum
 from numpy.ma import absolute
+from go.sgf import Move
 from stone.stonesbase import StonesFinder, compare, evalz
 from golib_conf import gsize, player_color
 
@@ -105,7 +106,7 @@ class BackgroundSub(StonesFinder):
 
         if pos is not None:
             if self.lastpos == pos:
-                self.suggest(color, *pos)
+                self.suggest(Move("cv", ctuple=(color, pos[0], pos[1])))
                 sample[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
                 self._background = sample
                 sampled(img)
