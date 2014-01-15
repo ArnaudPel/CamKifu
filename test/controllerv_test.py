@@ -22,8 +22,8 @@ class ControllerVTest(ControllerBase):
             while self.current_mn < move_bounds[0] - 1:
                 self._append(self.kifu.ref.getmove_at(self.current_mn + 1))
 
-        self.api["bfinder"] = self.add_finder
-        self.api["sfinder"] = self.add_finder
+        self.api = {"bfinder": self.add_finder,
+                    "sfinder": self.add_finder}
 
     @staticmethod
     def add_finder(_, callback, select=False):

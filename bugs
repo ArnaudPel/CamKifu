@@ -1,4 +1,4 @@
 
 bugs
 
-all clear
+when dragging a stone, captured enemies will not come back if the dragged stone wasn't the killer. (Rule.remove() guilty)

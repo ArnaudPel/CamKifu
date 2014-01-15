@@ -31,8 +31,11 @@ class ControllerV(Controller):
             self.log("Some commands could not be bound to User Interface.")
             self.log(ae)
 
-        self.api["bfinder"] = self.add_bfinder
-        self.api["sfinder"] = self.add_sfinder
+        self.api = {
+            "append": self.cvappend,
+            "bfinder": self.add_bfinder,
+            "sfinder": self.add_sfinder
+        }
 
         if sgffile is not None:
             self._goto(722)  # get kifu ready to ramble
@@ -92,6 +95,10 @@ class ControllerV(Controller):
             self._pause(self.paused.false())
         else:
             self.log("Processing can't create variation in game. Please navigate to the last move.")
+
+    def cvappend(self, move):
+        move.number = self.current_mn + 1
+        self._put(move, method=self._append)
 
     def add_bfinder(self, label, callback, select=False):
         self.display.add_bf(label, callback, select=select)
