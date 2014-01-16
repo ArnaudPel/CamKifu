@@ -5,8 +5,10 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
+    - merge Rule and Kifu.
+    - make GUI listen to Kifu (prev Rule) confirmed grid for unified display.
+
     - write more test (+ code coverage tool ?), + provide videos and sgf ressources
-    - extend Tauber sgf instead of modifying it
     - readme
     - extract finders config from VManager (read about reflexion again)
     - make vision values as dynamic as possible (frame size, ...)
@@ -16,7 +18,7 @@ BEFORE PUBLISH:
     - move as much dev code as possible out of the way (have a general look)
     - cleanup todos / commented code / asserts (?)
     - document code, especially fields
-    - have some automated way to build for windows 7-8 / (/ linux @Jack)
+    - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
     - license
     - clean up and mark down this file :)
 
@@ -26,6 +28,7 @@ ON PUBLISH:
 
     - links to openCV install
     - links to PyCharm CE  -- may be able to ask for a free license !
+    - jetbrains has a banner generator. can we set one on github ?
     - set issue tracker
     - convert this file into milestones
     - add myself to:
