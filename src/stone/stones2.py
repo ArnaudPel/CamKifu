@@ -2,7 +2,7 @@ from bisect import insort
 from collections import defaultdict
 import cv2
 from numpy import int32, zeros, empty, sum as npsum, mean
-from go.sgf import Move
+from go.move import Move
 from stone.stonesbase import StonesFinder, compare, evalz
 from golib_conf import gsize
 

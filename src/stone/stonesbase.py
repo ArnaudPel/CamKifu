@@ -7,7 +7,7 @@ from board.boardbase import order_hull
 from config.devconf import canonical_size
 from core.imgutil import draw_circles, draw_str
 from core.video import VidProcessor
-from go.sgf import Move
+from go.move import Move
 from golib_conf import gsize
 
 __author__ = 'Kohistan'

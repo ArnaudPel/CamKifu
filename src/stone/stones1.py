@@ -2,7 +2,7 @@ from bisect import insort
 import cv2
 from numpy import zeros_like, zeros, uint8, int32, empty, empty_like, mean, sum as npsum
 from numpy.ma import absolute
-from go.sgf import Move
+from go.move import Move
 from stone.stonesbase import StonesFinder, compare, evalz
 from golib_conf import gsize, player_color
 
