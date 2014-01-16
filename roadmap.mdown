@@ -8,6 +8,7 @@ BEFORE PUBLISH:
     - merge Rule and Kifu.
     - make GUI listen to Kifu (prev Rule) confirmed grid for unified display.
 
+    - unify 'E', 'B', 'W' into variables
     - write more test (+ code coverage tool ?), + provide videos and sgf ressources
     - readme
     - extract finders config from VManager (read about reflexion again)

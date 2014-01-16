@@ -98,7 +98,8 @@ class ControllerV(Controller):
 
     def cvappend(self, move):
         move.number = self.current_mn + 1
-        self._put(move, method=self._append)
+        self.rules.put(move)
+        self._append(move)
 
     def add_bfinder(self, label, callback, select=False):
         self.display.add_bf(label, callback, select=select)
@@ -151,6 +152,7 @@ class ControllerVSeq(ControllerBase):
         super(ControllerVSeq, self).__init__(sgffile=sgffile)
         self.video = video
         self.bounds = bounds
+        self.api = {"append": self.cvappend}
 
     def pipe(self, instruction, args):
         """
@@ -158,6 +160,11 @@ class ControllerVSeq(ControllerBase):
 
         """
         self.api[instruction](*args)
+
+    def cvappend(self, move):
+        move.number = self.current_mn + 1
+        self.rules.put(move)
+        self._append(move)
 
 
 class Pause(object):
