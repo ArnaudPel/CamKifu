@@ -1,5 +1,4 @@
 
 bugs
 
-when dragging a stone, captured enemies will not come back if the dragged stone wasn't the killer. (Rule.remove() guilty)
-the save changes dialog doesn't seem to show up when dragging/deleting stones
+the save changes dialog doesn't show up when hitting CMD+Q
