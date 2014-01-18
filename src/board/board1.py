@@ -6,7 +6,7 @@ import os
 import cv2
 from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
 import numpy as np
-from board.boardbase import BoardFinder
+from board.boardfinder import BoardFinder
 
 from core.imgutil import split_sq, Segment
 from config.devconf import gobanloc_npz

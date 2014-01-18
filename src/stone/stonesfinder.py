@@ -1,16 +1,20 @@
+from Queue import Queue, Full
 from threading import RLock
 from time import time, sleep
 import cv2
 from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, ones, sum
 from numpy.ma import absolute, empty_like
-from board.boardbase import order_hull
+from board.boardfinder import order_hull
 from config.devconf import canonical_size
 from core.imgutil import draw_circles, draw_str
 from core.video import VidProcessor
 from go.move import Move
-from golib_conf import gsize
+from golib_conf import gsize, E
 
 __author__ = 'Kohistan'
+
+
+correc_size = 10
 
 
 class StonesFinder(VidProcessor):
@@ -24,29 +28,32 @@ class StonesFinder(VidProcessor):
         self._posgrid = PosGrid(canonical_size)
         self.mask_cache = None
         self.zone_area = None
+        self.corrections = Queue(correc_size)
 
     def _doframe(self, frame):
         transform = self.vmanager.board_finder.mtx
         if transform is not None:
             goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
+            self._learn()
             self._find(goban_img)
 
     def _find(self, goban_img):
+        """
+        Detect stones in the (already) canonical image of the goban.
+
+        """
         raise NotImplementedError("Abstract method meant to be extended")
 
-    def _drawgrid(self, img):
-        if self._posgrid is not None:
-            centers = []
-            for i in range(19):
-                for j in range(19):
-                    centers.append(self._posgrid[i][j])
-            draw_circles(img, centers)
+    def _learn(self):
+        """
+        Process corrections queue, and perform algorithm adjustements if necessary.
 
-    def _drawvalues(self, img, values):
-        for row in range(gsize):
-            for col in range(gsize):
-                x, y = self._posgrid[row, col]
-                draw_str(img, (x - 10, y + 2), str(values[row, col]))
+        This choice to "force" implementation using an abstract method is based on the fact that stones
+        deleted by the user MUST be acknowledged and dealt with, in order not to be re-suggested straight away.
+        Added stones are not so important, because their presence is automatically reflected in self.empties().
+
+        """
+        raise NotImplementedError("Abstract method meant to be extended")
 
     def suggest(self, move):
         """
@@ -56,6 +63,12 @@ class StonesFinder(VidProcessor):
         print move
         self.vmanager.controller.pipe("append", [move])
 
+    def corrected(self, err_move, exp_move):
+        try:
+            self.corrections.put_nowait((err_move, exp_move))
+        except Full:
+            print "Corrections queue full (%s), ignoring %s -> %s" % (correc_size, str(err_move), str(exp_move))
+
     def empties(self):
         """
         Enumerate the unoccupied positions of the goban.
@@ -64,7 +77,7 @@ class StonesFinder(VidProcessor):
         """
         for x in range(gsize):
             for y in range(gsize):
-                if self.vmanager.controller.rules[x][y] == 'E':
+                if self.vmanager.controller.rules[x][y] == E:
                     yield y, x
 
     def getcolors(self):
@@ -104,23 +117,6 @@ class StonesFinder(VidProcessor):
         # todo remove this copy() and leave it to caller
         return img[sx: ex, sy: ey].copy(), (sx, sy, ex, ey)
 
-    # def _getmask(self, img, r, c):
-    #     mask = empty_like(img, dtype=bool)
-    #     a, b = self._posgrid[r][c]
-    #
-    #     r2 = r + 1 if r < gsize - 1 else r - 1
-    #     c2 = c + 1 if c < gsize - 1 else c - 1
-    #     a1, b1 = self._posgrid[r2][c2]
-    #     rad = min(abs(a-a1), abs(b-b1)) / 2
-    #
-    #     y, x = ogrid[-a:img.shape[0]-a, -b: img.shape[1] - b]  # todo check if there isn't a more direct way
-    #     layer = x*x + y*y <= rad*rad
-    #
-    #     nblayers = img.shape[2] if 2 < len(img.shape) else 1
-    #     for z in range(nblayers):
-    #         mask[:, :, z] = layer
-    #     return mask
-    #
     def getmask(self, frame):
         if self.mask_cache is None:
             print "initializing mask"
@@ -146,6 +142,29 @@ class StonesFinder(VidProcessor):
             print "area={0}".format(self.zone_area)
 
         return self.mask_cache
+
+    def _drawgrid(self, img):
+        """
+        Draw a circle around each supposed intersection of the goban.
+
+        """
+        if self._posgrid is not None:
+            centers = []
+            for i in range(19):
+                for j in range(19):
+                    centers.append(self._posgrid[i][j])
+            draw_circles(img, centers)
+
+    def _drawvalues(self, img, values):
+        """
+        Display one value per goban position. Obviously values will soon overlap if they are longish.
+        Mostly useful during dev.
+
+        """
+        for row in range(gsize):
+            for col in range(gsize):
+                x, y = self._posgrid[row, col]
+                draw_str(img, (x - 10, y + 2), str(values[row, col]))
 
 
 def evalz(zone, chan):

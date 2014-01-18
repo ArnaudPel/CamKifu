@@ -15,8 +15,7 @@ __author__ = 'Kohistan'
 
 class VManagerSeq(VManagerBase):
     """
-    Single-threaded vision manager, meant to be used during development only.
-
+    Single-threaded vision manager, meant to be used during development only (no GUI).
     Notably because, as of today, opencv show() and waitkey() must be run on the main thread.
 
     """

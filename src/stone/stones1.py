@@ -1,10 +1,11 @@
+from Queue import Empty
 from bisect import insort
 import cv2
 from numpy import zeros_like, zeros, uint8, int32, empty, empty_like, mean, sum as npsum
 from numpy.ma import absolute
 from go.move import Move
-from stone.stonesbase import StonesFinder, compare, evalz
-from golib_conf import gsize, player_color
+from stone.stonesfinder import StonesFinder, compare, evalz
+from golib_conf import gsize, B, W, E
 
 __author__ = 'Kohistan'
 
@@ -35,8 +36,16 @@ class BackgroundSub(StonesFinder):
             self.dosample = False
         else:
             self.detect(filtered)
-        # self._drawgrid(filtered)
+            # self._drawgrid(filtered)
         self._show(filtered, name="Goban frame")
+
+    def _learn(self):
+        try:
+            while True:
+                err, exp = self.corrections.get_nowait()
+                print "%s has become %s" % (err, exp)
+        except Empty:
+            pass
 
     def reset(self):
         self._background = zeros_like(self._background)
@@ -50,10 +59,10 @@ class BackgroundSub(StonesFinder):
 
         """
         for x, y in self.empties():
-                zone, points = self._getzone(img, x, y)
-                #copy = img.copy()
-                for chan in range(3):
-                    self._background[x, y, chan] = evalz(zone, chan) / self.zone_area
+            zone, points = self._getzone(img, x, y)
+            #copy = img.copy()
+            for chan in range(3):
+                self._background[x, y, chan] = evalz(zone, chan) / self.zone_area
                 #cv2.rectangle(copy, points[0:2], points[2:4], (255, 0, 0), thickness=-1)
                 #self._show(copy, name="Sampling Zone")
                 #if cv2.waitKey() == 113: raise SystemExit()
@@ -74,7 +83,7 @@ class BackgroundSub(StonesFinder):
         #   Unless thread has been interrupted for very long though
         assert len(self._background) == gsize, "At least one sample must have been run to provide comparison data."
         pos = None
-        color = 'E'
+        color = E
         # subtract = zeros_like(img)
         sample = empty_like(self._background)
         # deltas = []
@@ -85,7 +94,7 @@ class BackgroundSub(StonesFinder):
             delta = compare(self._background[x][y], sample[x, y])
 
             if not -100 < delta < 100:
-                color = 'B' if delta < 0 else 'W'
+                color = B if delta < 0 else W
                 if pos is None:
                     pos = x, y
                 else:
@@ -93,8 +102,8 @@ class BackgroundSub(StonesFinder):
                     print "dropped frame: {0} (2 hits)".format(self.__class__.__name__)
                     return
 
-            # insort(deltas, delta)
-        # length = len(deltas)
+                    # insort(deltas, delta)
+            # length = len(deltas)
         # print str(deltas[0:5]) + str(deltas[length-5:length])
 
         # subtract = zeros_like(img)

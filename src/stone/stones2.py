@@ -3,8 +3,8 @@ from collections import defaultdict
 import cv2
 from numpy import int32, zeros, empty, sum as npsum, mean
 from go.move import Move
-from stone.stonesbase import StonesFinder, compare, evalz
-from golib_conf import gsize
+from stone.stonesfinder import StonesFinder, compare, evalz
+from golib_conf import gsize, E
 
 __author__ = 'Kohistan'
 
@@ -41,7 +41,7 @@ class NeighbourComp(StonesFinder):
             for k, l in neighbours(x, y):
                 neighs[colors[k][l]] = sample[k, l]
             current_color = self.compute_color(neighs)
-            if current_color != 'E':
+            if current_color != E:
                 if pos is None:
                     color = current_color
                     pos = x, y

@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 from board.board1 import SegGrid, runmerge
-from board.boardbase import BoardFinder
+from board.boardfinder import BoardFinder
 from core.imgutil import Segment, draw_lines, sort_conts, draw_str
 
 

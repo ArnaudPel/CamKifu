@@ -8,7 +8,7 @@ from core.calib import Rectifier
 from stone.stones1 import BackgroundSub
 from stone.stones2 import NeighbourComp
 from stone.stones4 import StoneCont
-from stone.stonesbase import DummyFinder
+from stone.stonesfinder import DummyFinder
 
 __author__ = 'Kohistan'
 
@@ -22,6 +22,7 @@ class VManagerBase(Thread):
     def __init__(self, controller, imqueue=None):
         Thread.__init__(self, name="Vision")
         self.controller = controller
+        self.controller.corrected = self.corrected
         self.imqueue = imqueue
 
         self.capt = None  # initialized in run() with video argument
@@ -39,6 +40,19 @@ class VManagerBase(Thread):
 
         # set the beginning of video files. is ignored by live camera
         self.capt.set(CV_CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
+
+    def corrected(self, err_move, exp_move):
+        """
+        Inform that a correction has been made by the user on the goban.
+        There is no need to perform any direct action, but this information can be used to tune detection.
+        It is of high interest to prevent deleted stones to be re-suggested as soon as they are removed.
+
+        Both moves below are expected to have their correct number set.
+        err_move -- the faulty move (has been removed). can be None if the correction is an "add".
+        exp_move -- the correct move (has been added). can be None if the correction is a "delete".
+
+        """
+        self.stones_finder.corrected(err_move, exp_move)
 
     def request_exit(self):
         raise NotImplementedError("Abstract method meant to be extended")

@@ -5,7 +5,7 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
-    - unify 'E', 'B', 'W' into variables
+    - compile opencv-2.4.8
     - write more test (+ code coverage tool ?), + provide videos and sgf ressources
     - readme
     - extract finders config from VManager (read about reflexion again)

@@ -79,11 +79,7 @@ class ControllerV(Controller):
             pass
 
     def _pause(self, boolean):
-        """
-        To be set by Vision processes that would agree to pause on user demand.
-        Pause if boolean is True, else resume.
-
-        """
+        """ To be set by Vision Manager. Pause if boolean is True, else resume. """
         pass
 
     def _run(self):
@@ -96,16 +92,35 @@ class ControllerV(Controller):
         else:
             self.log("Processing can't create variation in game. Please navigate to the last move.")
 
-    def cvappend(self, move):
-        move.number = self.current_mn + 1
-        self.rules.put(move)
-        self._append(move)
-
     def add_bfinder(self, label, callback, select=False):
         self.display.add_bf(label, callback, select=select)
 
     def add_sfinder(self, label, callback, select=False):
         self.display.add_sf(label, callback, select=select)
+
+    def cvappend(self, move):
+        move.number = self.current_mn + 1
+        self.rules.put(move)
+        self._append(move)
+
+    def corrected(self, err_move, exp_move):
+        """ To be set by Vision Manager. Pause if boolean is True, else resume. """
+        pass
+
+    def _mouse_release(self, event):
+        move = super(ControllerV, self)._mouse_release(event)
+        if move is not None:
+            self.corrected(None, move)
+
+    def _delete(self, _):
+        move = super(ControllerV, self)._delete(_)
+        if move is not None:
+            self.corrected(move, None)
+
+    def _drag(self, event):
+        moves = super(ControllerV, self)._drag(event)
+        if moves is not None:
+            self.corrected(*moves)
 
     def _opensgf(self):
         self._pause(True)
