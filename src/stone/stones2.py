@@ -1,3 +1,4 @@
+from Queue import Empty
 from bisect import insort
 from collections import defaultdict
 import cv2
@@ -10,6 +11,9 @@ __author__ = 'Kohistan'
 
 
 class NeighbourComp(StonesFinder):
+
+    label = "Neigh Comp"
+
     def __init__(self, vmanager, rect):
         super(NeighbourComp, self).__init__(vmanager, rect)
         self.lastpos = None
@@ -65,6 +69,14 @@ class NeighbourComp(StonesFinder):
 
         # self._drawvalues(disp_img, values)
         self._show(disp_img, name="Goban frame")
+
+    def _learn(self):
+        try:
+            while True:
+                err, exp = self.corrections.get_nowait()
+                print "%s has become %s" % (err, exp)
+        except Empty:
+            pass
 
     @staticmethod
     def compute_color(neighs):

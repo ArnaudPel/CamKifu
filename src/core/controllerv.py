@@ -92,8 +92,8 @@ class ControllerV(Controller):
         else:
             self.log("Processing can't create variation in game. Please navigate to the last move.")
 
-    def add_bfinder(self, label, callback, select=False):
-        self.display.add_bf(label, callback, select=select)
+    def add_bfinder(self, bf_class, callback, select=False):
+        self.display.add_bf(bf_class, callback, select=select)
 
     def add_sfinder(self, label, callback, select=False):
         self.display.add_sf(label, callback, select=select)

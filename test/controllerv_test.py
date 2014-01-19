@@ -22,17 +22,23 @@ class ControllerVTest(ControllerBase):
             while self.current_mn < move_bounds[0] - 1:
                 self._append(self.kifu.ref.getmove_at(self.current_mn + 1))
 
-        self.api = {"bfinder": self.add_finder,
+        self.api = {"append": self.cvappend,
+                    "bfinder": self.add_finder,
                     "sfinder": self.add_finder}
 
+    def cvappend(self, move):
+        move.number = self.current_mn + 1
+        self.rules.put(move)
+        self._append(move)
+
     @staticmethod
-    def add_finder(_, callback, select=False):
+    def add_finder(f_class, callback, select=False):
         """
         This method is a "plug" of its GUI-version, hence the non-intuitive syntax.
 
         """
         if select:
-            callback()
+            callback(f_class)
 
     def pipe(self, instruction, args):
         """

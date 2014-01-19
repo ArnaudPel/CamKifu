@@ -9,6 +9,15 @@ from test.controllerv_test import ControllerVTest
 
 __author__ = 'Kohistan'
 
+"""
+Test the default configuration of BoardFinder / StonesFinder on a recorded game (video file), and compare
+moves found with an associated reference SGF. This script is useful to test a global configuration, as errors
+can originate from board or stones algorithms indifferently.
+
+To specifically test board detection on a movie file, see boardfinder_test.py
+
+"""
+
 
 class ImgUpdater(Thread):
 

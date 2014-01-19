@@ -2,3 +2,4 @@
 bugs
 
 the save changes dialog doesn't show up when hitting CMD+Q
+ck_test goes into infinite loop when BoardFinder doesn't quit (keeps VManager alive)

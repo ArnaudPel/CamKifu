@@ -3,7 +3,7 @@ from time import time
 from numpy import float32, array, vstack
 import cv2
 
-from config.devconf import canonical_size as csize
+from config.cvconf import canonical_size as csize
 from core.imgutil import draw_circles, draw_lines, draw_str
 from core.video import VidProcessor
 

@@ -5,10 +5,10 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PUBLISH:
 
-    - compile opencv-2.4.8
+    - point ck_test to "test/res/ck" and make CLI args optional (process all input in that folder)
     - write more test (+ code coverage tool ?), + provide videos and sgf ressources
     - readme
-    - extract finders config from VManager (read about reflexion again)
+    - try the VidRecorder again (as of v2.4.8)
     - make vision values as dynamic as possible (frame size, ...)
     - remove calibration prompt !!
     - replace controller.pipe() with regular methods ??
@@ -57,6 +57,7 @@ GUI
     --> implement above by extending the GUI from Camkifu in some clever way.
 
 GO
+    - implement variation support (proper use of GameTree)
     - implement / connect score estimation
 
 CV

@@ -5,7 +5,7 @@ import cv2
 from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, ones, sum
 from numpy.ma import absolute, empty_like
 from board.boardfinder import order_hull
-from config.devconf import canonical_size
+from config.cvconf import dummy_sf_args, canonical_size
 from core.imgutil import draw_circles, draw_str
 from core.video import VidProcessor
 from go.move import Move
@@ -46,7 +46,7 @@ class StonesFinder(VidProcessor):
 
     def _learn(self):
         """
-        Process corrections queue, and perform algorithm adjustements if necessary.
+    Process corrections queue, and perform algorithm adjustments if necessary.
 
         This choice to "force" implementation using an abstract method is based on the fact that stones
         deleted by the user MUST be acknowledged and dealt with, in order not to be re-suggested straight away.
@@ -258,15 +258,19 @@ class DummyFinder(StonesFinder):
 
     """
 
-    def __init__(self, vmanager, rect, ctype, sequence):
+    label = "Test SF"
+
+    def __init__(self, vmanager, rect):
         super(DummyFinder, self).__init__(vmanager, rect)
-        self.iterator = iter(sequence)
-        self.ctype = ctype
+        self.ctype = dummy_sf_args[0]
+        self.iterator = iter(dummy_sf_args[1])
 
     def _find(self, goban_img):
         try:
             move = self.iterator.next()
-            sleep(2)  # wait for a (potential) gui to be initialized
             self.suggest(Move(self.ctype, string=move))
         except StopIteration:
             self.interrupt()
+
+    def _learn(self):
+        pass  # no user input expected as all move are already programmed.

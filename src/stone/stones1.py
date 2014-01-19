@@ -18,6 +18,8 @@ class BackgroundSub(StonesFinder):
     self.stones -- the matrix of stones found so far (0:None, 1:Black, 2:White)
     """
 
+    label = "Bg Sub"
+
     def __init__(self, vmanager, rectifier):
         super(BackgroundSub, self).__init__(vmanager, rectifier)
         self.bindings['s'] = self.reset

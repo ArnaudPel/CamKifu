@@ -13,6 +13,9 @@ __author__ = 'Kohistan'
 
 
 class BoardFinderAuto(BoardFinder):
+
+    label = "Automatic"
+
     def __init__(self, vmanager, rect):
         super(BoardFinderAuto, self).__init__(vmanager, rect)
 

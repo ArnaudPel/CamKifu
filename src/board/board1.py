@@ -359,6 +359,8 @@ def _get_seg(points):
 
 class BoardFinderManual(BoardFinder):
 
+    label = "Manual"
+
     def __init__(self, vmanager, rectifier):
         """
         self.capture_pos -- used to lock the position of cvCapture when waiting for user to locate goban.
@@ -366,7 +368,7 @@ class BoardFinderManual(BoardFinder):
 
         """
         super(BoardFinderManual, self).__init__(vmanager, rectifier)
-        self.name = "Manual Grid Detection"
+        self.windowname = "Manual Grid Detection"
         self.manual_found = False
         self.capture_pos = None
         try:
@@ -387,7 +389,7 @@ class BoardFinderManual(BoardFinder):
             self._standby()
             detected = True
         self.corners.paint(frame)
-        self._show(frame, name=self.name)
+        self._show(frame, name=self.windowname)
         return detected
 
     def _lockpos(self):
@@ -395,7 +397,7 @@ class BoardFinderManual(BoardFinder):
             self.capture_pos = self.vmanager.capt.get(POS_RATIO)
         else:
             self.vmanager.capt.set(POS_RATIO, self.capture_pos)
-        cv2.setMouseCallback(self.name, self.onmouse)
+        cv2.setMouseCallback(self.windowname, self.onmouse)
 
     def _standby(self):
         self.capture_pos = None

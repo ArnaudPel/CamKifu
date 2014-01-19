@@ -4,6 +4,7 @@ from threading import Thread
 from cv2.cv import CV_CAP_PROP_POS_AVI_RATIO
 from board.board1 import BoardFinderManual
 from board.board2 import BoardFinderAuto
+from config.cvconf import bfinders, sfinders
 from core.calib import Rectifier
 from stone.stones1 import BackgroundSub
 from stone.stones2 import NeighbourComp
@@ -77,21 +78,22 @@ class VManager(VManagerBase):
         self.controller._pause = self._pause
         self.processes = []  # video processors currently running
         self.restart = False
+        self.rect = Rectifier(self)
 
     def run(self):
         self.init_capt()
-        rect = Rectifier(self)
 
         # register "board finders" and "stones finders" with the controller.
         # it's up to it to start them via the provided callbacks.
-        self.controller.pipe("bfinder", ("Automatic", lambda: self.set_bf(BoardFinderAuto(self, rect))))
-        self.controller.pipe("bfinder", ("Manual", lambda: self.set_bf(BoardFinderManual(self, rect)), True))
+        choose = True
+        for bf_class in bfinders:
+            self.controller.pipe("bfinder", (bf_class, self.set_bf, choose))
+            choose = False
 
-        dummy_sf = DummyFinder(self, rect, "kgs", ["W[H8]", "B[J8]", "W[K12]", "B[F12]", "W[F11]", "B[H10]",
-                                            "W[J14]", "B[J12]", "W[J11]", "B[J13]", "W[K13]"])
-        self.controller.pipe("sfinder", ("Test SF", lambda: self.set_sf(dummy_sf)))
-        self.controller.pipe("sfinder", ("Bg Sub", lambda: self.set_sf(BackgroundSub(self, rect)), True))
-        self.controller.pipe("sfinder", ("Neigh Comp", lambda: self.set_sf(NeighbourComp(self, rect))))
+        choose = True
+        for sf_class in sfinders:
+            self.controller.pipe("sfinder", (sf_class, self.set_sf, choose))
+            choose = False
 
         # todo remove that block and keep the bf_manual alive instead ?
         running = 1
@@ -144,11 +146,11 @@ class VManager(VManagerBase):
         for process in self.processes:
             process.pause(boolean)
 
-    def set_bf(self, board_finder):
+    def set_bf(self, bf_class):
         # always have at least one bf running to keep sf alive
         tostop = self.board_finder
 
-        self.board_finder = board_finder
+        self.board_finder = bf_class(self, self.rect)
         self._spawn(self.board_finder)
 
         if tostop is not None:
@@ -157,13 +159,13 @@ class VManager(VManagerBase):
                 sleep(0.1)
             del tostop  # may help prevent misuse
 
-    def set_sf(self, stones_finder):
+    def set_sf(self, sf_class):
         if self.stones_finder is not None:
             self.stones_finder.interrupt()
             while self.stones_finder in self.processes:
                 sleep(0.1)
             del self.stones_finder  # may help prevent misuse
-        self.stones_finder = stones_finder
+        self.stones_finder = sf_class(self, self.rect)
         self._spawn(self.stones_finder)
 
 
