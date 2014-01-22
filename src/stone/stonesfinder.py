@@ -1,14 +1,10 @@
 from Queue import Queue, Full
-from threading import RLock
-from time import time, sleep
 import cv2
-from numpy import zeros, uint8, int16, sum as npsum, zeros_like, empty, ogrid, ones, sum
+from numpy import zeros, uint8, int16, sum as npsum, empty, ogrid
 from numpy.ma import absolute, empty_like
-from board.boardfinder import order_hull
-from config.cvconf import dummy_sf_args, canonical_size
-from core.imgutil import draw_circles, draw_str
+from config.cvconf import canonical_size
+from core.imgutil import draw_circles, draw_str, order_hull
 from core.video import VidProcessor
-from go.move import Move
 from golib_conf import gsize, E
 
 __author__ = 'Kohistan'
@@ -23,8 +19,8 @@ class StonesFinder(VidProcessor):
 
     """
 
-    def __init__(self, vmanager, rect):
-        super(StonesFinder, self).__init__(vmanager, rect)
+    def __init__(self, vmanager):
+        super(StonesFinder, self).__init__(vmanager)
         self._posgrid = PosGrid(canonical_size)
         self.mask_cache = None
         self.zone_area = None
@@ -168,13 +164,27 @@ class StonesFinder(VidProcessor):
 
 
 def evalz(zone, chan):
+    """ Return an integer evaluation for the zone. """
     return int(npsum(zone[:, :, chan]))
+
+
+def compare(reference, current):
+    """
+    Return a distance between the two colors. The value is positive if current is
+    brighter than the reference, and negative otherwise.
+
+    reference -- a vector of length 3
+    current -- a vector of length 3
+
+    """
+    sign = 1 if npsum(reference) <= npsum(current) else -1
+    return sign * int(npsum(absolute(current - reference)))
 
 
 class PosGrid(object):
     """
     Store the location of each intersection of the goban.
-    Can be extended to provide an evolutive version.
+    Can be extended to provide an evolutive version that can learn.
 
     """
 
@@ -201,76 +211,3 @@ class PosGrid(object):
 
     def __getslice__(self, i, j):
         return self.pos.__getslice__(i, j)
-
-
-class ScoreGrid(object):
-    # todo park that somewhere else or del
-    """
-    Can be used to arbitrate between several stone detection algorithms.
-    Values are automatically deprecated, based on their age.
-
-    """
-
-    def __init__(self):
-        self._grids = {}
-        self._thresholds = {}
-        self._rlock = RLock()
-
-        self.deprec_time = 3.0  # number of seconds a value is regarded as meaningful
-
-    def get_all(self):
-        totals = zeros((gsize, gsize), dtype=int16)  # the grid of total score for each stone
-        with self._rlock:
-            thresh = sum(self._thresholds.itervalues())
-            tps = time()
-            for grid in self._grids.values():
-                totals += (grid[::0] * self.deprec_time) / (-grid[::1] + tps)
-            totals[totals < thresh] = 0  # mask values under threshold
-            return totals
-
-    def set(self, key, grid, thresh_contrib):
-        with self._rlock:  # may not be needed here, but just in case
-            self._grids[key] = grid
-            self._thresholds[key] = thresh_contrib
-
-    def delete(self, key):
-        del self._grids[key]
-        del self._thresholds[key]
-
-
-def compare(reference, current):
-    """
-    Return a distance between the two colors. The value is positive if current is
-    brighter than the reference, and negative otherwise.
-
-    background -- a vector of length 3
-    current -- a vector of length 3
-
-    """
-    sign = 1 if npsum(reference) <= npsum(current) else -1
-    return sign * int(npsum(absolute(current - reference)))
-
-
-class DummyFinder(StonesFinder):
-    """
-    Can be used to simulate the detection of an arbitrary sequence of stones.
-    Useful to test "test code". Double use of word 'test' intended :)
-
-    """
-
-    label = "Test SF"
-
-    def __init__(self, vmanager, rect):
-        super(DummyFinder, self).__init__(vmanager, rect)
-        self.ctype = dummy_sf_args[0]
-        self.iterator = iter(dummy_sf_args[1])
-
-    def _find(self, goban_img):
-        try:
-            move = self.iterator.next()
-            self.suggest(Move(self.ctype, string=move))
-        except StopIteration:
-            self.interrupt()
-
-    def _learn(self):
-        pass  # no user input expected as all move are already programmed.

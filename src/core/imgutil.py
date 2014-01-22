@@ -1,12 +1,14 @@
 from bisect import insort
-import cv2
-from numpy import zeros, int32, empty_like, ndarray, ones_like, arange, column_stack, flipud
-
-from math import sqrt, floor
+from sys import maxint
+from math import sqrt
 from sys import float_info
+
+from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud
 from numpy.ma import minimum, around
+import cv2
 
 from golib_conf import screenw, screenh
+
 
 __author__ = 'Kohistan'
 
@@ -124,6 +126,47 @@ def draw_str(dst, (x, y), s):
     cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), lineType=cv2.CV_AA)
 
 
+windows = set()  # todo improve or remove this dev workaround to center windows at startup only
+
+
+def show(img, auto_down=True, name="Camkifu", loc=None):
+    toshow = img
+    if auto_down:
+        f = _factor(img)
+        if f:
+            toshow = img.copy()
+            name += " (downsized)"
+            for i in range(f):
+                toshow = cv2.pyrDown(toshow)
+
+    if name not in windows:
+        cv2.namedWindow(name, cv2.WINDOW_NORMAL)
+        if loc is not None:
+            cv2.moveWindow(name, *loc)
+        else:
+            center = (screenw / 2, screenh / 2)
+            cv2.moveWindow(name, max(0, center[0] - toshow.shape[0] / 2), toshow.shape[1] / 2)
+        windows.add(name)
+
+    cv2.imshow(name, toshow)
+
+
+def _factor(img):
+    """
+    Find how many times the image should be "pyrDown" to fit inside the screen.
+
+    """
+    #    screen size, automatic detection seems to be a pain so it is done manually.
+    f = 0
+    imwidth = img.shape[1]
+    imheight = img.shape[0]
+    while screenw < imwidth or screenh < imheight:
+        f += 1
+        imwidth /= 2
+        imheight /= 2
+    return f
+
+
 def saturate(img):
     """
     Convert the image to HSV, multiply both Saturation and Value by 1.5,
@@ -156,86 +199,26 @@ def rgb_histo(img):
     return flipud(h)
 
 
-windows = set()  # todo improve or remove this dev workaround to center windows at startup only
-
-
-def show(img, auto_down=True, name="Camkifu", loc=None):
-    toshow = img
-    if auto_down:
-        f = _factor(img)
-        if f:
-            toshow = img.copy()
-            name += " (downsized)"
-            for i in range(f):
-                toshow = cv2.pyrDown(toshow)
-
-    if name not in windows:
-        cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-        if loc is not None:
-            cv2.moveWindow(name, *loc)
-        else:
-            center = (screenw / 2, screenh / 2)
-            cv2.moveWindow(name, max(0, center[0] - toshow.shape[0] / 2), toshow.shape[1] / 2)
-        windows.add(name)
-
-    cv2.imshow(name, toshow)
-
-
-def median_blur(img, ksize=(3, 3)):
-    blurred = empty_like(img)
-    midx = ksize[0] / 2
-    midy = ksize[1] / 2
-    for x in range(img.shape[0]):
-        if midx <= x:
-            for y in range(img.shape[1]):
-                if midy <= y:
-                    area = img[x - midx: x + midx + 1, y - midy: y + midy + 1]
-                    try:
-                        depth = img.shape[2]
-                        for z in range(depth):
-                            sortd = sorted(area[:, :, z].flat)
-                            blurred[x][y][z] = sortd[0]
-                    except IndexError:
-                        sortd = sorted(area[:, :].flat)
-                        blurred[x][y] = sortd[0]
-                else:
-                    # copy pixel as is for now
-                    blurred[x][y] = img[x][y]
-        else:
-            # copy pixel as is for now
-            blurred[x] = img[x]
-    return blurred
-
-
-def _factor(img):
+def order_hull(cvhull):
     """
-    Find how many times the image should be "pyrDown" to fit inside the screen.
+    Re-order the hull points so that:
+        - the first point is the one showing at the upper left on the image.
+        - the points are ordered clockwise.
 
     """
-    #    screen size, automatic detection seems to be a pain so it is done manually.
-    f = 0
-    imwidth = img.shape[1]
-    imheight = img.shape[0]
-    while screenw < imwidth or screenh < imheight:
-        f += 1
-        imwidth /= 2
-        imheight /= 2
-    return f
-
-
-def tohisto(mult_factor, values):
-    """
-    Take an iterable of float values, multiply them by the factor,
-    floor them and store occurrence count in a dict.
-    """
-    histo = {}
-    for val in values:
-        intv = int(floor(val * mult_factor))
-        try:
-            histo[intv] += 1
-        except KeyError:
-            histo[intv] = 1
-    return histo
+    hull = []
+    idx = 0
+    mind = maxint
+    for i in range(len(cvhull)):
+        p = cvhull[i]
+        dist = p[0] ** 2 + p[1] ** 2
+        if dist < mind:
+            mind = dist
+            idx = i
+    for i in range(idx, idx + len(cvhull)):
+        p = cvhull[i % len(cvhull)]
+        hull.append((p[0], p[1]))
+    return hull
 
 
 def sort_conts(contours):
@@ -354,5 +337,3 @@ class Segment:
         else:
             t1 = (x[0] * d2[1] - x[1] * d2[0]) / cross
             return int(self[0] + t1 * d1[0]), int(self[1] + t1 * d1[1])
-
-

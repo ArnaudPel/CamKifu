@@ -3,3 +3,6 @@ bugs
 
 the save changes dialog doesn't show up when hitting CMD+Q
 ck_test goes into infinite loop when BoardFinder doesn't quit (keeps VManager alive)
+
+in tests:
+the current Test configuration loops infinitely once it has found the first move (its not being reflected in Rule most likely)

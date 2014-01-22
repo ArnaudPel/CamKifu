@@ -3,30 +3,46 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 ---------------------------------------------------------------------------------------------------
 
-BEFORE PUBLISH:
+BEFORE PYTHON PUBLISH:
 
-    - point ck_test to "test/res/ck" and make CLI args optional (process all input in that folder)
-    - write more test (+ code coverage tool ?), + provide videos and sgf ressources
+    - look for /Users/Kohistan/... in project and make all that relative
+    - look for "from test." in src and remove
+    - change author to Arnaud Peloquin
     - readme
-    - try the VidRecorder again (as of v2.4.8)
-    - make vision values as dynamic as possible (frame size, ...)
-    - remove calibration prompt !!
+    - remove calibration prompt
     - replace controller.pipe() with regular methods ??
 
     - move as much dev code as possible out of the way (have a general look)
-    - cleanup todos / commented code / asserts (?)
     - document code, especially fields
+    - cleanup todos / commented code / asserts (?)
     - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
     - license
+
+---------------------------------------------------------------------------------------------------
+
+ON PYTHON PUBLISH:
+
+    - links to openCV install
+    - links to PyCharm CE
+    - jetbrains has a banner generator. can we set one on github ?
+
+---------------------------------------------------------------------------------------------------
+
+BEFORE CPP PUBLISH:
+
+    - create a boardfinder_test.py that can compare detection against known locations.
+    - point ck_test to "test/res/ck" and make CLI args optional (process all input in that folder)
+    - write more test (+ code coverage tool ?), + provide videos and sgf ressources
+
+    - try the VidRecorder again (as of opencv-2.4.8)
+    - make vision values as dynamic as possible (frame size, ...)
     - clean up and mark down this file :)
 
 ---------------------------------------------------------------------------------------------------
 
-ON PUBLISH:
+ON CPP PUBLISH:
 
     - links to openCV install
-    - links to PyCharm CE  -- may be able to ask for a free license !
-    - jetbrains has a banner generator. can we set one on github ?
     - set issue tracker
     - convert this file into milestones
     - add myself to:

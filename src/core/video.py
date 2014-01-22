@@ -1,8 +1,11 @@
 from Queue import Full
+from time import sleep, time
+
 from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
 import cv2
-from time import sleep, time
+
 from core.imgutil import show, draw_str
+
 
 __author__ = 'Kohistan'
 
@@ -14,13 +17,12 @@ class VidProcessor(object):
 
     """
 
-    def __init__(self, vmanager, rectifier=None):
+    def __init__(self, vmanager):
         """
         self.frame_period -- (float) the minimum number of seconds between 2 iterations of frame processing
 
         """
         self.vmanager = vmanager
-        self.rectifier = rectifier
         self.own_images = {}
 
         self.frame_period = 0.2
@@ -44,10 +46,6 @@ class VidProcessor(object):
                 self.last_read = start
                 ret, frame = self.vmanager.capt.read()
                 if ret:
-                    # todo remove calibration if it's not actually helping.
-                    # undistort seems to actually pollute board detection.
-                    #if self.rectifier is not None:
-                        #frame = self.rectifier.undistort(frame)
                     self._doframe(frame)
                     self.checkkey()
                     self.latency = time() - start

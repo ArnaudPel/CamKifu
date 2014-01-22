@@ -4,8 +4,8 @@ from threading import Thread
 from time import sleep
 import Camkifu
 from core.vmanager import VManager
-from test.kifuref import display_matcher, print_matcher
-from test.controllerv_test import ControllerVTest
+from test.objects.kifuref import display_matcher, print_matcher
+from test.objects.controllerv_test import ControllerVTest
 
 __author__ = 'Kohistan'
 
@@ -13,8 +13,6 @@ __author__ = 'Kohistan'
 Test the default configuration of BoardFinder / StonesFinder on a recorded game (video file), and compare
 moves found with an associated reference SGF. This script is useful to test a global configuration, as errors
 can originate from board or stones algorithms indifferently.
-
-To specifically test board detection on a movie file, see boardfinder_test.py
 
 """
 
@@ -57,6 +55,7 @@ def get_argparser():
 
     # optional arguments
     parser.add_argument("--failfast", help="Fail and stop test at first wrong move.", action="store_true")
+
     mhelp = "The subsequence of moves to consider in the reference sgf." \
             "Provide first and last move number of interest (1-based numeration)." \
             "Previous moves will be used to initialize the \"working\" sgf."

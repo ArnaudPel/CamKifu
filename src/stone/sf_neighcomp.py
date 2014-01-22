@@ -1,21 +1,27 @@
 from Queue import Empty
-from bisect import insort
 from collections import defaultdict
 import cv2
-from numpy import int32, zeros, empty, sum as npsum, mean
+from numpy import int32, zeros
 from go.move import Move
-from stone.stonesfinder import StonesFinder, compare, evalz
+from stone.stonesfinder import StonesFinder, evalz
 from golib_conf import gsize, E
 
 __author__ = 'Kohistan'
 
 
 class NeighbourComp(StonesFinder):
+    """
+    A few tries at determining the state (B W or E) of an intersection by comparing it against
+    its neighbours.
+
+    Not worth its salt yet.
+
+    """
 
     label = "Neigh Comp"
 
-    def __init__(self, vmanager, rect):
-        super(NeighbourComp, self).__init__(vmanager, rect)
+    def __init__(self, vmanager):
+        super(NeighbourComp, self).__init__(vmanager)
         self.lastpos = None
 
     def _find(self, goban_img):

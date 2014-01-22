@@ -1,6 +1,6 @@
 from Queue import Full, Empty, Queue
 from core.warnings import PipeWarning
-from gui.controller import Controller, ControllerBase
+from gui.controller import Controller
 
 __author__ = 'Kohistan'
 
@@ -157,33 +157,11 @@ class ControllerV(Controller):
         return super(ControllerV, self).__setattr__(name, value)
 
 
-class ControllerVSeq(ControllerBase):
-    """
-    Controller with no GUI that is supposed to be run in a single-threaded environment.
-
-    """
-
-    def __init__(self, sgffile=None, video=0, bounds=(0, 1)):
-        super(ControllerVSeq, self).__init__(sgffile=sgffile)
-        self.video = video
-        self.bounds = bounds
-        self.api = {"append": self.cvappend}
-
-    def pipe(self, instruction, args):
-        """
-        Execute command straight away (assumption of single-threaded environment).
-
-        """
-        self.api[instruction](*args)
-
-    def cvappend(self, move):
-        move.number = self.current_mn + 1
-        self.rules.put(move)
-        self._append(move)
-
-
 class Pause(object):
+    """
+    A toggle that can be used in lambda functions.
 
+    """
     def __init__(self, paused=False):
         self.paused = paused
 

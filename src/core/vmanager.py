@@ -1,15 +1,11 @@
 from time import sleep
-import cv2
 from threading import Thread
+
+import cv2
 from cv2.cv import CV_CAP_PROP_POS_AVI_RATIO
-from board.board1 import BoardFinderManual
-from board.board2 import BoardFinderAuto
+
 from config.cvconf import bfinders, sfinders
-from core.calib import Rectifier
-from stone.stones1 import BackgroundSub
-from stone.stones2 import NeighbourComp
-from stone.stones4 import StoneCont
-from stone.stonesfinder import DummyFinder
+
 
 __author__ = 'Kohistan'
 
@@ -78,7 +74,6 @@ class VManager(VManagerBase):
         self.controller._pause = self._pause
         self.processes = []  # video processors currently running
         self.restart = False
-        self.rect = Rectifier(self)
 
     def run(self):
         self.init_capt()
@@ -150,7 +145,7 @@ class VManager(VManagerBase):
         # always have at least one bf running to keep sf alive
         tostop = self.board_finder
 
-        self.board_finder = bf_class(self, self.rect)
+        self.board_finder = bf_class(self)
         self._spawn(self.board_finder)
 
         if tostop is not None:
@@ -165,7 +160,7 @@ class VManager(VManagerBase):
             while self.stones_finder in self.processes:
                 sleep(0.1)
             del self.stones_finder  # may help prevent misuse
-        self.stones_finder = sf_class(self, self.rect)
+        self.stones_finder = sf_class(self)
         self._spawn(self.stones_finder)
 
 
@@ -195,23 +190,3 @@ class VisionThread(Thread):
                 return (self.run == other.run) and (self.interrupt == other.interrupt)
             except AttributeError:
                 return False
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

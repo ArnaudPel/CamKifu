@@ -1,8 +1,6 @@
 from Queue import Empty
-from bisect import insort
 import cv2
-from numpy import zeros_like, zeros, uint8, int32, empty, empty_like, mean, sum as npsum
-from numpy.ma import absolute
+from numpy import zeros_like, zeros, int32, empty_like
 from go.move import Move
 from stone.stonesfinder import StonesFinder, compare, evalz
 from golib_conf import gsize, B, W, E
@@ -20,8 +18,8 @@ class BackgroundSub(StonesFinder):
 
     label = "Bg Sub"
 
-    def __init__(self, vmanager, rectifier):
-        super(BackgroundSub, self).__init__(vmanager, rectifier)
+    def __init__(self, vmanager):
+        super(BackgroundSub, self).__init__(vmanager)
         self.bindings['s'] = self.reset
 
         self._background = zeros((gsize, gsize, 3), dtype=int32)
@@ -127,25 +125,3 @@ class BackgroundSub(StonesFinder):
 
 def sampled(img):
     print "Image at {0} set as background.".format(hex(id(img)))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
