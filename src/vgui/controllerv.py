@@ -1,5 +1,5 @@
 from Queue import Full, Empty, Queue
-from core.warnings import PipeWarning
+from core.exceptions import PipeWarning
 from gui.controller import Controller
 
 __author__ = 'Kohistan'

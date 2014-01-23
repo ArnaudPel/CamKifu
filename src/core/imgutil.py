@@ -7,7 +7,7 @@ from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud
 from numpy.ma import minimum, around
 import cv2
 
-from golib_conf import screenw, screenh
+from config.cvconf import screenw, screenh
 
 
 __author__ = 'Kohistan'

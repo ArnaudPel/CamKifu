@@ -20,7 +20,7 @@ class ControllerVTest(ControllerBase):
         if move_bounds and (sgffile is None):
             # transfer skipped reference moves to the working structure for consistency
             while self.current_mn < move_bounds[0] - 1:
-                self._append(self.kifu.ref.getmove_at(self.current_mn + 1))
+                self.cvappend(self.kifu.ref.getmove_at(self.current_mn + 1))
 
         self.api = {"append": self.cvappend,
                     "bfinder": self.add_finder,
