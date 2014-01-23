@@ -5,7 +5,7 @@ from config.cvconf import bfinders, sfinders
 from core.vmanager import VManagerBase
 from gui.controller import ControllerBase
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 """
 Script that can be used to run all vision on the main thread. The counterpart is that no Tkinter

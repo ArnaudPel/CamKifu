@@ -1,7 +1,7 @@
 from Tkinter import Button, Menu, StringVar
 from gui.ui import UI
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class VUI(UI):

@@ -6,7 +6,7 @@ from go.move import Move
 from stone.stonesfinder import StonesFinder, evalz
 from golib_conf import gsize, E
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class NeighbourComp(StonesFinder):

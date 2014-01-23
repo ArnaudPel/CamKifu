@@ -1,1 +1,1 @@
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'

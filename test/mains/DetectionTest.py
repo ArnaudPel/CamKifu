@@ -7,7 +7,7 @@ from core.vmanager import VManager
 from test.objects.kifuref import display_matcher, print_matcher
 from test.objects.controllerv_test import ControllerVTest
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 """
 Test the default configuration of BoardFinder / StonesFinder on a recorded game (video file), and compare

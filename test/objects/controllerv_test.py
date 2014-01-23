@@ -1,7 +1,7 @@
 from gui.controller import ControllerBase
 from test.objects.kifuref import KifuChecker
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class ControllerVTest(ControllerBase):

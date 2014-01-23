@@ -2,7 +2,7 @@ from Queue import Full, Empty, Queue
 from core.exceptions import PipeWarning
 from gui.controller import Controller
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 commands_size = 10
 

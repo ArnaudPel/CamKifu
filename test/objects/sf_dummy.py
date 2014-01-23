@@ -2,7 +2,7 @@ from go.move import Move
 from stone.stonesfinder import StonesFinder
 from test.devconf import dummy_sf_args
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class DummyFinder(StonesFinder):

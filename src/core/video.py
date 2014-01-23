@@ -7,7 +7,7 @@ import cv2
 from core.imgutil import show, draw_str
 
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class VidProcessor(object):

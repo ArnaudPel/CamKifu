@@ -5,16 +5,8 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PYTHON PUBLISH:
 
-    - look for /Users/Kohistan/... in project and make all that relative
-    - look for "from test." in src and remove
-    - change author to Arnaud Peloquin
     - readme
-    - remove calibration prompt
-    - replace controller.pipe() with regular methods ??
-
-    - move as much dev code as possible out of the way (have a general look)
-    - document code, especially fields
-    - cleanup todos / commented code / asserts (?)
+    - fix documentation  --> especially check existing doc
     - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
     - license
 

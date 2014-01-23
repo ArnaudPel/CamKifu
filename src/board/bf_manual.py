@@ -8,7 +8,7 @@ from board.boardfinder import BoardFinder
 from test.devconf import gobanloc_npz
 
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 if __name__ == '__main__':
@@ -78,7 +78,6 @@ class BoardFinderManual(BoardFinder):
             self.corners.add((x, y))
             if self.corners.ready():
                 self.manual_found = True
-                # todo comment that before publish
                 np.savez(gobanloc_npz, location=self.corners._points)
 
     def perform_undo(self):

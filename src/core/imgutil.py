@@ -10,7 +10,7 @@ import cv2
 from config.cvconf import screenw, screenh
 
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 def split_h(img, nbsplits=5, offset=False):
@@ -78,7 +78,6 @@ def split_sq(img, nbsplits=5, offset=False):
     """
     for hchunk in split_h(img, nbsplits, offset=offset):
         for vchunk in split_v(hchunk.mat, nbsplits, offset=offset):
-            # todo optimize loop if this is the way to go
             yield Chunk(hchunk.x + vchunk.x, hchunk.y + vchunk.y, vchunk.mat, img)
 
 
@@ -126,7 +125,7 @@ def draw_str(dst, (x, y), s):
     cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), lineType=cv2.CV_AA)
 
 
-windows = set()  # todo improve or remove this dev workaround to center windows at startup only
+windows = set()  # dev workaround to center windows at startup only
 
 
 def show(img, auto_down=True, name="Camkifu", loc=None):
@@ -173,7 +172,6 @@ def saturate(img):
     and return corresponding enhanced RGB image.
 
     """
-    # todo add doctest for the 50% enhancement + no-overflow of 255 max value
     maxsv = ones_like(img)
     maxsv[:, :, 1:3] *= 255
     saturated = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)

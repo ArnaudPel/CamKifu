@@ -7,7 +7,7 @@ from core.imgutil import draw_circles, draw_str, order_hull
 from core.video import VidProcessor
 from golib_conf import gsize, E
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 correc_size = 10

@@ -1,7 +1,7 @@
 from golib_conf import gsize
 
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 """
 Vision-related configuration.

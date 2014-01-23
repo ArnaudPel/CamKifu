@@ -5,7 +5,7 @@ from go.move import Move
 from stone.stonesfinder import StonesFinder, compare, evalz
 from golib_conf import gsize, B, W, E
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class BackgroundSub(StonesFinder):

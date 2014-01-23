@@ -7,7 +7,7 @@ from config.cvconf import canonical_size as csize
 from core.imgutil import draw_circles, draw_lines, order_hull
 from core.video import VidProcessor
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class BoardFinder(VidProcessor):
@@ -168,5 +168,5 @@ class SegGridIter(object):
         elif self.idx - l1 < len(self.grid.vsegs):
             return self.grid.vsegs[self.idx - l1]
         else:
-            assert self.idx == len(self.grid), "Should describe entire grid once and only once."  # todo remove
+            assert self.idx == len(self.grid), "Should describe entire grid once and only once."
             raise StopIteration

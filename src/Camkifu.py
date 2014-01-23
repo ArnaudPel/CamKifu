@@ -15,7 +15,7 @@ from core.vmanager import VManager
 from vgui.controllerv import ControllerV
 from core.imgutil import show
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 """
 Application entry point.

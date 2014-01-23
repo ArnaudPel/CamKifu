@@ -9,7 +9,7 @@ from board.boardfinder import BoardFinder, SegGrid
 from core.imgutil import Segment, draw_lines, sort_conts, draw_str
 
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class BoardFinderAuto(BoardFinder):
@@ -212,12 +212,8 @@ def _get_neighbours(segments, start, intercept):
         ldiff = intercept - left.intercept
         rdiff = right.intercept - intercept
 
-        # todo remove dev check
-        if ldiff < 0 or rdiff < 0:
-            raise IndexError("There is an issue with left / right ordering")
-
-        if 10 < min(ldiff, rdiff):  # todo tune pixel dist according to img.shape ?
-            return # don't explore neighbours whose intercept is more than 'n' pixels away
+        if 10 < min(ldiff, rdiff):  # improvement: tune pixel dist according to img.shape ?
+            return  # don't explore neighbours whose intercept is more than 'n' pixels away
 
         if ldiff < rdiff:
             yield left
@@ -282,7 +278,6 @@ def _get_seg(points):
     dist = 0
     for i in range(1, len(points)):
         p0 = points[i]
-        # todo if we assume the points are roughly aligned, no need for the double loop
         for j in range(i):
             p1 = points[j]
             curdist = (p0[0] - p1[0]) ** 2 + (p0[1] - p1[1]) ** 2

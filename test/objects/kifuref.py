@@ -3,7 +3,7 @@ from Tkinter import Frame, Label, Tk
 from go.kifu import Kifu
 from difflib import SequenceMatcher
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 
 class KifuChecker(Kifu):
@@ -123,38 +123,3 @@ def concat(seq, start, end):
         for i in range(start, end):
             string += str(seq[i]) + " "
     return string
-
-
-if __name__ == '__main__':
-    ref = "/Users/Kohistan/Documents/Go/Perso Games/Number6-Kohistan.sgf"
-    sgf = "/Users/Kohistan/Documents/Go/Perso Games/Number6-Kohistan.sgf"
-    checker = KifuChecker(reffile=ref, sgffile=sgf)
-    m = checker.check()
-    print_matcher(m)
-
-    root = Tk()
-    frame = display_matcher(m, root)
-    frame.pack()
-    root.mainloop()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

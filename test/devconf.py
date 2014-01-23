@@ -1,12 +1,12 @@
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 """
 Configuration of things that should not make it to "production" releases.
 
 """
 
-gobanloc_npz = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/gobanloc.npz"
+gobanloc_npz = "../res/temp/gobanloc.npz"
 
 
 # The moves the Dummy Finder should find :)
