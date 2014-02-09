@@ -24,7 +24,10 @@ Application entry point.
 
 
 def img_update(imqueue):
-    # method to display opencv images on the GUI thread (otherwise it fails)
+    """
+    Method to display opencv images on the GUI thread (otherwise it fails)
+
+    """
     try:
         while True:
             name, img, vidproc = imqueue.get_nowait()
@@ -50,13 +53,13 @@ def main(video=0, sgf=None, bounds=(0, 1)):
     app.pack()
     imqueue = Queue(maxsize=10)
     controller = ControllerV(app, app, sgffile=sgf, video=video, bounds=bounds)
-    vthread = VManager(controller, imqueue=imqueue)
+    vmanager = VManager(controller, imqueue=imqueue)
 
     def tk_routine():
         img_update(imqueue)
         root.after(5, tk_routine)
 
-    vthread.start()
+    vmanager.start()
     try:
         root.after(0, tk_routine)
         Golib.center(root)
@@ -67,10 +70,14 @@ def main(video=0, sgf=None, bounds=(0, 1)):
 
         root.mainloop()
     finally:
-        vthread.request_exit()
+        vmanager.request_exit()
 
 
 def get_argparser():
+    """
+    Get command line arguments parser. Is actually an enrichment of the Golib argument parser.
+
+    """
     parser = Golib.get_argparser()
     vhelp = "Filename, or device, as used in cv2.VideoCapture(). Defaults to device \"0\"."
     parser.add_argument("-v", "--video", default=0, help=vhelp)

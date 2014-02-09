@@ -29,6 +29,10 @@ class VManagerBase(Thread):
         self.stones_finder = None
 
     def init_capt(self):
+        """
+        Initialize the video capture with the source defined in the controller.
+
+        """
         if self.capt is not None:
             self.capt.release()
         #noinspection PyArgumentList
@@ -52,10 +56,14 @@ class VManagerBase(Thread):
         self.stones_finder.corrected(err_move, exp_move)
 
     def request_exit(self):
+        """
+        Request this video manager to terminate all its sub-processes and exit.
+
+        """
         raise NotImplementedError("Abstract method meant to be extended")
 
     def confirm_exit(self, process):
-        """ A process that terminates is supposed to pass itself here. """
+        """ A sub-process of this manager that terminates is supposed to pass itself here. """
         pass
 
 
@@ -64,7 +72,7 @@ class VManager(VManagerBase):
     Multi-threaded vision manager.
 
     Its fields, notably the board and stones finders, must be regarded as (recursively) volatile.
-    Concurrency issues are to be expected.
+    Concurrency issues are to be expected in this area.
 
     """
 
@@ -76,6 +84,10 @@ class VManager(VManagerBase):
         self.restart = False
 
     def run(self):
+        """
+        Run the main loop of
+
+        """
         self.init_capt()
 
         # register "board finders" and "stones finders" with the controller.
@@ -90,23 +102,15 @@ class VManager(VManagerBase):
             self.controller.pipe("sfinder", (sf_class, self.set_sf, choose))
             choose = False
 
-        # todo remove that block and keep the bf_manual alive instead ?
         running = 1
         while running:
-            # todo rethink this undo concept maybe
-            if self.stones_finder.undoflag:
-                self.stones_finder.undoflag = False
-                self.board_finder.perform_undo()
-                if self.board_finder not in self.processes:
-                    self._spawn(self.board_finder)
-            running = len(self.processes)
-
             # watch for video input changes.
             if self.current_video != self.controller.video:
                 # global restart to avoid fatal "PyEval_RestoreThread: NULL tstate"
                 self.restart = True
                 self.request_exit()
             sleep(0.3)
+            running = len(self.processes)
 
         if self.restart:
             self.restart = False

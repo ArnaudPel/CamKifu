@@ -1,5 +1,7 @@
 from Queue import Queue
 from Tkinter import Tk
+import os
+import platform
 from threading import Thread
 from time import sleep
 import Camkifu
@@ -32,19 +34,38 @@ class ImgUpdater(Thread):
 
 
 def main(reffile, sgffile=None, move_nr=0, failfast=False, bounds=(0, 1), video=0):
+    root = Tk(className="Detection Test")
+    root.withdraw()
+    imqueue = Queue(maxsize=10)
     controller = ControllerVTest(reffile, sgffile=sgffile, video=video, vid_bounds=bounds,
                                  failfast=failfast, move_bounds=move_nr)
-    root = Tk()  # had to move that before ImgUpdater to avoid Python interpreter crash on my config.
-    imqueue = Queue(10)
     vmanager = VManager(controller, imqueue=imqueue)
     vmanager.start()
-    ImgUpdater(imqueue, vmanager).run()
-    matcher = controller.kifu.check()
 
-    frame = display_matcher(matcher, master=root)
+    def tk_routine():
+        if not vmanager.is_alive():
+            root.destroy()
+        else:
+            Camkifu.img_update(imqueue)
+            root.after(5, tk_routine)
+
+    try:
+        root.after(0, tk_routine)
+        # mac OS special, to bring app to front at startup
+        if "Darwin" in platform.system():
+            os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
+
+        root.mainloop()
+    finally:
+        vmanager.request_exit()
+
+    # display test results
+    root2 = Tk()
+    matcher = controller.kifu.check()
+    frame = display_matcher(matcher, master=root2)
     print_matcher(matcher)
     frame.pack()
-    root.mainloop()
+    root2.mainloop()
 
 
 def get_argparser():

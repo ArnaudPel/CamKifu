@@ -54,22 +54,31 @@ class BoardFinderManual(BoardFinder):
             self.perform_undo()
         if not self.manual_found:
             self._lockpos()
+            cv2.setMouseCallback(self.windowname, self.onmouse)
             detected = False
         else:
-            self._standby()
+            self._unlockpos()
             detected = True
         self.corners.paint(frame)
         self._show(frame, name=self.windowname)
         return detected
 
     def _lockpos(self):
+        """
+        Force capture to stay on the same image until the board has been located by user. It is necessary not to miss
+        the first move(s). This code only impacts file processing, as live captures have no use for position ratio.
+
+        """
         if self.capture_pos is None:
             self.capture_pos = self.vmanager.capt.get(POS_RATIO)
         else:
             self.vmanager.capt.set(POS_RATIO, self.capture_pos)
-        cv2.setMouseCallback(self.windowname, self.onmouse)
 
-    def _standby(self):
+    def _unlockpos(self):
+        """
+        Free the movie run, as opposed to _lockpos().
+
+        """
         self.capture_pos = None
 
     #noinspection PyUnusedLocal

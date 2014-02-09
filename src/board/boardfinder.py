@@ -12,10 +12,9 @@ __author__ = 'Arnaud Peloquin'
 
 class BoardFinder(VidProcessor):
     """
-    Abstract class providing a suggestion of common features that should be
-    shared by board-finding algorithms.
+    Abstract class providing a suggestion of common features that should be shared by board-finding algorithms.
 
-    The most inflexible part is to hold a self.mtx object when detection has been successful,
+    The core requirement is to hold a self.mtx object when detection has been successful,
     expected to be the matrix used in perspective transforms.
 
     """
@@ -41,8 +40,7 @@ class BoardFinder(VidProcessor):
     def _detect(self, frame):
         """
         Process the provided frame to find goban corners in it, and update the field "self.corners".
-        Return True to indicate that the Goban has been located successfully (all 4 corners have
-        been located).
+        Return True to indicate that the Goban has been located successfully (all 4 corners have been located).
 
         """
         raise NotImplementedError("Abstract method meant to be extended")
@@ -97,6 +95,11 @@ class GobanCorners():
                 color = (255 * (nbpts - i - 1) / nbpts, 0, 255 * (i + 1) / nbpts)
 
     def _check(self):
+        """
+        If self.points forms a convex hull of 4 vertices, store these into self.hull
+        Otherwise erase self.hull
+
+        """
         if 3 < len(self._points):
             cvhull = cv2.convexHull(vstack(self._points))
             self.hull = order_hull([x[0] for x in cvhull])
@@ -153,6 +156,10 @@ class SegGrid:
 
 
 class SegGridIter(object):
+    """
+    Iterator used in SegGrid.__iter__()
+
+    """
     def __init__(self, grid):
         self.grid = grid
         self.idx = -1

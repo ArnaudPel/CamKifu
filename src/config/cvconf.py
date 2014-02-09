@@ -21,6 +21,7 @@ screenh = 1200
 # imports below must be done after variable declarations above,
 # so that cyclic imports are avoided.
 
+# from test.objects.sf_dummy import DummyFinder
 from board.bf_manual import BoardFinderManual
 from board.bf_auto import BoardFinderAuto
 # the first element in the list will be loaded at startup.
@@ -33,6 +34,7 @@ from stone.sf_bgsub import BackgroundSub
 from stone.sf_neighcomp import NeighbourComp
 # the first element in the list will be loaded at startup.
 sfinders = [
+    # DummyFinder,
     BackgroundSub,
     NeighbourComp,
 ]

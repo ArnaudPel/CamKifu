@@ -21,17 +21,12 @@ def split_h(img, nbsplits=5, offset=False):
     """
 
     for i in range(nbsplits):
-
         x0 = 0
         x1 = img.shape[1]
-
         strip_size = img.shape[0] / nbsplits
-        if offset:
-            offs = strip_size / 2
-        else:
-            offs = 0
-
+        offs = strip_size / 2 if offset else 0
         y0 = i * strip_size + offs
+
         if (i + 1) < nbsplits:
             y1 = (i + 1) * strip_size + offs
         else:
@@ -50,13 +45,10 @@ def split_v(img, nbsplits=5, offset=False):
 
     """
     for i in range(nbsplits):
-
         strip_size = img.shape[1] / nbsplits
-        if offset:
-            offs = strip_size / 2
-        else:
-            offs = 0
+        offs = strip_size / 2 if offset else 0
         x0 = i * strip_size + offs
+
         if (i + 1) < nbsplits:
             x1 = (i + 1) * strip_size + offs
         else:
@@ -67,7 +59,6 @@ def split_v(img, nbsplits=5, offset=False):
 
         y0 = 0
         y1 = img.shape[0]
-
         yield Chunk(x0, y0, img[y0:y1, x0:x1].copy(), img)
 
 
@@ -83,7 +74,7 @@ def split_sq(img, nbsplits=5, offset=False):
 
 def draw_circles(img, centers, color=(0, 0, 255), radius=5, thickness=1):
     for point in centers:
-        if isinstance(point, ndarray) and point.shape == (1, 2):  # bloody vertical points
+        if isinstance(point, ndarray) and point.shape == (1, 2):  # vertical points
             point = point.T
         x = point[0]
         y = point[1]
@@ -115,17 +106,14 @@ def draw_lines(img, segments, color=(0, 255, 0)):
 
 
 def draw_str(dst, (x, y), s):
-    """
-    Thank you dear opencv python samples.
-
-    """
+    """ Thank you dear opencv python samples. """
     # the shadow
     cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.CV_AA)
     # the white text
     cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), lineType=cv2.CV_AA)
 
 
-windows = set()  # dev workaround to center windows at startup only
+windows = set()  # dev workaround to center windows the first time they are displayed
 
 
 def show(img, auto_down=True, name="Camkifu", loc=None):
@@ -155,7 +143,6 @@ def _factor(img):
     Find how many times the image should be "pyrDown" to fit inside the screen.
 
     """
-    #    screen size, automatic detection seems to be a pain so it is done manually.
     f = 0
     imwidth = img.shape[1]
     imheight = img.shape[0]
@@ -224,8 +211,8 @@ def sort_conts(contours):
     Sort contours by increasing area.
     contours -- an iterable, as returned by cv2.findContours()
 
-    Return -- a sorted list of Area objects. The position of each area corresponds to the contour's position
-     in the provided list.
+    Return -- a sorted list of Area objects. The position of each Area object corresponds to
+    the contour's position in the provided iterable.
 
     """
     sortedconts = []
@@ -242,7 +229,7 @@ class Area(object):
     def __init__(self, contour, pos, value=None):
         self.contour = contour
         self.value = cv2.contourArea(contour) if value is None else value
-        self.pos = pos
+        self.pos = pos  # arbitrary index that can be set to remember position of this contour in a structure
 
     def __gt__(self, other):
         return other.value < self.value
@@ -256,7 +243,7 @@ class Area(object):
 
 class Chunk:
     """
-    A chunk of an image.
+    A chunk (subpart) of an image.
 
     x -- the x origin of the Chunk inside the source image.
     y -- the y origin of the Chunk inside the source image.
@@ -274,10 +261,24 @@ class Chunk:
         pass
 
     def paint(self, dest):
+        """
+        Copy values from this Chunk into the global (dest) image, at the right location.
+
+        """
         dest[self.x:self.mat.shape[0] + self.x, self.y:self.mat.shape[1] + self.y] = self.mat
 
 
 class Segment:
+    """
+    Segment that stores, on top of its coordinates:
+    - an indicator of orientation (self.horiz, True for horizontal)
+    - the intersection of this Segment with the corresponding middle line (horizontal for vertical and vice versa).
+    - the slope of the segment (computation is orientation-dependent)
+
+    Note: the concept of classifying segments by horizontal/vertical status is not good, which means this Segment
+    implementation is not either. Classifying segments based on their relative orthogonality is more relevant.
+
+    """
     def __init__(self, seg, img):
 
         xmid = img.shape[1] / 2
@@ -298,9 +299,17 @@ class Segment:
             self.horiz = False
 
     def __lt__(self, other):
+        """
+        Compare segments by their interception with middle line (not by their length !!)
+
+        """
         return self.intercept < other.intercept
 
     def __gt__(self, other):
+        """
+        Compare segments by their interception with middle line (not by their length !!)
+
+        """
         return self.intercept > other.intercept
 
     def __str__(self):
@@ -314,9 +323,8 @@ class Segment:
     @staticmethod
     def lencmp(seg1, seg2):
         """
-        Compare segments based on their L2-norm. The default comparison being
-        on the intercepts, this one had to be external.
-        (see __lt__(self, other), __gt__(self, other))
+        Compare segments based on their L2-norm. The default comparison being on the intercepts,
+        this one had to be external. see __lt__(self, other), __gt__(self, other)
 
         """
         return cmp(len(seg1), len(seg2))

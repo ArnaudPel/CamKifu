@@ -13,7 +13,7 @@ __author__ = 'Arnaud Peloquin'
 class VidProcessor(object):
     """
     Class meant to be extended by implementations of video processing.
-    By default the execute() method will keep running, interruption must be asked when needed.
+    By default the execute() method will keep running, interruption must be asked.
 
     """
 
@@ -37,6 +37,14 @@ class VidProcessor(object):
         self.latency = 0.0
 
     def execute(self):
+        """
+        Execute the video processing loop. Run until self.interrupt() is called, or if the
+        last frame has been reached when reading a file.
+
+        In order to save some CPU, the loop sleeps between two iterations if they are processed
+        faster than self.frame_period. Set this value to 0 to run flat out.
+
+        """
         end = self.vmanager.controller.bounds[1]
         self._interruptflag = False
         while not self._interruptflag and (self.vmanager.capt.get(POS_RATIO) < end):
@@ -58,38 +66,28 @@ class VidProcessor(object):
         self._destroy_windows()
         self.vmanager.confirm_exit(self)
 
-    def checkkey(self):
+    def _doframe(self, frame):
         """
-        In order to add / modify key bindings, update the dict self.bindings with no-argument methods.
-
-        key -- a char
+        Image-processing algorithm may be implemented under that extension point.
 
         """
-        try:
-            if self.vmanager.imqueue is not None:
-                key = self.key
-                if type(key) is not str:
-                    key = chr(key)
-            else:
-                key = chr(cv2.waitKey(50))  # for when running on main thread
-
-            command = self.bindings[key]
-            if command is not None:
-                print "executing command '{0}'".format(key)
-                command()
-            else:
-                print "no command for '{0}'".format(key)
-        except (TypeError, KeyError, ValueError):
-            pass  # not interested in non-char keys ATM
-        self.key = None
+        raise NotImplementedError("Abstract method meant to be extended")
 
     def interrupt(self):
+        """
+        Stop the video processing loop.
+
+        """
         self._interruptflag = True
 
-    def pause(self, boolean=None):
-        if boolean is not None:
+    def pause(self, dopause=None):
+        """
+        Pause the video processing loop if "dopause" is True, otherwise resume loop.
+
+        """
+        if dopause is not None:
             # set provided value
-            self.pausedflag = boolean
+            self.pausedflag = dopause
         else:
             # no value provided, interpret as a toggle
             self.pausedflag = not self.pausedflag
@@ -125,6 +123,32 @@ class VidProcessor(object):
                         command()
                 self.pausedflag = False
 
+    def checkkey(self):
+        """
+        Check if self.key has been set and execute command accordingly.
+        In order to add / modify key bindings, update the dict self.bindings with no-argument methods.
+
+        key -- a char
+
+        """
+        try:
+            if self.vmanager.imqueue is not None:
+                key = self.key
+                if type(key) is not str:
+                    key = chr(key)
+            else:
+                key = chr(cv2.waitKey(50))  # for when running on main thread
+
+            command = self.bindings[key]
+            if command is not None:
+                print "executing command '{0}'".format(key)
+                command()
+            else:
+                print "no command for '{0}'".format(key)
+        except (TypeError, KeyError, ValueError):
+            pass  # not interested in non-char keys ATM
+        self.key = None
+
     def undo(self):
         self.undoflag = True
 
@@ -148,6 +172,11 @@ class VidProcessor(object):
             print "Image queue full, not showing {0}".format(hex(id(img)))
 
     def _destroy_windows(self):
+        """
+        Multi-threaded env: ask for the windows created by this VidProcessor to be destroyed.
+        Single-threaded env: destroy the windows created by this VidProcessor.
+
+        """
         for name in self.own_images.iterkeys():
             if self.vmanager.imqueue is not None:
                 # caveat: wait until a slot is available to ensure destruction
@@ -155,6 +184,3 @@ class VidProcessor(object):
             else:
                 cv2.destroyWindow(name)
         self.own_images.clear()
-
-    def _doframe(self, frame):
-        raise NotImplementedError("Abstract method meant to be extended")

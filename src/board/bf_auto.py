@@ -18,8 +18,7 @@ class BoardFinderAuto(BoardFinder):
     with usage of median filtering. It is not able to detect the board when one or more stones are
     played on the first line, as those tend to break the contour.
 
-    This implementation attempt is a work in progress, and would obviously benefit from
-    a global rethink / rewrite / starting from scratch in a new file.
+    This implementation attempt is a work in progress.
 
     """
 
@@ -82,10 +81,9 @@ class BoardFinderAuto(BoardFinder):
 
 def runmerge(grid):
     """
-    Legacy function (sub-functions included), used here class mostly because
-    they were at close hand at dev time. The 200ish lines of code taking the form of
-    (_merge, _least_squares, _get_neighbours, _error, _get_seg) would most likely benefit from deletion
-    and global rethink of the automated board_finder.
+    Legacy function (sub-functions included), used here class mostly because they were at close hand
+    at dev time. The 200ish lines of code taking the form of (_merge, _least_squares, _get_neighbours,
+    _error, _get_seg) would most likely benefit from deletion and global rethink of the automated board_finder.
 
     """
     merged = SegGrid([], [], grid.img)
@@ -118,6 +116,9 @@ def runmerge(grid):
 
 def _merge(grid, precision=1):
     """
+    Merge segments that seem to appear to the same line. A merge between two segments is
+    a least-square segment of the 4 points being merged, as per cv2.fitLine().
+
     Returns:
         merged_grid, discarded_grid
     Args:
@@ -167,6 +168,11 @@ def _merge(grid, precision=1):
 
 
 def _least_squares(seg, neighb, valuations):
+    """
+    Merge "seg" and "neighb", and insert the resulting segment into "valuations",
+    ordering on the regression error.
+
+    """
     p1 = seg.coords[0:2]
     p2 = seg.coords[2:4]
     p3 = neighb.coords[0:2]
@@ -260,9 +266,9 @@ def _error(points, regr):
 
 def _get_seg(points):
     """
-    return the two most distant points from each other of the given list.
+    Return the two most distant points from each other of the given list.
     note: because the expected number of points is 4 in this context, the most
-     basic comparison has been used, in o(n2)
+    basic comparison has been used, in o(n2)
 
     points -- any collection of (x,y) couples having [] defined should work.
 

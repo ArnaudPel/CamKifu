@@ -24,7 +24,8 @@ class DummyFinder(StonesFinder):
             move = self.iterator.next()
             self.suggest(Move(self.ctype, string=move))
         except StopIteration:
-            self.interrupt()
+            # self.interrupt()
+            self.vmanager.request_exit()
 
     def _learn(self):
         pass  # no user input expected as all move are already programmed.

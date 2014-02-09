@@ -5,7 +5,8 @@ Duality arises from Unity, -- But do not be attached to this Unity
 
 BEFORE PYTHON PUBLISH:
 
-    - readme
+    - fix bugs
+    - comment line np.savez in onmouse()  because undo board location is not intuitive
     - fix documentation  --> especially check existing doc
     - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
     - license
