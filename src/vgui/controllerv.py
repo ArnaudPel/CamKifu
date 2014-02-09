@@ -9,7 +9,7 @@ commands_size = 10
 
 class ControllerV(Controller):
     """
-    Extension adding handling of Vision threads to the default GUI controller.
+    Extension of the default GUI controller, adding the handling of Vision threads.
 
     """
 
@@ -43,6 +43,12 @@ class ControllerV(Controller):
         self.paused = Pause()
 
     def pipe(self, instruction, args):
+        """
+        Send an instruction to this controller, that will be treated asynchronously.
+        instruction -- a callable.
+        args -- the arguments to to pass on "instruction" call.
+
+        """
         if self.input.closed:
             raise PipeWarning("Target User Interface has been closed.")
         if instruction == "event":
@@ -57,10 +63,11 @@ class ControllerV(Controller):
 
     def _cmd(self, event):
         """
-        Try to empty the piped commands queue.
+        Try to empty the commands queue (filled by pipe()).
         This method will not execute more than a fixed number of commands, in order to prevent
         infinite looping. Such infinite looping could occur if this method fails to keep up with
         other threads piping commands.
+
         Keeping flow smooth is paramount here, as this is likely to be run on the main (GUI) thread.
 
         See self.api for the list of executable commands.
@@ -79,7 +86,11 @@ class ControllerV(Controller):
             pass
 
     def _pause(self, boolean):
-        """ To be set by Vision Manager. Pause if boolean is True, else resume. """
+        """
+        To be set from outside (eg. by Vision Manager).
+        Pause if boolean is True, else resume.
+
+        """
         pass
 
     def _run(self):
@@ -99,35 +110,52 @@ class ControllerV(Controller):
         self.display.add_sf(label, callback, select=select)
 
     def cvappend(self, move):
+        """
+        Append the provided move to the current game. Implementation dedicated to automated detection.
+
+        """
         move.number = self.current_mn + 1
         self.rules.put(move)
         self._append(move)
 
     def corrected(self, err_move, exp_move):
-        """ To be set by Vision Manager. Pause if boolean is True, else resume. """
+        """
+        To be set from outside (eg. by Vision Manager).
+        The user has made a manual modification to the Goban.
+
+        """
         pass
 
     def _mouse_release(self, event):
+        """ Method override to add correction event. """
         move = super(ControllerV, self)._mouse_release(event)
         if move is not None:
             self.corrected(None, move)
 
     def _delete(self, _):
+        """ Method override to add correction event. """
         move = super(ControllerV, self)._delete(_)
         if move is not None:
             self.corrected(move, None)
 
     def _drag(self, event):
+        """ Method override to add correction event. """
         moves = super(ControllerV, self)._drag(event)
         if moves is not None:
             self.corrected(*moves)
 
     def _opensgf(self):
+        """ Method override to pause vision threads during long GUI operations. """
         self._pause(True)
         super(ControllerV, self)._opensgf()
         self._pause(False)
 
     def _openvideo(self):
+        """
+        Open a video file, that should be processed by detection algorithms.
+        This is likely to discard the previous video source being processed.
+
+        """
         self._pause(True)
         vidfile = self.display.promptopen()
         if len(vidfile):
@@ -135,14 +163,21 @@ class ControllerV(Controller):
         self._pause(False)
 
     def _openlive(self):
+        """
+        Open the live camera, that should be processed by detection algorithms.
+        This is likely to discard the previous video source being processed.
+
+        """
         self.video = 0
 
     def _save(self):
+        """ Method override to pause vision threads during long GUI operations. """
         self._pause(True)
         super(ControllerV, self)._save()
         self._pause(False)
 
     def __setattr__(self, name, value):
+        """ Method override to pause vision threads when browsing previous moves. """
 
         # watch "current move number" field, and stop vision when user is browsing previous moves.
         if name == "current_mn" and value is not None:

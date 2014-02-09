@@ -42,6 +42,9 @@ class VManagerBase(Thread):
         # set the beginning of video files. is ignored by live camera
         self.capt.set(CV_CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
 
+    def run(self):
+        raise NotImplementedError("Abstract method meant to be extended")
+
     def corrected(self, err_move, exp_move):
         """
         Inform that a correction has been made by the user on the goban.
@@ -53,7 +56,8 @@ class VManagerBase(Thread):
         exp_move -- the correct move (has been added). can be None if the correction is a "delete".
 
         """
-        self.stones_finder.corrected(err_move, exp_move)
+        if self.stones_finder is not None:
+            self.stones_finder.corrected(err_move, exp_move)
 
     def request_exit(self):
         """
@@ -85,7 +89,10 @@ class VManager(VManagerBase):
 
     def run(self):
         """
-        Run the main loop of
+        Run the main loop of VManager: provide to the controller all the finders listed in the config, and
+        listen to video input changes.
+
+        This main loop exits automatically if current board and stone finders are both interrupted.
 
         """
         self.init_capt()
@@ -136,17 +143,29 @@ class VManager(VManagerBase):
             self.request_exit()
 
     def _spawn(self, process):
+        """
+        Start the provided process and append it to the list of active processes.
+
+        """
         vt = VisionThread(process)
         self.processes.append(vt)
         print "{0} starting.".format(process.__class__.__name__)
         vt.start()
 
     def _pause(self, boolean):
+        """
+        Pause all sub-processes.
+
+        """
         for process in self.processes:
             process.pause(boolean)
 
     def set_bf(self, bf_class):
-        # always have at least one bf running to keep sf alive
+        """
+        Spawn a new instance of the provided board finder class, and terminate the previous board finder.
+
+        """
+        # always have one bf running to keep sf alive
         tostop = self.board_finder
 
         self.board_finder = bf_class(self)
@@ -159,6 +178,10 @@ class VManager(VManagerBase):
             del tostop  # may help prevent misuse
 
     def set_sf(self, sf_class):
+        """
+        Terminate the current stone finder, and spawn a new instance of the provided stone finder class.
+
+        """
         if self.stones_finder is not None:
             self.stones_finder.interrupt()
             while self.stones_finder in self.processes:

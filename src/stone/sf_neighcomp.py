@@ -11,10 +11,9 @@ __author__ = 'Arnaud Peloquin'
 
 class NeighbourComp(StonesFinder):
     """
-    A few tries at determining the state (B W or E) of an intersection by comparing it against
-    its neighbours.
+    A few tries at determining the state (B W or E) of an intersection by comparing it against its neighbours.
 
-    Not worth its salt yet.
+    Not finished.
 
     """
 
@@ -95,7 +94,3 @@ def neighbours(x, y):
             if i or j != 0:
                 if (0 <= x + i < gsize) and (0 <= y + j < gsize):
                     yield x + i, y + j
-
-
-
-

@@ -31,7 +31,7 @@ class ControllerVSeq(ControllerBase):
 
     def pipe(self, instruction, args):
         """
-        Execute command straight away (assumption of single-threaded environment).
+        Execute instruction straight away (assumption of single-threaded environment).
 
         """
         self.api[instruction](*args)

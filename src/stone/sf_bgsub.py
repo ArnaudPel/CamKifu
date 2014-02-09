@@ -10,10 +10,9 @@ __author__ = 'Arnaud Peloquin'
 
 class BackgroundSub(StonesFinder):
     """
-    Save background data using sample(img)
+    Save background data using sample(img).
     Perform background subtraction operations in order to detect stones.
 
-    self.stones -- the matrix of stones found so far (0:None, 1:Black, 2:White)
     """
 
     label = "Bg Sub"
@@ -48,6 +47,10 @@ class BackgroundSub(StonesFinder):
             pass
 
     def reset(self):
+        """
+        Clear the cached background and the last positive position.
+
+        """
         self._background = zeros_like(self._background)
         self.lastpos = None
         self.dosample = True
@@ -70,12 +73,7 @@ class BackgroundSub(StonesFinder):
 
     def detect(self, img):
         """
-        Try to detect stones by comparing against neighbour colors.
-
-        mask -- a matrix of shape (gsize, gsize) providing positions of already known stones, as follow.
-                0: empty position
-                1: white position
-                2: black position
+        Try to detect stones by comparing against (cached) background colors.
 
         """
         # todo improvement: only check for one (maybe 2) lines around goban. As long as they are

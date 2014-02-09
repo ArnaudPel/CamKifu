@@ -5,6 +5,10 @@ __author__ = 'Arnaud Peloquin'
 
 
 class VUI(UI):
+    """
+    Extension of the GUI to add some vision-related commands.
+
+    """
 
     # noinspection PyAttributeOutsideInit
     def init_components(self):
@@ -32,6 +36,10 @@ class VUI(UI):
         self.radvar_sf = StringVar()
 
     def add_bf(self, bf_class, callback, select=False):
+        """
+        Add the board finder to the menu. If select is True, callback rightaway.
+
+        """
         label = bf_class.label
         self.m_board.add_radiobutton(label=label, command=lambda: callback(bf_class),
                                      variable=self.radvar_bf, value=label)
@@ -40,6 +48,10 @@ class VUI(UI):
             callback(bf_class)
 
     def add_sf(self, sf_class, callback, select=False):
+        """
+        Add the stones finder to the menu. If select is True, callback rightaway.
+
+        """
         label = sf_class.label
         self.m_stones.add_radiobutton(label=label, command=lambda: callback(sf_class),
                                       variable=self.radvar_sf, value=label)

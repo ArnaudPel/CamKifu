@@ -15,7 +15,7 @@ correc_size = 10
 
 class StonesFinder(VidProcessor):
     """
-    Abstract class providing a structure for stones-finding processes.
+    Abstract class providing a base structure for stones-finding processes.
 
     """
 
@@ -42,7 +42,7 @@ class StonesFinder(VidProcessor):
 
     def _learn(self):
         """
-    Process corrections queue, and perform algorithm adjustments if necessary.
+        Process corrections queue, and perform algorithm adjustments if necessary.
 
         This choice to "force" implementation using an abstract method is based on the fact that stones
         deleted by the user MUST be acknowledged and dealt with, in order not to be re-suggested straight away.
@@ -60,6 +60,10 @@ class StonesFinder(VidProcessor):
         self.vmanager.controller.pipe("append", [move])
 
     def corrected(self, err_move, exp_move):
+        """
+        Entry point to provide corrections made by the user to the stones on the Goban. See _learn().
+
+        """
         try:
             self.corrections.put_nowait((err_move, exp_move))
         except Full:
@@ -67,8 +71,8 @@ class StonesFinder(VidProcessor):
 
     def empties(self):
         """
-        Enumerate the unoccupied positions of the goban.
-        Note: May be updated by another thread while yielding results.
+        Enumerate the unoccupied positions of the goban in naive order.
+        Note: this implementation allows for the positions to be updated by another thread during yielding.
 
         """
         for x in range(gsize):
@@ -77,17 +81,23 @@ class StonesFinder(VidProcessor):
                     yield y, x
 
     def getcolors(self):
+        """
+        Return a copy of the current goban state.
+
+        """
         return self.vmanager.controller.rules.copystones()
 
     def _getzone(self, img, r, c, cursor=1.0):
         """
-        Returns the pixel zone corresponding to the given goban intersection.
-        The current approximation of a stone area is a cross (optimally should be a disk)
+        Returns the (rectangle) pixel zone corresponding to the given goban intersection.
 
         img -- expected to contain the goban pixels only, in the canonical frame.
-        r -- the intersection row index, numpy-like
-        c -- the intersection column index, numpy-like
-        proportions -- must be floats
+        r -- the intersection row index
+        c -- the intersection column index
+        cursor -- must be float, has sense in the interval ]0, 2[
+                  0 -> the zone is restricted to the (r, c) point.
+                  2 -> the zone is delimited by the rectangle (r-1, c-1), (r+1, c+1).
+                  1 -> the zone is a rectangle of "intuitive" size, halfway between the '0' and '2' cases.
 
         """
         assert isinstance(cursor, float)
@@ -114,6 +124,11 @@ class StonesFinder(VidProcessor):
         return img[sx: ex, sy: ey].copy(), (sx, sy, ex, ey)
 
     def getmask(self, frame):
+        """
+        A boolean mask the size of "frame" that has a circle around each goban intersection.
+        Multiply a frame by this mask to zero-out anything outside the circles.
+
+        """
         if self.mask_cache is None:
             print "initializing mask"
             self.mask_cache = empty_like(frame)
@@ -141,7 +156,7 @@ class StonesFinder(VidProcessor):
 
     def _drawgrid(self, img):
         """
-        Draw a circle around each supposed intersection of the goban.
+        Draw a circle around each intersection of the goban, as they are currently estimated.
 
         """
         if self._posgrid is not None:
@@ -154,7 +169,6 @@ class StonesFinder(VidProcessor):
     def _drawvalues(self, img, values):
         """
         Display one value per goban position. Obviously values will soon overlap if they are longish.
-        Mostly useful during dev.
 
         """
         for row in range(gsize):
@@ -173,8 +187,8 @@ def compare(reference, current):
     Return a distance between the two colors. The value is positive if current is
     brighter than the reference, and negative otherwise.
 
-    reference -- a vector of length 3
-    current -- a vector of length 3
+    reference -- a vector
+    current -- a vector of same length as reference.
 
     """
     sign = 1 if npsum(reference) <= npsum(current) else -1
@@ -184,7 +198,7 @@ def compare(reference, current):
 class PosGrid(object):
     """
     Store the location of each intersection of the goban.
-    Can be extended to provide an evolutive version that can learn.
+    Can be extended to provide an evolutive version that can learn on the flight.
 
     """
 
