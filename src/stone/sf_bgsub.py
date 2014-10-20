@@ -83,13 +83,13 @@ class BackgroundSub(StonesFinder):
         pos = None
         color = E
         # subtract = zeros_like(img)  # debug variable, see below for usage.
-        frame = empty_like(self._background)
+        sample = empty_like(self._background)
         # deltas = []
-        for x, y in self.empties():
+        for x, y in self.empties_spiral():
             zone, points = self._getzone(img, x, y)
             for chan in range(3):
-                frame[x, y, chan] = evalz(zone, chan) / self.zone_area
-            delta = compare(self._background[x][y], frame[x, y])
+                sample[x, y, chan] = evalz(zone, chan) / self.zone_area
+            delta = compare(self._background[x][y], sample[x, y])
 
             # todo make thresholds relative to something ??
             if not -100 < delta < 100:
@@ -115,8 +115,8 @@ class BackgroundSub(StonesFinder):
         if pos is not None:
             if self.lastpos == pos:
                 self.suggest(Move("cv", ctuple=(color, pos[0], pos[1])))
-                frame[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
-                self._background = frame
+                sample[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
+                self._background = sample
                 sampled(img)
             else:
                 self.lastpos = pos

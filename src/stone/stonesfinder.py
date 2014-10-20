@@ -71,7 +71,7 @@ class StonesFinder(VidProcessor):
 
     def empties(self):
         """
-        Enumerate the unoccupied positions of the goban in naive order.
+        Yields the unoccupied positions of the goban in naive order.
         Note: this implementation allows for the positions to be updated by another thread during yielding.
 
         """
@@ -79,6 +79,48 @@ class StonesFinder(VidProcessor):
             for y in range(gsize):
                 if self.vmanager.controller.rules[x][y] == E:
                     yield y, x
+
+    def empties_spiral(self):
+        """
+        Yields the unoccupied positions of the goban along an inward spiral.
+        Aims to help detect hand / arm appearance faster by analysing outer border(s) first.
+
+        """
+        for x, y in self._spiral_recursiv(0):
+            yield x, y
+
+    def _spiral_recursiv(self, inset):
+        """
+        Yields the unoccupied positions of the goban along an inward spiral.
+
+        inset -- the inner margin defining the start of the inward spiral [0 = outer border -> gsize/2 = center position].
+                 it always ends at the center of the goban.
+
+        """
+        y = inset
+        for x in range(inset, gsize - inset):
+            # todo extract "do_yield()" method to remove code duplicate ?
+            if self.vmanager.controller.rules[x][y] == E:
+                yield y, x
+
+        x = gsize - inset - 1
+        for y in range(inset + 1, gsize - inset):
+            if self.vmanager.controller.rules[x][y] == E:
+                yield y, x
+
+        y = gsize - inset - 1
+        for x in range(gsize - inset - 2, inset - 1, -1):  # reverse just to have a nice spiral. not actually useful
+            if self.vmanager.controller.rules[x][y] == E:
+                yield y, x
+
+        x = inset
+        for y in range(gsize - inset - 2, inset, -1):
+            if self.vmanager.controller.rules[x][y] == E:
+                yield y, x
+
+        if inset + 1 <= gsize / 2:
+            for x, y in self._spiral_recursiv(inset + 1):
+                yield x, y
 
     def getcolors(self):
         """

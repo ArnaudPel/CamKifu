@@ -8,6 +8,7 @@ sudo mv /etc/init/ssh.conf.disabled /etc/init/ssh.conf
 
 BEFORE PYTHON PUBLISH:
 
+    - rename packages to avoid conflict w other libraries (eg. core)
     - fix bugs
     - comment line np.savez in onmouse()  because undo board location is not intuitive
     - fix documentation  --> especially check existing doc
