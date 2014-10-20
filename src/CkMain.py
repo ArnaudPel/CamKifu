@@ -2,18 +2,26 @@ from Queue import Queue, Empty
 from Tkinter import Tk
 import platform
 import os
+
 import cv2
 
-import golib_conf
+
+
+
+
+
+
 # keep this line above other project imports to keep appname right
+from golib.config import golib_conf
+
 golib_conf.appname = "Camkifu"
 
-from vgui.vui import VUI
+from camkifu.vgui.vui import VUI
 
 import Golib
-from core.vmanager import VManager
-from vgui.controllerv import ControllerV
-from core.imgutil import show
+from camkifu.core.vmanager import VManager
+from camkifu.vgui.controllerv import ControllerV
+from camkifu.core.imgutil import show
 
 __author__ = 'Arnaud Peloquin'
 

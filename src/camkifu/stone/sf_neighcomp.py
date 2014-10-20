@@ -1,10 +1,13 @@
 from Queue import Empty
 from collections import defaultdict
+
 import cv2
 from numpy import int32, zeros
-from go.move import Move
-from stone.stonesfinder import StonesFinder, evalz
-from golib_conf import gsize, E
+
+from golib.model.move import Move
+from camkifu.stone.stonesfinder import StonesFinder, evalz
+from golib.config.golib_conf import gsize, E
+
 
 __author__ = 'Arnaud Peloquin'
 

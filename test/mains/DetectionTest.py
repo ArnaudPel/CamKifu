@@ -4,10 +4,12 @@ import os
 import platform
 from threading import Thread
 from time import sleep
+
 import Camkifu
-from core.vmanager import VManager
+from camkifu.core.vmanager import VManager
 from test.objects.kifuref import display_matcher, print_matcher
 from test.objects.controllerv_test import ControllerVTest
+
 
 __author__ = 'Arnaud Peloquin'
 

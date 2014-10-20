@@ -1,10 +1,13 @@
 from Queue import Empty
+
 import cv2
 from numpy import zeros_like, zeros, int32, empty_like
-from core.imgutil import draw_str
-from go.move import Move
-from stone.stonesfinder import StonesFinder, compare, evalz
-from golib_conf import gsize, B, W, E
+
+from camkifu.core.imgutil import draw_str
+from golib.model.move import Move
+from camkifu.stone.stonesfinder import StonesFinder, compare, evalz
+from golib.config.golib_conf import gsize, B, W, E
+
 
 __author__ = 'Arnaud Peloquin'
 

@@ -3,8 +3,8 @@ import os
 import cv2
 from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
 import numpy as np
-from board.boardfinder import BoardFinder
 
+from camkifu.board.boardfinder import BoardFinder
 from test.devconf import gobanloc_npz
 
 

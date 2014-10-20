@@ -1,5 +1,7 @@
 from Tkinter import Button, Menu, StringVar
-from gui.ui import UI
+
+from golib.gui.ui import UI
+
 
 __author__ = 'Arnaud Peloquin'
 

@@ -1,4 +1,4 @@
-from gui.controller import ControllerBase
+from golib.gui.controller import ControllerBase
 from test.objects.kifuref import KifuChecker
 
 __author__ = 'Arnaud Peloquin'

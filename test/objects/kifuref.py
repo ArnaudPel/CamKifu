@@ -1,7 +1,9 @@
 from Tkconstants import LEFT
-from Tkinter import Frame, Label, Tk
-from go.kifu import Kifu
+from Tkinter import Frame, Label
 from difflib import SequenceMatcher
+
+from golib.model.kifu import Kifu
+
 
 __author__ = 'Arnaud Peloquin'
 

@@ -1,4 +1,4 @@
-from golib_conf import gsize
+from golib.config.golib_conf import gsize
 
 
 __author__ = 'Arnaud Peloquin'
@@ -22,16 +22,16 @@ screenh = 1200
 # so that cyclic imports are avoided.
 
 # from test.objects.sf_dummy import DummyFinder
-from board.bf_manual import BoardFinderManual
-from board.bf_auto import BoardFinderAuto
+from camkifu.board.bf_manual import BoardFinderManual
+from camkifu.board.bf_auto import BoardFinderAuto
 # the first element in the list will be loaded at startup.
 bfinders = [
     BoardFinderManual,
     BoardFinderAuto,
 ]
 
-from stone.sf_bgsub import BackgroundSub
-from stone.sf_neighcomp import NeighbourComp
+from camkifu.stone.sf_bgsub import BackgroundSub
+from camkifu.stone.sf_neighcomp import NeighbourComp
 # the first element in the list will be loaded at startup.
 sfinders = [
     # DummyFinder,

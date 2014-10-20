@@ -1,5 +1,5 @@
-from go.move import Move
-from stone.stonesfinder import StonesFinder
+from golib.model.move import Move
+from camkifu.stone.stonesfinder import StonesFinder
 from test.devconf import dummy_sf_args
 
 __author__ = 'Arnaud Peloquin'

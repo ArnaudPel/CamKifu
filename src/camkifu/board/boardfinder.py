@@ -1,11 +1,13 @@
 from bisect import insort
 from time import time
+
 from numpy import float32, array, vstack
 import cv2
 
-from config.cvconf import canonical_size as csize
-from core.imgutil import draw_circles, draw_lines, order_hull
-from core.video import VidProcessor
+from camkifu.config.cvconf import canonical_size as csize
+from camkifu.core.imgutil import draw_circles, draw_lines, order_hull
+from camkifu.core.video import VidProcessor
+
 
 __author__ = 'Arnaud Peloquin'
 

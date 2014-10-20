@@ -1,6 +1,8 @@
 from Queue import Full, Empty, Queue
-from core.exceptions import PipeWarning
-from gui.controller import Controller
+
+from camkifu.core.exceptions import PipeWarning
+from golib.gui.controller import Controller
+
 
 __author__ = 'Arnaud Peloquin'
 

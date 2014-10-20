@@ -5,8 +5,8 @@ import random
 import cv2
 import numpy as np
 
-from board.boardfinder import BoardFinder, SegGrid
-from core.imgutil import Segment, draw_lines, sort_conts, draw_str
+from camkifu.board.boardfinder import BoardFinder, SegGrid
+from camkifu.core.imgutil import Segment, draw_lines, sort_conts, draw_str
 
 
 __author__ = 'Arnaud Peloquin'

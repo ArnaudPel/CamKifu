@@ -4,7 +4,7 @@ from time import sleep, time
 from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
 import cv2
 
-from core.imgutil import show, draw_str
+from camkifu.core.imgutil import show, draw_str
 
 
 __author__ = 'Arnaud Peloquin'

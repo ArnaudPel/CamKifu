@@ -4,7 +4,7 @@ from threading import Thread
 import cv2
 from cv2.cv import CV_CAP_PROP_POS_AVI_RATIO
 
-from config.cvconf import bfinders, sfinders
+from camkifu.config.cvconf import bfinders, sfinders
 
 
 __author__ = 'Arnaud Peloquin'

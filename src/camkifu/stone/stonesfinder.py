@@ -1,11 +1,14 @@
 from Queue import Queue, Full
+
 import cv2
 from numpy import zeros, uint8, int16, sum as npsum, empty, ogrid
 from numpy.ma import absolute, empty_like
-from config.cvconf import canonical_size
-from core.imgutil import draw_circles, draw_str, order_hull
-from core.video import VidProcessor
-from golib_conf import gsize, E
+
+from camkifu.config.cvconf import canonical_size
+from camkifu.core.imgutil import draw_circles, draw_str, order_hull
+from camkifu.core.video import VidProcessor
+from golib.config.golib_conf import gsize, E
+
 
 __author__ = 'Arnaud Peloquin'
 

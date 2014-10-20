@@ -1,9 +1,11 @@
 from threading import Thread
 from time import sleep
-from Camkifu import get_argparser
-from config.cvconf import bfinders, sfinders
-from core.vmanager import VManagerBase
-from gui.controller import ControllerBase
+
+from ckmain import get_argparser
+from camkifu.config.cvconf import bfinders, sfinders
+from camkifu.core.vmanager import VManagerBase
+from golib.gui.controller import ControllerBase
+
 
 __author__ = 'Arnaud Peloquin'
 
