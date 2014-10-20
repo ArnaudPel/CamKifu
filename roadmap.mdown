@@ -1,6 +1,9 @@
 
 Duality arises from Unity, -- But do not be attached to this Unity
 
+to enable automatic ssh server startup on Jack :
+sudo mv /etc/init/ssh.conf.disabled /etc/init/ssh.conf
+
 ---------------------------------------------------------------------------------------------------
 
 BEFORE PYTHON PUBLISH:
@@ -9,6 +12,7 @@ BEFORE PYTHON PUBLISH:
     - comment line np.savez in onmouse()  because undo board location is not intuitive
     - fix documentation  --> especially check existing doc
     - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
+    - cleanup comments
     - license
 
 ---------------------------------------------------------------------------------------------------

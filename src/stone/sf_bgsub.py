@@ -58,7 +58,7 @@ class BackgroundSub(StonesFinder):
     def sample(self, img):
         """
         Update the background data (mean color) of each empty intersection.
-        Occupied intersections are left untouched -> better to have old background data than setting a stone as bg.
+        Occupied intersections are left untouched -> better to have old background data than stone data.
 
         """
         for x, y in self.empties():
@@ -82,15 +82,16 @@ class BackgroundSub(StonesFinder):
         assert len(self._background) == gsize, "At least one sample must have been run to provide comparison data."
         pos = None
         color = E
-        # subtract = zeros_like(img)
-        sample = empty_like(self._background)
+        # subtract = zeros_like(img)  # debug variable, see below for usage.
+        frame = empty_like(self._background)
         # deltas = []
         for x, y in self.empties():
             zone, points = self._getzone(img, x, y)
             for chan in range(3):
-                sample[x, y, chan] = evalz(zone, chan) / self.zone_area
-            delta = compare(self._background[x][y], sample[x, y])
+                frame[x, y, chan] = evalz(zone, chan) / self.zone_area
+            delta = compare(self._background[x][y], frame[x, y])
 
+            # todo make thresholds relative to something ??
             if not -100 < delta < 100:
                 color = B if delta < 0 else W
                 if pos is None:
@@ -114,8 +115,8 @@ class BackgroundSub(StonesFinder):
         if pos is not None:
             if self.lastpos == pos:
                 self.suggest(Move("cv", ctuple=(color, pos[0], pos[1])))
-                sample[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
-                self._background = sample
+                frame[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
+                self._background = frame
                 sampled(img)
             else:
                 self.lastpos = pos
