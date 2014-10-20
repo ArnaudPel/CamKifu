@@ -86,10 +86,13 @@ class StonesFinder(VidProcessor):
         Aims to help detect hand / arm appearance faster by analysing outer border(s) first.
 
         """
-        for x, y in self._spiral_recursiv(0):
-            yield x, y
+        inset = 0
+        while inset <= gsize / 2:
+            for x, y in self._empties_border(inset):
+                yield x, y
+            inset += 1
 
-    def _spiral_recursiv(self, inset):
+    def _empties_border(self, inset):
         """
         Yields the unoccupied positions of the goban along an inward spiral.
 
@@ -117,10 +120,6 @@ class StonesFinder(VidProcessor):
         for y in range(gsize - inset - 2, inset, -1):
             if self.vmanager.controller.rules[x][y] == E:
                 yield y, x
-
-        if inset + 1 <= gsize / 2:
-            for x, y in self._spiral_recursiv(inset + 1):
-                yield x, y
 
     def getcolors(self):
         """

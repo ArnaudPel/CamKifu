@@ -106,7 +106,12 @@ def draw_lines(img, segments, color=(0, 255, 0)):
 
 
 def draw_str(dst, (x, y), s):
-    """ Thank you dear opencv python samples. """
+    """
+    Thank you dear opencv python samples.
+    x -- horizontal offset, from left  (in pixels)
+    y -- vertical offset, from top     (in pixels)
+
+    """
     # the shadow
     cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.CV_AA)
     # the white text
