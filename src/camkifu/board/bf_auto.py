@@ -70,7 +70,7 @@ class BoardFinderAuto(BoardFinder):
                         self.corners.add(grid.hsegs[i].intersection(grid.vsegs[j]))
 
         self.corners.paint(median)
-        draw_str(median, (40, 40), "Ok" if found else "Looking for board..")
+        draw_str(median, (40, 60), "Ok" if found else "Looking for board..")
         self._show(median, "Board Finder Auto")
         return found
 

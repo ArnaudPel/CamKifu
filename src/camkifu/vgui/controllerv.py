@@ -25,6 +25,8 @@ class ControllerV(Controller):
         self.input.bind("<<execute>>", self._cmd)
 
         try:
+            self.input.commands["on"] = lambda: self._on()  # lambda needed to enable external method biding at runtime
+            self.input.commands["off"] = lambda: self._off()  # lambda needed (same reason)
             self.input.commands["run"] = self._run
             self.input.commands["pause"] = lambda: self._pause(self.paused.true())
             self.input.commands["vidfile"] = self._openvideo
@@ -35,8 +37,10 @@ class ControllerV(Controller):
 
         self.api = {
             "append": self.cvappend,
-            "bfinder": self.add_bfinder,
-            "sfinder": self.add_sfinder
+            "register_bf": self.add_bfinder,
+            "register_sf": self.add_sfinder,
+            "select_bf": self.select_bfinder,
+            "select_sf": self.select_sfinder
         }
 
         if sgffile is not None:
@@ -84,13 +88,40 @@ class ControllerV(Controller):
                     self.api[instruction](*args)
                 except KeyError:
                     pass  # instruction not implemented here
+                except Exception as e:
+                    print "Instruction [%s] with arguments [%s] did not complete normally" % (instruction, args)
+                    raise e
         except Empty:
             pass
+
+    def _on(self):
+        """
+        To be set from outside (eg. by Vision Manager).
+        Turn on vision machinery if it is not running.
+
+        """
+        pass
+
+    def _off(self):
+        """
+        To be set from outside (eg. by Vision Manager).
+        Turn off vision machinery if it is running.
+
+        """
+        pass
 
     def _pause(self, boolean):
         """
         To be set from outside (eg. by Vision Manager).
         Pause if boolean is True, else resume.
+
+        """
+        pass
+
+    def corrected(self, err_move, exp_move):
+        """
+        To be set from outside (eg. by Vision Manager).
+        The user has made a manual modification to the Goban.
 
         """
         pass
@@ -105,11 +136,17 @@ class ControllerV(Controller):
         else:
             self.log("Processing can't create variation in game. Please navigate to the last move.")
 
-    def add_bfinder(self, bf_class, callback, select=False):
-        self.display.add_bf(bf_class, callback, select=select)
+    def add_bfinder(self, bf_class, callback):
+        self.display.add_bf(bf_class, callback)
 
-    def add_sfinder(self, label, callback, select=False):
-        self.display.add_sf(label, callback, select=select)
+    def add_sfinder(self, label, callback):
+        self.display.add_sf(label, callback)
+
+    def select_bfinder(self, label):
+        self.display.select_bf(label)
+
+    def select_sfinder(self, label):
+        self.display.select_sf(label)
 
     def cvappend(self, move):
         """
@@ -119,14 +156,6 @@ class ControllerV(Controller):
         move.number = self.current_mn + 1
         self.rules.put(move)
         self._append(move)
-
-    def corrected(self, err_move, exp_move):
-        """
-        To be set from outside (eg. by Vision Manager).
-        The user has made a manual modification to the Goban.
-
-        """
-        pass
 
     def _mouse_release(self, event):
         """ Method override to add correction event. """

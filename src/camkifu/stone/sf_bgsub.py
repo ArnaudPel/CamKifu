@@ -56,7 +56,7 @@ class BackgroundSub(StonesFinder):
             else:
                 self.watch(filtered)
             # self._drawgrid(filtered)
-        draw_str(filtered, (40, 40), "state : " + self.state)
+        draw_str(filtered, (40, 60), "state : " + self.state)
         self._show(filtered, name="Goban frame")
 
     def _learn(self):

@@ -1,5 +1,5 @@
 from time import sleep
-from threading import Thread
+from threading import Thread, current_thread
 
 import cv2
 from cv2.cv import CV_CAP_PROP_POS_AVI_RATIO
@@ -59,14 +59,15 @@ class VManagerBase(Thread):
         if self.stones_finder is not None:
             self.stones_finder.corrected(err_move, exp_move)
 
-    def request_exit(self):
+    def stop_processing(self):
         """
-        Request this video manager to terminate all its sub-processes and exit.
+        Request this video manager to terminate all its sub-processes. The thread itself will not die,
+        so that processing can be restarted later on.
 
         """
         raise NotImplementedError("Abstract method meant to be extended")
 
-    def confirm_exit(self, process):
+    def confirm_stop(self, process):
         """ A sub-process of this manager that terminates is supposed to pass itself here. """
         pass
 
@@ -84,49 +85,65 @@ class VManager(VManagerBase):
         super(VManager, self).__init__(controller, imqueue=imqueue)
         self.daemon = True
         self.controller._pause = self._pause
+        self.controller._on = self._on
+        self.controller._off = self._off
         self.processes = []  # video processors currently running
         self.restart = False
+
+    def _register_processes(self):
+        # register "board finders" and "stones finders" with the controller,
+        # together with callbacks to start them up.
+        for bf_class in bfinders:
+            self.controller.pipe("register_bf", (bf_class, self.set_bf))
+        for sf_class in sfinders:
+            self.controller.pipe("register_sf", (sf_class, self.set_sf))
 
     def run(self):
         """
         Run the main loop of VManager: provide to the controller all the finders listed in the config, and
         listen to video input changes.
 
-        This main loop exits automatically if current board and stone finders are both interrupted.
+        This main loop does not exit by itself. An exit can only occurs under the 'daemon thread' scheme.
 
         """
-        self.init_capt()
+        if not self.restart:  # only at startup
+            # todo see if this can be done in constructor ?
+            self.init_capt()
+            self._register_processes()
 
-        # register "board finders" and "stones finders" with the controller.
-        # it's up to it to start them via the provided callbacks.
-        choose = True
-        for bf_class in bfinders:
-            self.controller.pipe("bfinder", (bf_class, self.set_bf, choose))
-            choose = False
+        # start/restart processes
+        self.set_bf(type(self.board_finder) if self.board_finder is not None else bfinders[0])
+        self.controller.pipe("select_bf", [self.board_finder.label])
+        self.set_sf(type(self.stones_finder) if self.stones_finder is not None else sfinders[0])
+        self.controller.pipe("select_sf", [self.stones_finder.label])
 
-        choose = True
-        for sf_class in sfinders:
-            self.controller.pipe("sfinder", (sf_class, self.set_sf, choose))
-            choose = False
-
-        running = 1
-        while running:
-            # watch for video input changes.
+        # main loop, just watch for video input changes.
+        self.restart = False
+        while not self.restart:
             if self.current_video != self.controller.video:
                 # global restart to avoid fatal "PyEval_RestoreThread: NULL tstate"
-                self.restart = True
-                self.request_exit()
+                self.stop_processing()
+                break
             sleep(0.3)
-            running = len(self.processes)
 
-        if self.restart:
-            self.restart = False
-            print "Vision processing restarting."
-            self.run()
-        else:
-            print "Vision processing terminated."
+        # do not allow thread to terminate
+        print "Vision processing restarting."
+        self.run()
 
-    def request_exit(self):
+    def is_processing(self):
+        return len(self.processes).__nonzero__()  # make the return type clear
+
+    def _on(self):
+        if not self.is_processing():
+            self.restart = True  # will take effect on the Vision thread, 'run' method
+
+    def _off(self):
+        if self.is_processing():
+            self.stop_processing()
+        self.controller.pipe("select_bf", [None])
+        self.controller.pipe("select_sf", [None])
+
+    def stop_processing(self):
         message = "Requesting "
         for proc in self.processes:
             proc.interrupt()
@@ -135,12 +152,9 @@ class VManager(VManagerBase):
         message += " interruption."
         print message
 
-    def confirm_exit(self, process):
+    def confirm_stop(self, process):
         self.processes.remove(process)
         print "{0} terminated.".format(process.__class__.__name__)
-        if process is self.board_finder and process.mtx is None:
-            # board finder exits without providing board location. that's a show stopper
-            self.request_exit()
 
     def _spawn(self, process):
         """
@@ -165,28 +179,28 @@ class VManager(VManagerBase):
         Spawn a new instance of the provided board finder class, and terminate the previous board finder.
 
         """
-        # always have one bf running to keep sf alive
-        tostop = self.board_finder
-
+        # delete previous instance if any
+        if self.board_finder is not None:
+            self.board_finder.interrupt()
+            while self.board_finder in self.processes:
+                sleep(0.1)
+            del self.board_finder  # may help prevent misuse
+        # instantiate and start new instance
         self.board_finder = bf_class(self)
         self._spawn(self.board_finder)
-
-        if tostop is not None:
-            tostop.interrupt()
-            while tostop in self.processes:
-                sleep(0.1)
-            del tostop  # may help prevent misuse
 
     def set_sf(self, sf_class):
         """
         Terminate the current stone finder, and spawn a new instance of the provided stone finder class.
 
         """
+        # delete previous instance if any
         if self.stones_finder is not None:
             self.stones_finder.interrupt()
             while self.stones_finder in self.processes:
                 sleep(0.1)
             del self.stones_finder  # may help prevent misuse
+        # instantiate and start new instance
         self.stones_finder = sf_class(self)
         self._spawn(self.stones_finder)
 

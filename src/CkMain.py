@@ -6,11 +6,6 @@ import os
 import cv2
 
 
-
-
-
-
-
 # keep this line above other project imports to keep appname right
 from golib.config import golib_conf
 
@@ -18,7 +13,7 @@ golib_conf.appname = "Camkifu"
 
 from camkifu.vgui.vui import VUI
 
-import Golib
+import glmain
 from camkifu.core.vmanager import VManager
 from camkifu.vgui.controllerv import ControllerV
 from camkifu.core.imgutil import show
@@ -68,17 +63,14 @@ def main(video=0, sgf=None, bounds=(0, 1)):
         root.after(5, tk_routine)
 
     vmanager.start()
-    try:
-        root.after(0, tk_routine)
-        Golib.center(root)
+    root.after(0, tk_routine)
+    glmain.center(root)
 
-        # mac OS special, to bring app to front at startup
-        if "Darwin" in platform.system():
-            os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
+    # mac OS special, to bring app to front at startup
+    if "Darwin" in platform.system():
+        os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
 
-        root.mainloop()
-    finally:
-        vmanager.request_exit()
+    root.mainloop()
 
 
 def get_argparser():
@@ -86,7 +78,7 @@ def get_argparser():
     Get command line arguments parser. Is actually an enrichment of the Golib argument parser.
 
     """
-    parser = Golib.get_argparser()
+    parser = glmain.get_argparser()
     vhelp = "Filename, or device, as used in cv2.VideoCapture(). Defaults to device \"0\"."
     parser.add_argument("-v", "--video", default=0, help=vhelp)
 

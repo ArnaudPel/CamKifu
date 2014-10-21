@@ -1,5 +1,8 @@
 
 bugs
 
+remove (or clear) stonesfinder window when the boardfinder does not provide any board location
+when clicking on an already running process in the menu, it restarts it. seems a bit extreme, maybe do nothing
+
 the save changes dialog doesn't show up when hitting CMD+Q
 boardfinder manual listen very rarely to 'q', makes program annoying to kill

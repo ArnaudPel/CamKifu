@@ -1,4 +1,5 @@
 from Queue import Full
+from threading import current_thread
 from time import sleep, time
 
 from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
@@ -64,7 +65,7 @@ class VidProcessor(object):
             else:
                 sleep(self.frame_period / 10)  # precision doesn't really matter here
         self._destroy_windows()
-        self.vmanager.confirm_exit(self)
+        self.vmanager.confirm_stop(self)
 
     def _doframe(self, frame):
         """
@@ -152,13 +153,15 @@ class VidProcessor(object):
     def undo(self):
         self.undoflag = True
 
-    def _show(self, img, name="VidProcessor", latency=True):
+    def _show(self, img, name="VidProcessor", latency=True, thread=False):
         """
         Offer the image to the main thread for display.
 
         """
         if latency:
             draw_str(img, (40, 20), "latency:  %.1f ms" % (self.latency * 1000))
+        if thread:
+            draw_str(img, (40, 40), "thread : " + current_thread().getName())
         if self.pausedflag:
             for img in self.own_images.itervalues():
                 draw_str(img, (img.shape[0]/2-30, img.shape[1] / 2), "PAUSED")

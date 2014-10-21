@@ -59,7 +59,7 @@ def main(reffile, sgffile=None, move_nr=0, failfast=False, bounds=(0, 1), video=
 
         root.mainloop()
     finally:
-        vmanager.request_exit()
+        vmanager.stop_processing()
 
     # display test results
     root2 = Tk()

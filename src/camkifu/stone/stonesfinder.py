@@ -30,11 +30,14 @@ class StonesFinder(VidProcessor):
         self.corrections = Queue(correc_size)
 
     def _doframe(self, frame):
-        transform = self.vmanager.board_finder.mtx
+        transform = None
+        if self.vmanager.board_finder is not None:
+            transform = self.vmanager.board_finder.mtx
         if transform is not None:
             goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
             self._learn()
             self._find(goban_img)
+        # todo implement 'else' to indicate that there is no board location available
 
     def _find(self, goban_img):
         """
