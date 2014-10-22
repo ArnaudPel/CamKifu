@@ -26,8 +26,8 @@ class VidProcessor(object):
         self.vmanager = vmanager
         self.own_images = {}
 
-        self.frame_period = 0.2
-        self.last_read = 0.0
+        self.frame_period = 0.2  # shortest period between two processings: put thread to sleep when possible
+        self.last_read = 0.0  # gives the instant of the last image processing start (in seconds).
 
         self.undoflag = False
         self._interruptflag = False

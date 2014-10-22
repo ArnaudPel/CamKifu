@@ -2,6 +2,7 @@ from Queue import Empty
 
 import cv2
 from numpy import zeros_like, zeros, int32, empty_like
+from time import time
 
 from camkifu.core.imgutil import draw_str
 from golib.model.move import Move
@@ -40,6 +41,7 @@ class BackgroundSub(StonesFinder):
         self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
         self.state = searching
         self.nb_untouched = 0  # the number of successive searches that detected no motion at all
+        self.last_on = time()  # instant when last active. to be used to detect long sleeps.
 
     def _find(self, goban_img):
         filtered = cv2.medianBlur(goban_img, 7)
@@ -48,6 +50,9 @@ class BackgroundSub(StonesFinder):
             self.sample(filtered)
             self.dosample = False
         else:
+            # force full search if the last processing is too long ago
+            if 2 < time() - self.last_on:
+                self.state = searching
             if self.state == searching:
                 self.search(filtered)
                 if untouched_threshold <= self.nb_untouched:
@@ -56,6 +61,7 @@ class BackgroundSub(StonesFinder):
             else:
                 self.watch(filtered)
             # self._drawgrid(filtered)
+        self.last_on = time()
         draw_str(filtered, (40, 60), "state : " + self.state)
         self._show(filtered, name="Goban frame")
 
@@ -128,9 +134,6 @@ class BackgroundSub(StonesFinder):
         Try to detect stones by comparing against (cached) background colors.
 
         """
-        # todo improvement: only check for one (maybe 2) lines around goban. As long as they are
-        #   undisturbed, it means a stone cannot possibly have been put.
-        #   Unless thread has been interrupted for very long though
         assert len(self._background) == gsize, "At least one sample must have been run to provide comparison data."
         pos = None
         color = E

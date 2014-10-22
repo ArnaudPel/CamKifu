@@ -107,7 +107,6 @@ class VManager(VManagerBase):
 
         """
         if not self.restart:  # only at startup
-            # todo see if this can be done in constructor ?
             self.init_capt()
             self._register_processes()
 
