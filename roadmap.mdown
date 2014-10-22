@@ -8,8 +8,18 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 ---------------------------------------------------------------------------------------------------
 
-BEFORE PYTHON PUBLISH:
+DOC Learning OpenCV
+    - Page 267 and on for background detection modeling»
 
+OPENCV 3 ALPHA :
+    - Greatly extended Python bindings, including Python 3 support, and several OpenCV+Python tutorials
+    - Line Segment Detector
+    - Line descriptors and matchers
+    - ... todo finish sorting
+
+BEFORE PYTHON PUBLISH:
+    - compile openCV 3
+    - branch new project to use python 3
     - fix bugs
     - comment line np.savez in onmouse()  because undo board location is not intuitive
     - fix in-code documentation  --> especially check existing doc

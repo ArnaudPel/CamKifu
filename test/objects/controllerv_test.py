@@ -23,8 +23,11 @@ class ControllerVTest(ControllerBase):
                 self.cvappend(self.kifu.ref.getmove_at(self.current_mn + 1))
 
         self.api = {"append": self.cvappend,
-                    "bfinder": self.add_finder,
-                    "sfinder": self.add_finder}
+                    "register_bf": self.add_finder,
+                    "register_sf": self.add_finder,
+                    "select_bf": lambda _: None,
+                    "select_sf": lambda _: None
+                    }
 
     def cvappend(self, move):
         move.number = self.current_mn + 1

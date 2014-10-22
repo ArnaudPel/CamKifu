@@ -26,7 +26,7 @@ class StonesFinder(VidProcessor):
         super(StonesFinder, self).__init__(vmanager)
         self._posgrid = PosGrid(canonical_size)
         self.mask_cache = None
-        self.zone_area = None
+        self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
         self.corrections = Queue(correc_size)
 
     def _doframe(self, frame):
@@ -177,6 +177,10 @@ class StonesFinder(VidProcessor):
 
         """
         if self.mask_cache is None:
+            # todo : observation shows that stones of the front line are seen too high (due to cam angle most likely)
+            # investigate more and see to adapt the repartition of the mask ? Some sort of vertical gradient of size or
+            # location. The former will imply the introduction of a structure to store all zones areas, at least one
+            #  per line.
             print "initializing mask"
             self.mask_cache = empty_like(frame)
             mask = empty(frame.shape[0:2], dtype=uint8)

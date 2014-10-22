@@ -5,8 +5,8 @@ import platform
 from threading import Thread
 from time import sleep
 
-import Camkifu
 from camkifu.core.vmanager import VManager
+import ckmain
 from test.objects.kifuref import display_matcher, print_matcher
 from test.objects.controllerv_test import ControllerVTest
 
@@ -31,7 +31,7 @@ class ImgUpdater(Thread):
 
     def run(self):
         while self.parentth.isAlive():
-            Camkifu.img_update(self.imqueue)
+            ckmain.img_update(self.imqueue)
             sleep(0.1)
 
 
@@ -48,7 +48,7 @@ def main(reffile, sgffile=None, move_nr=0, failfast=False, bounds=(0, 1), video=
         if not vmanager.is_alive():
             root.destroy()
         else:
-            Camkifu.img_update(imqueue)
+            ckmain.img_update(imqueue)
             root.after(5, tk_routine)
 
     try:
@@ -71,7 +71,7 @@ def main(reffile, sgffile=None, move_nr=0, failfast=False, bounds=(0, 1), video=
 
 
 def get_argparser():
-    parser = Camkifu.get_argparser()
+    parser = ckmain.get_argparser()
 
     # compulsory argument
     parser.add_argument("sgf_ref", help="The SGF file to use as reference during test.")

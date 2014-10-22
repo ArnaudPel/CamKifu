@@ -1,7 +1,7 @@
 from Queue import Empty
 
 import cv2
-from numpy import zeros_like, zeros, int32, empty_like
+from numpy import zeros_like, zeros, int32, empty
 from time import time
 
 from camkifu.core.imgutil import draw_str
@@ -12,8 +12,13 @@ from golib.config.golib_conf import gsize, B, W, E
 
 __author__ = 'Arnaud Peloquin'
 
+# the minimum mean color difference to trigger motion detection when in watching state
+watch_diff_threshold = 90
+# the minimum mean color difference to trigger motion detection when in searching state
+search_diff_threshold = 100
 
 # possible states for a BackgroundSub instance :
+sampling = "sampling"
 watching = "watching"
 searching = "searching"
 
@@ -35,20 +40,19 @@ class BackgroundSub(StonesFinder):
         self.bindings['s'] = self.reset
 
         self._background = zeros((gsize, gsize, 3), dtype=int32)
-        self.dosample = True
         self.lastpos = None
 
-        self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
-        self.state = searching
+        self.state = sampling
         self.nb_untouched = 0  # the number of successive searches that detected no motion at all
         self.last_on = time()  # instant when last active. to be used to detect long sleeps.
 
     def _find(self, goban_img):
         filtered = cv2.medianBlur(goban_img, 7)
         filtered *= self.getmask(filtered)
-        if self.dosample:
-            self.sample(filtered)
-            self.dosample = False
+        if self.state == sampling:
+            done = self.sample(filtered)
+            if done:
+                self.state = searching
         else:
             # force full search if the last processing is too long ago
             if 2 < time() - self.last_on:
@@ -63,11 +67,12 @@ class BackgroundSub(StonesFinder):
             # self._drawgrid(filtered)
         self.last_on = time()
         draw_str(filtered, (40, 60), "state : " + self.state)
-        self._show(filtered, name="Goban frame")
+        self._show(filtered, name=BackgroundSub.label)
 
     def _learn(self):
         try:
             while True:
+                # todo implement correction in case of deletion by user (see base method doc).
                 err, exp = self.corrections.get_nowait()
                 print "%s has become %s" % (err, exp)
         except Empty:
@@ -80,12 +85,13 @@ class BackgroundSub(StonesFinder):
         """
         self._background = zeros_like(self._background)
         self.lastpos = None
-        self.dosample = True
+        self.state = sampling
 
     def sample(self, img):
         """
-        Update the background data (mean color) of each empty intersection.
+        Return True when finished updating the background data (mean color) of each empty intersection.
         Occupied intersections are left untouched -> better to have old background data than stone data.
+        The method should be called until it returns true (may need several passes)
 
         """
         for x, y in self.empties():
@@ -97,19 +103,23 @@ class BackgroundSub(StonesFinder):
                 #self._show(copy, name="Sampling Zone")
                 #if cv2.waitKey() == 113: raise SystemExit()
         sampled(img)
+        return True
 
-    def compare_pos(self, evals, img, x, y):
+    def compare_pos(self, img, x, y):
         """
-        Return an evaluation of the difference between img and the background for the zone (x,y).
-        evals -- a matrix that will be updated at position (x,y) with the evaluation of that zone.
-        img -- the image to evaluate.
-        x, y -- the indexes of the zone (i.e. the coordinate of the goban intersection).
+        Return an evaluation of the mean difference between img and the background for the zone around (x,y).
+        Note : the use of the mean implies that the difference is normalized by the zone surface.
+
+        img   -- the image to evaluate.
+        x, y  -- the indexes of the zone (i.e. the coordinate of the goban intersection).
 
         """
         zone, points = self._getzone(img, x, y)
+        # noinspection PyNoneFunctionAssignment
+        mean_eval = empty((3), dtype=self._background.dtype)
         for chan in range(3):
-            evals[x, y, chan] = evalz(zone, chan) / self.zone_area
-        delta = compare(self._background[x][y], evals[x, y])
+            mean_eval[chan] = evalz(zone, chan) / self.zone_area
+        delta = compare(self._background[x][y], mean_eval)
         return delta
 
     def watch(self, img):
@@ -120,12 +130,10 @@ class BackgroundSub(StonesFinder):
         by checking the first (outer) line only : a hand cannot reach inner lines without disturbing the first line.
 
         """
-        # todo check for thread sleep (if too long, swap to 'searching' state)
         assert self.state == watching, "State allowed to enter method : watching"
-        sample = empty_like(self._background)
         for x, y in self._empties_border(0):
-            delta = self.compare_pos(sample, img, x, y)
-            if not -70 < delta < 70:
+            delta = self.compare_pos(img, x, y)
+            if not -watch_diff_threshold < delta < watch_diff_threshold:
                 self.state = searching
                 break
 
@@ -138,19 +146,22 @@ class BackgroundSub(StonesFinder):
         pos = None
         color = E
         # subtract = zeros_like(img)  # debug variable, see below for usage.
-        sample = empty_like(self._background)
         # deltas = []
+        # todo analyse one intersection out of two in order to speed up search, and have a method to search around a
+            # given targeted intersection to detect disturbance motion faster. See if one row is enough for that.
         for x, y in self.empties_spiral():
-            delta = self.compare_pos(sample, img, x, y)
+            delta = self.compare_pos(img, x, y)
 
-            # todo make thresholds relative to something ??
-            if not -100 < delta < 100:
+            if not -search_diff_threshold < delta < search_diff_threshold:
                 self.nb_untouched = 0
                 color = B if delta < 0 else W
                 if pos is None:
                     pos = x, y
                 else:
                     # todo allow for 1 (maybe 2) neighbour stones to have been polluted by current stone, and ignore ??
+                    # or better along the same idea : when the area is spotted, try to move the coordinates around to
+                    # see if there is one area standing out. because sometimes the grid is not well perfectly and a
+                    # stone overlaps two positions.
                     print "dropped frame: {0} (2 hits)".format(self.__class__.__name__)
                     return
 
@@ -168,9 +179,7 @@ class BackgroundSub(StonesFinder):
         if pos is not None:
             if self.lastpos == pos:
                 self.suggest(Move("cv", ctuple=(color, pos[0], pos[1])))
-                sample[pos[0], pos[1]] = self._background[pos[0], pos[1]]  # don't sample stone found as background
-                self._background = sample
-                sampled(img)
+                self.state = sampling
             else:
                 self.lastpos = pos
         else:
