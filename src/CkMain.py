@@ -1,5 +1,5 @@
-from Queue import Queue, Empty
-from Tkinter import Tk
+from queue import Queue, Empty
+from tkinter import Tk
 import platform
 import os
 
