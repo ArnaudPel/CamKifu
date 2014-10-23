@@ -21,7 +21,7 @@ class DummyFinder(StonesFinder):
 
     def _find(self, goban_img):
         try:
-            move = self.iterator.next()
+            move = next(self.iterator)
             self.suggest(Move(self.ctype, string=move))
         except StopIteration:
             # self.interrupt()

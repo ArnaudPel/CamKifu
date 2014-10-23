@@ -1,5 +1,5 @@
-from Queue import Queue
-from Tkinter import Tk
+from queue import Queue
+from tkinter import Tk
 import os
 import platform
 from threading import Thread

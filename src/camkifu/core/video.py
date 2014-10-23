@@ -1,4 +1,4 @@
-from Queue import Full
+from queue import Full
 from threading import current_thread
 from time import sleep, time
 
@@ -59,7 +59,7 @@ class VidProcessor(object):
                     self.checkkey()
                     self.latency = time() - start
                 else:
-                    print "Could not read camera for {0}.".format(str(type(self)))
+                    print("Could not read camera for {0}.".format(str(type(self))))
                     self.latency = 0.0
                     sleep(5)
             else:
@@ -103,7 +103,7 @@ class VidProcessor(object):
             if self.pausedflag:
                 while self.pausedflag:
                     # re-show last images, in order to re-activate the waitkey()
-                    for name, img in self.own_images.iteritems():
+                    for name, img in self.own_images.items():
                         self._show(img, name=name)
                     sleep(0.1)
                     self.checkkey()
@@ -142,10 +142,10 @@ class VidProcessor(object):
 
             command = self.bindings[key]
             if command is not None:
-                print "executing command '{0}'".format(key)
+                print("executing command '{0}'".format(key))
                 command()
             else:
-                print "no command for '{0}'".format(key)
+                print("no command for '{0}'".format(key))
         except (TypeError, KeyError, ValueError):
             pass  # not interested in non-char keys ATM
         self.key = None
@@ -163,7 +163,7 @@ class VidProcessor(object):
         if thread:
             draw_str(img, (40, 40), "thread : " + current_thread().getName())
         if self.pausedflag:
-            for img in self.own_images.itervalues():
+            for img in self.own_images.values():
                 draw_str(img, (img.shape[0]/2-30, img.shape[1] / 2), "PAUSED")
         try:
             if self.vmanager.imqueue is not None:
@@ -172,7 +172,7 @@ class VidProcessor(object):
                 show(img, name=name)  # assume we are on main thread
             self.own_images[name] = img
         except Full:
-            print "Image queue full, not showing {0}".format(hex(id(img)))
+            print("Image queue full, not showing {0}".format(hex(id(img))))
 
     def _destroy_windows(self):
         """
@@ -180,7 +180,7 @@ class VidProcessor(object):
         Single-threaded env: destroy the windows created by this VidProcessor.
 
         """
-        for name in self.own_images.iterkeys():
+        for name in self.own_images.keys():
             if self.vmanager.imqueue is not None:
                 # caveat: wait until a slot is available to ensure destruction
                 self.vmanager.imqueue.put((name, None, None))

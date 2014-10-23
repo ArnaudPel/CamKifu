@@ -126,7 +126,7 @@ class VManager(VManagerBase):
             sleep(0.3)
 
         # do not allow thread to terminate
-        print "Vision processing restarting."
+        print("Vision processing restarting.")
         self.run()
 
     def is_processing(self):
@@ -149,11 +149,11 @@ class VManager(VManagerBase):
             message += proc.name + ", "
         message = message[0:len(message)-2]
         message += " interruption."
-        print message
+        print(message)
 
     def confirm_stop(self, process):
         self.processes.remove(process)
-        print "{0} terminated.".format(process.__class__.__name__)
+        print("{0} terminated.".format(process.__class__.__name__))
 
     def _spawn(self, process):
         """
@@ -162,7 +162,7 @@ class VManager(VManagerBase):
         """
         vt = VisionThread(process)
         self.processes.append(vt)
-        print "{0} starting.".format(process.__class__.__name__)
+        print("{0} starting.".format(process.__class__.__name__))
         vt.start()
 
     def _pause(self, boolean):

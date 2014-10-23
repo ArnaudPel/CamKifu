@@ -1,4 +1,4 @@
-from Queue import Empty
+from queue import Empty
 from collections import defaultdict
 
 import cv2
@@ -58,7 +58,7 @@ class NeighbourComp(StonesFinder):
                     color = current_color
                     pos = x, y
                 else:
-                    print "dropped frame: {0} (2 hits)".format(self.__class__.__name__)
+                    print("dropped frame: {0} (2 hits)".format(self.__class__.__name__))
                     # self._drawvalues(disp_img, sample)
                     # self._show(disp_img, name="Goban frame")
                     pos = None
@@ -82,7 +82,7 @@ class NeighbourComp(StonesFinder):
         try:
             while True:
                 err, exp = self.corrections.get_nowait()
-                print "%s has become %s" % (err, exp)
+                print("%s has become %s" % (err, exp))
         except Empty:
             pass
 

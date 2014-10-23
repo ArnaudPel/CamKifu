@@ -36,7 +36,7 @@ class BoardFinder(VidProcessor):
                     self.mtx = cv2.getPerspectiveTransform(source, dst)
                     self.last_positive = time()
                 except cv2.error:
-                    print "Please mark a square-like area. The 4 points must form a convex hull."
+                    print("Please mark a square-like area. The 4 points must form a convex hull.")
                     self.undoflag = True
 
     def _detect(self, frame):
@@ -169,7 +169,7 @@ class SegGridIter(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         self.idx += 1
         l1 = len(self.grid.hsegs)
         if self.idx < l1:

@@ -1,5 +1,5 @@
-from Tkconstants import LEFT
-from Tkinter import Frame, Label
+from tkinter.constants import LEFT
+from tkinter import Frame, Label
 from difflib import SequenceMatcher
 
 from golib.model.kifu import Kifu
@@ -73,10 +73,10 @@ def print_matcher(matcher):
         good += concat(matcher.a, block[0], block[0] + block[2])
         unex = unex.ljust(len(good))
         miss = miss.ljust(len(good))
-    print "Matched   : " + good
-    print "Missed    : " + miss
-    print "Unexpected: " + unex
-    print "Ratio     : " + str(matcher.ratio())
+    print("Matched   : " + good)
+    print("Missed    : " + miss)
+    print("Unexpected: " + unex)
+    print("Ratio     : " + str(matcher.ratio()))
 
 
 def display_matcher(matcher, master=None):

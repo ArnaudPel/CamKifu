@@ -1,4 +1,4 @@
-from Queue import Empty
+from queue import Empty
 
 import cv2
 from numpy import zeros_like, zeros, int32, empty
@@ -74,7 +74,7 @@ class BackgroundSub(StonesFinder):
             while True:
                 # todo implement correction in case of deletion by user (see base method doc).
                 err, exp = self.corrections.get_nowait()
-                print "%s has become %s" % (err, exp)
+                print("%s has become %s" % (err, exp))
         except Empty:
             pass
 
@@ -162,7 +162,7 @@ class BackgroundSub(StonesFinder):
                     # or better along the same idea : when the area is spotted, try to move the coordinates around to
                     # see if there is one area standing out. because sometimes the grid is not well perfectly and a
                     # stone overlaps two positions.
-                    print "dropped frame: {0} (2 hits)".format(self.__class__.__name__)
+                    print("dropped frame: {0} (2 hits)".format(self.__class__.__name__))
                     return
 
                     # insort(deltas, delta)
@@ -187,4 +187,4 @@ class BackgroundSub(StonesFinder):
 
 
 def sampled(img):
-    print "Image at {0} set as background.".format(hex(id(img)))
+    print("Image at {0} set as background.".format(hex(id(img))))

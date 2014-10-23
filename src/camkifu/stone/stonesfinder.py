@@ -1,4 +1,4 @@
-from Queue import Queue, Full
+from queue import Queue, Full
 
 import cv2
 from numpy import zeros, uint8, int16, sum as npsum, empty, ogrid
@@ -62,7 +62,7 @@ class StonesFinder(VidProcessor):
         Suggest the add of a new stone to the goban.
 
         """
-        print move
+        print(move)
         self.vmanager.controller.pipe("append", [move])
 
     def corrected(self, err_move, exp_move):
@@ -73,7 +73,7 @@ class StonesFinder(VidProcessor):
         try:
             self.corrections.put_nowait((err_move, exp_move))
         except Full:
-            print "Corrections queue full (%s), ignoring %s -> %s" % (correc_size, str(err_move), str(exp_move))
+            print("Corrections queue full (%s), ignoring %s -> %s" % (correc_size, str(err_move), str(exp_move)))
 
     def empties(self):
         """
@@ -181,7 +181,7 @@ class StonesFinder(VidProcessor):
             # investigate more and see to adapt the repartition of the mask ? Some sort of vertical gradient of size or
             # location. The former will imply the introduction of a structure to store all zones areas, at least one
             #  per line.
-            print "initializing mask"
+            print("initializing mask")
             self.mask_cache = empty_like(frame)
             mask = empty(frame.shape[0:2], dtype=uint8)
             for row in range(gsize):
@@ -201,7 +201,7 @@ class StonesFinder(VidProcessor):
             # store the area of one zone for normalizing purposes
             zone, _ = self._getzone(mask, 0, 0)
             self.zone_area = npsum(zone)
-            print "area={0}".format(self.zone_area)
+            print("area={0}".format(self.zone_area))
 
         return self.mask_cache
 

@@ -1,4 +1,4 @@
-from Tkinter import Button, Menu, StringVar, BooleanVar
+from tkinter import Button, Menu, StringVar, BooleanVar
 
 from golib.gui.ui import UI
 

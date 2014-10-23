@@ -85,7 +85,7 @@ class VManagerSeq(VManagerBase):
                     break
 
     def stop_processing(self):
-        print "requesting {0} exit.".format(self.current_proc.__class__.__name__)
+        print("requesting {0} exit.".format(self.current_proc.__class__.__name__))
         self.current_proc.interrupt()
 
 

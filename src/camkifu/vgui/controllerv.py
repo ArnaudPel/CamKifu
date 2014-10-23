@@ -1,4 +1,4 @@
-from Queue import Full, Empty, Queue
+from queue import Full, Empty, Queue
 
 from camkifu.core.exceptions import PipeWarning
 from golib.gui.controller import Controller
@@ -64,7 +64,7 @@ class ControllerV(Controller):
             try:
                 self.queue.put_nowait((instruction, args))
             except Full:
-                print "Controller instruction queue full, ignoring {0}".format(instruction)
+                print("Controller instruction queue full, ignoring {0}".format(instruction))
             self.input.event_generate("<<execute>>")
 
     def _cmd(self, event):
@@ -89,7 +89,7 @@ class ControllerV(Controller):
                 except KeyError:
                     pass  # instruction not implemented here
                 except Exception as e:
-                    print "Instruction [%s] with arguments [%s] did not complete normally" % (instruction, args)
+                    print("Instruction [%s] with arguments [%s] did not complete normally" % (instruction, args))
                     raise e
         except Empty:
             pass
@@ -239,5 +239,5 @@ class Pause(object):
         self.paused = False
         return self.paused
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self.paused
