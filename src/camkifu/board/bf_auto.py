@@ -179,7 +179,7 @@ def _least_squares(seg, neighb, valuations):
     p4 = neighb.coords[2:4]
     ndarray = np.vstack([p1, p2, p3, p4])
     points = np.float32(ndarray)
-    regression = cv2.fitLine(points, cv2.cv.CV_DIST_L2, 0, 0.01, 0.01)
+    regression = cv2.fitLine(points, cv2.DIST_L2, 0, 0.01, 0.01)
     error, projections = _error(points, regression)
     insort(valuations, (error, neighb, projections))
 

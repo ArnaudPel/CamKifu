@@ -2,7 +2,6 @@ from queue import Full
 from threading import current_thread
 from time import sleep, time
 
-from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
 import cv2
 
 from camkifu.core.imgutil import show, draw_str
@@ -48,7 +47,7 @@ class VidProcessor(object):
         """
         end = self.vmanager.controller.bounds[1]
         self._interruptflag = False
-        while not self._interruptflag and (self.vmanager.capt.get(POS_RATIO) < end):
+        while not self._interruptflag and (self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO) < end):
             self._checkpause()
             start = time()
             if self.frame_period < start - self.last_read:

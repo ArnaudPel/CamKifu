@@ -1,7 +1,6 @@
 from bisect import insort
-from sys import maxint
 from math import sqrt
-from sys import float_info
+from sys import float_info, maxsize
 
 from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud
 from numpy.ma import minimum, around
@@ -79,7 +78,7 @@ def draw_circles(img, centers, color=(0, 0, 255), radius=5, thickness=1):
         x = point[0]
         y = point[1]
         point = (int(x), int(y))
-        cv2.circle(img, point, radius, cv2.cv.CV_RGB(*color), thickness)
+        cv2.circle(img, point, radius, color=color, thickness=thickness)
 
 
 def draw_lines(img, segments, color=(0, 255, 0)):
@@ -96,26 +95,25 @@ def draw_lines(img, segments, color=(0, 255, 0)):
                 p1 = seg[0]
                 p2 = seg[1]
             else:
-                print "Unrecognized segment format: " + seg
+                print("Unrecognized segment format: " + seg)
                 continue
-        colo = cv2.cv.CV_RGB(*color)
         try:
-            cv2.line(img, p1, p2, colo, thickness=thickness)
+            cv2.line(img, p1, p2, color=color, thickness=thickness)
         except Exception as e:
-            print e
+            print(e)
 
 
-def draw_str(dst, (x, y), s):
+def draw_str(dst, x_y, s):
     """
     Thank you dear opencv python samples.
-    x -- horizontal offset, from left  (in pixels)
-    y -- vertical offset, from top     (in pixels)
+    x_y -- a tuple : (horizontal offset from left, vertical offset from top)  values in pixels
 
     """
+    (x, y) = x_y
     # the shadow
-    cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.CV_AA)
+    cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.LINE_AA)
     # the white text
-    cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), lineType=cv2.CV_AA)
+    cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), lineType=cv2.LINE_AA)
 
 
 windows = set()  # dev workaround to center windows the first time they are displayed
@@ -137,7 +135,7 @@ def show(img, auto_down=True, name="Camkifu", loc=None):
             cv2.moveWindow(name, *loc)
         else:
             center = (screenw / 2, screenh / 2)
-            cv2.moveWindow(name, max(0, center[0] - toshow.shape[0] / 2), toshow.shape[1] / 2)
+            cv2.moveWindow(name, max(0, int(center[0] - toshow.shape[0] / 2)), int(toshow.shape[1] / 2))
         windows.add(name)
 
     cv2.imshow(name, toshow)
@@ -198,7 +196,7 @@ def order_hull(cvhull):
     """
     hull = []
     idx = 0
-    mind = maxint
+    mind = maxsize
     for i in range(len(cvhull)):
         p = cvhull[i]
         dist = p[0] ** 2 + p[1] ** 2
@@ -332,7 +330,10 @@ class Segment:
         this one had to be external. see __lt__(self, other), __gt__(self, other)
 
         """
-        return cmp(len(seg1), len(seg2))
+        a = len(seg1)
+        b = len(seg2)
+        # return cmp(a, b)
+        return (a > b) - (a < b)  # quick fix made during 2to3
 
     def __getitem__(self, item):
         return self.coords[item]

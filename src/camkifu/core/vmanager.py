@@ -2,7 +2,6 @@ from time import sleep
 from threading import Thread, current_thread
 
 import cv2
-from cv2.cv import CV_CAP_PROP_POS_AVI_RATIO
 
 from camkifu.config.cvconf import bfinders, sfinders
 
@@ -40,7 +39,7 @@ class VManagerBase(Thread):
         self.current_video = self.controller.video
 
         # set the beginning of video files. is ignored by live camera
-        self.capt.set(CV_CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
+        self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
 
     def run(self):
         raise NotImplementedError("Abstract method meant to be extended")
@@ -130,7 +129,7 @@ class VManager(VManagerBase):
         self.run()
 
     def is_processing(self):
-        return len(self.processes).__nonzero__()  # make the return type clear
+        return len(self.processes).__bool__()  # make the return type clear
 
     def _on(self):
         if not self.is_processing():
@@ -210,7 +209,7 @@ class VisionThread(Thread):
 
     """
     def __init__(self, processor):
-        super(VisionThread, self).__init__(name=processor.__class__.__name__)
+        super().__init__(name=processor.__class__.__name__)
         self.daemon = True
 
         # delegate
@@ -230,3 +229,6 @@ class VisionThread(Thread):
                 return (self.run == other.run) and (self.interrupt == other.interrupt)
             except AttributeError:
                 return False
+
+    def __hash__(self, *args, **kwargs):
+        return self.name.__hash__(*args, **kwargs)

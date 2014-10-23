@@ -1,7 +1,6 @@
 import os
 
 import cv2
-from cv import CV_CAP_PROP_POS_AVI_RATIO as POS_RATIO
 import numpy as np
 
 from camkifu.board.boardfinder import BoardFinder
@@ -9,17 +8,6 @@ from test.devconf import gobanloc_npz
 
 
 __author__ = 'Arnaud Peloquin'
-
-
-if __name__ == '__main__':
-    src = np.ones((5, 5), np.uint8)
-    sub = src[1:4, 1:4]
-    print(src)
-    for x in range(sub.shape[1]):
-        for y in range(sub.shape[0]):
-            sub[x][y] = 0
-    print(src)
-    print zip(range(sub.shape[1]), range(sub.shape[0]))
 
 
 class BoardFinderManual(BoardFinder):
@@ -70,9 +58,9 @@ class BoardFinderManual(BoardFinder):
 
         """
         if self.capture_pos is None:
-            self.capture_pos = self.vmanager.capt.get(POS_RATIO)
+            self.capture_pos = self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO)
         else:
-            self.vmanager.capt.set(POS_RATIO, self.capture_pos)
+            self.vmanager.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, self.capture_pos)
 
     def _unlockpos(self):
         """
@@ -83,7 +71,7 @@ class BoardFinderManual(BoardFinder):
 
     #noinspection PyUnusedLocal
     def onmouse(self, event, x, y, flag, param):
-        if event == cv2.cv.CV_EVENT_LBUTTONDOWN and not self.corners.ready():
+        if event == cv2.EVENT_LBUTTONDOWN and not self.corners.ready():
             self.corners.add((x, y))
             if self.corners.ready():
                 self.manual_found = True
