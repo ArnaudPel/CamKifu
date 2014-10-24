@@ -13,13 +13,12 @@ DOC Learning OpenCV
 
 OPENCV 3 ALPHA :
     - Greatly extended Python bindings, including Python 3 support, and several OpenCV+Python tutorials
-    - Line Segment Detector
-    - Line descriptors and matchers
-    - ... todo finish sorting
+    - Line Segment Detector (LSD)     -> c++ only (As of 24/10/14)
+    - Line descriptors and matchers   -> seems to be based on LSD so c++ only as well..
+    - Smart segmentation and edge-aware filters
+
 
 BEFORE PYTHON PUBLISH:
-    - compile openCV 3
-    - branch new project to use python 3
     - fix bugs
     - comment line np.savez in onmouse()  because undo board location is not intuitive
     - fix in-code documentation  --> especially check existing doc

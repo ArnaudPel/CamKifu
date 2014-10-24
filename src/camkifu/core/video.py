@@ -152,19 +152,21 @@ class VidProcessor(object):
     def undo(self):
         self.undoflag = True
 
-    def _show(self, img, name="VidProcessor", latency=True, thread=False):
+    def _show(self, img, name=None, latency=True, thread=False):
         """
         Offer the image to the main thread for display.
 
         """
         if latency:
-            draw_str(img, (40, 20), "latency:  %.1f ms" % (self.latency * 1000))
+            draw_str(img, 40, 20, "latency:  %.1f ms" % (self.latency * 1000))
         if thread:
-            draw_str(img, (40, 40), "thread : " + current_thread().getName())
+            draw_str(img, 40, 40, "thread : " + current_thread().getName())
         if self.pausedflag:
             for img in self.own_images.values():
-                draw_str(img, (img.shape[0]/2-30, img.shape[1] / 2), "PAUSED")
+                draw_str(img, img.shape[0]/2-30, img.shape[1] / 2, "PAUSED")
         try:
+            if name is None:
+                name = self._window_name()
             if self.vmanager.imqueue is not None:
                 self.vmanager.imqueue.put_nowait((name, img, self))
             else:
@@ -172,6 +174,14 @@ class VidProcessor(object):
             self.own_images[name] = img
         except Full:
             print("Image queue full, not showing {0}".format(hex(id(img))))
+
+    def _window_name(self):
+        """
+        Provide the name of the default display window of this VidProcessor, if any.
+        Meant to be extended.
+
+        """
+        return "VidProcessor"
 
     def _destroy_windows(self):
         """

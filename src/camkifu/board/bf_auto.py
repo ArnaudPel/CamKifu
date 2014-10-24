@@ -32,7 +32,7 @@ class BoardFinderAuto(BoardFinder):
         median = cv2.medianBlur(frame, 15)
         canny = cv2.Canny(median, 25, 75)
 
-        contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        my_canny, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) == 0:
             return False
         sortedconts = sort_conts(contours)
@@ -70,13 +70,16 @@ class BoardFinderAuto(BoardFinder):
                         self.corners.add(grid.hsegs[i].intersection(grid.vsegs[j]))
 
         self.corners.paint(median)
-        draw_str(median, (40, 60), "Ok" if found else "Looking for board..")
-        self._show(median, "Board Finder Auto")
+        draw_str(median, 40, 60, "Ok" if found else "Looking for board..")
+        self._show(median)
         return found
 
     def perform_undo(self):
         super(BoardFinderAuto, self).perform_undo()
         self.corners.clear()
+
+    def _window_name(self):
+        return "Board Finder Auto"
 
 
 def runmerge(grid):

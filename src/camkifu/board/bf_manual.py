@@ -26,7 +26,6 @@ class BoardFinderManual(BoardFinder):
 
         """
         super(BoardFinderManual, self).__init__(vmanager)
-        self.windowname = "Manual Grid Detection"
         self.manual_found = False
         self.capture_pos = None
         try:
@@ -42,13 +41,13 @@ class BoardFinderManual(BoardFinder):
             self.perform_undo()
         if not self.manual_found:
             self._lockpos()
-            cv2.setMouseCallback(self.windowname, self.onmouse)
+            cv2.setMouseCallback(self._window_name(), self.onmouse)
             detected = False
         else:
             self._unlockpos()
             detected = True
         self.corners.paint(frame)
-        self._show(frame, name=self.windowname)
+        self._show(frame)
         return detected
 
     def _lockpos(self):
@@ -85,3 +84,6 @@ class BoardFinderManual(BoardFinder):
             os.remove(gobanloc_npz)
         except OSError:
             pass
+
+    def _window_name(self):
+        return "Manual Grid Detection"

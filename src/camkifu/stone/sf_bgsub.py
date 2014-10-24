@@ -66,8 +66,8 @@ class BackgroundSub(StonesFinder):
                 self.watch(filtered)
             # self._drawgrid(filtered)
         self.last_on = time()
-        draw_str(filtered, (40, 60), "state : " + self.state)
-        self._show(filtered, name=BackgroundSub.label)
+        draw_str(filtered, 40, 60, "state : " + self.state)
+        self._show(filtered)
 
     def _learn(self):
         try:
@@ -184,6 +184,9 @@ class BackgroundSub(StonesFinder):
                 self.lastpos = pos
         else:
             self.nb_untouched += 1
+
+    def _window_name(self):
+        return BackgroundSub.label
 
 
 def sampled(img):

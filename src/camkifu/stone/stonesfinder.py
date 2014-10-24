@@ -1,6 +1,6 @@
 from queue import Queue, Full
-
 import cv2
+
 from numpy import zeros, uint8, int16, sum as npsum, empty, ogrid
 from numpy.ma import absolute, empty_like
 
@@ -37,7 +37,10 @@ class StonesFinder(VidProcessor):
             goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
             self._learn()
             self._find(goban_img)
-        # todo implement 'else' to indicate that there is no board location available
+        else:
+            black = zeros((canonical_size, canonical_size), dtype=uint8)
+            draw_str(black, int(black.shape[0]/2-110), int(black.shape[1] / 2), "NO BOARD LOCATION AVAILABLE")
+            self._show(black)
 
     def _find(self, goban_img):
         """
@@ -56,6 +59,9 @@ class StonesFinder(VidProcessor):
 
         """
         raise NotImplementedError("Abstract method meant to be extended")
+
+    def _window_name(self):
+        return "camkifu.stone.stonesfinder.StonesFinder"
 
     def suggest(self, move):
         """
@@ -225,7 +231,7 @@ class StonesFinder(VidProcessor):
         for row in range(gsize):
             for col in range(gsize):
                 x, y = self._posgrid[row, col]
-                draw_str(img, (x - 10, y + 2), str(values[row, col]))
+                draw_str(img, x - 10, y + 2, str(values[row, col]))
 
 
 def evalz(zone, chan):

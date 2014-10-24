@@ -76,7 +76,7 @@ class NeighbourComp(StonesFinder):
                 self.lastpos = pos
 
         # self._drawvalues(disp_img, values)
-        self._show(disp_img, name="Goban frame")
+        self._show(disp_img)
 
     def _learn(self):
         try:
@@ -85,6 +85,10 @@ class NeighbourComp(StonesFinder):
                 print("%s has become %s" % (err, exp))
         except Empty:
             pass
+
+    def _window_name(self):
+        return NeighbourComp.label
+
 
     @staticmethod
     def compute_color(neighs):

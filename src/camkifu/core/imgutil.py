@@ -103,20 +103,23 @@ def draw_lines(img, segments, color=(0, 255, 0)):
             print(e)
 
 
-def draw_str(dst, x_y, s):
+def draw_str(dst, x, y, s):
     """
-    Thank you dear opencv python samples.
-    x_y -- a tuple : (horizontal offset from left, vertical offset from top)  values in pixels
+    Print a white string with a black shadow on the image. (Thank you opencv python samples)
+
+    dst : the image where to print the string
+    x : horizontal offset from left, in pixels
+    y : vertical offset from top, in pixels
+    s : the string to print
 
     """
-    (x, y) = x_y
     # the shadow
     cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.LINE_AA)
     # the white text
     cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), lineType=cv2.LINE_AA)
 
 
-windows = set()  # dev workaround to center windows the first time they are displayed
+windows = set()  # dev workaround to center windows the first time they are displayed only
 
 
 def show(img, auto_down=True, name="Camkifu", loc=None):
