@@ -25,7 +25,8 @@ class VidProcessor(object):
         self.vmanager = vmanager
         self.own_images = {}
 
-        self.frame_period = 0.2  # shortest period between two processings: put thread to sleep when possible
+        # todo see to set the frame period to 0.0 when processing a file. thought it was done already
+        self.frame_period = 0.2  # shortest period between two processings: put thread to sleep if it finishes early
         self.last_read = 0.0  # gives the instant of the last image processing start (in seconds).
 
         self.undoflag = False
@@ -52,6 +53,11 @@ class VidProcessor(object):
             start = time()
             if self.frame_period < start - self.last_read:
                 self.last_read = start
+
+                # todo sync issue with boardFinder and stonesFinder: they should wait for each other when reading a file
+                #   or at least wait at milestones. right now the fastest vidprocessor consumes the file.
+                #   brings up an interesting fact : VidProcessors never see the same image, they each capt.read() !!
+
                 ret, frame = self.vmanager.capt.read()
                 if ret:
                     self._doframe(frame)
@@ -157,13 +163,14 @@ class VidProcessor(object):
         Offer the image to the main thread for display.
 
         """
+        draw_str(img, 40, 20, "video progress {0} %".format(int(100 * self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))))
         if latency:
-            draw_str(img, 40, 20, "latency:  %.1f ms" % (self.latency * 1000))
+            draw_str(img, 40, 40, "latency:  %.1f ms" % (self.latency * 1000))
         if thread:
-            draw_str(img, 40, 40, "thread : " + current_thread().getName())
+            draw_str(img, 40, 60, "thread : " + current_thread().getName())
         if self.pausedflag:
             for img in self.own_images.values():
-                draw_str(img, img.shape[0]/2-30, img.shape[1] / 2, "PAUSED")
+                draw_str(img, int(img.shape[0]/2-30), int(img.shape[1] / 2), "PAUSED")
         try:
             if name is None:
                 name = self._window_name()

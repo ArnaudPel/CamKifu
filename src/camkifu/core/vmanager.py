@@ -1,5 +1,5 @@
 from time import sleep
-from threading import Thread, current_thread
+from threading import Thread
 
 import cv2
 
@@ -105,8 +105,9 @@ class VManager(VManagerBase):
         This main loop does not exit by itself. An exit can only occurs under the 'daemon thread' scheme.
 
         """
-        if not self.restart:  # only at startup
+        if self.current_video != self.controller.video:
             self.init_capt()
+        if not self.restart:  # only at startup
             self._register_processes()
 
         # start/restart processes
@@ -121,6 +122,7 @@ class VManager(VManagerBase):
             if self.current_video != self.controller.video:
                 # global restart to avoid fatal "PyEval_RestoreThread: NULL tstate"
                 self.stop_processing()
+                self.restart = True
                 break
             sleep(0.3)
 

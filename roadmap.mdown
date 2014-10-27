@@ -8,33 +8,32 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 ---------------------------------------------------------------------------------------------------
 
-DOC Learning OpenCV
-    - Page 267 and on for background detection modeling»
-
-OPENCV 3 ALPHA :
-    - Greatly extended Python bindings, including Python 3 support, and several OpenCV+Python tutorials
-    - Line Segment Detector (LSD)     -> c++ only (As of 24/10/14)
-    - Line descriptors and matchers   -> seems to be based on LSD so c++ only as well..
-    - Smart segmentation and edge-aware filters
-
 
 BEFORE PYTHON PUBLISH:
-    - fix bugs
+    - go through todos
+    - try to have some more fun w board detection and stones detection to show a nice face to the world
+        ¤ Smart segmentation and edge-aware filters ?
+        ¤ Page 267 and on for background detection modeling
     - comment line np.savez in onmouse()  because undo board location is not intuitive
     - fix in-code documentation  --> especially check existing doc
     - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
-    - cleanup comments
     - license
 
 ---------------------------------------------------------------------------------------------------
 
 ON PYTHON PUBLISH:
-
+    - indicate that some bugs may be due to the moving from (python, opencv)2 to 3
     - links to openCV install
     - links to PyCharm CE
     - jetbrains has a banner generator. can we set one on github ?
 
 ---------------------------------------------------------------------------------------------------
+
+
+OPENCV 3 ALPHA :
+    - Greatly extended Python bindings, including Python 3 support, and several OpenCV+Python tutorials
+    - Line Segment Detector (LSD)     -> c++ only (As of 24/10/14)
+    - Line descriptors and matchers   -> seems to be based on LSD so c++ only as well..
 
 BEFORE CPP PUBLISH:
 
@@ -61,6 +60,10 @@ ON CPP PUBLISH:
 ---------------------------------------------------------------------------------------------------
 
 CODE ROADMAP FOR COMMUNITY :
+
+Please note that a "Fatal Python error: PyEval_RestoreThread: NULL tstate" can occur from time to time at startup or
+when swapping from one detection tool to another in the GUI. As it seems to be originating in openCV, I have dropped the
+case after several unsuccessful tries. Anyhow, it doesn't seem to be a major hindrance at this stage of the project.
 
 PYTHON
     - channel all printing to a decent log

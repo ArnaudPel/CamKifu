@@ -19,6 +19,7 @@ class ControllerV(Controller):
         super(ControllerV, self).__init__(user_input, display, sgffile=sgffile)
         self.queue = Queue(commands_size)
         self.video = video
+        # todo provide a way to set these bounds from the GUI ?
         self.bounds = bounds
 
         # commands from background that have to be executed on the GUI thread.
@@ -191,6 +192,7 @@ class ControllerV(Controller):
         vidfile = self.display.promptopen()
         if len(vidfile):
             self.video = vidfile
+            self.bounds = (0, 1)  # reset to default bounds (read entire file)
         self._pause(False)
 
     def _openlive(self):
