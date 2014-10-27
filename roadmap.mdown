@@ -14,7 +14,9 @@ BEFORE PYTHON PUBLISH:
     - try to have some more fun w board detection and stones detection to show a nice face to the world
         ¤ Smart segmentation and edge-aware filters ?
         ¤ Page 267 and on for background detection modeling
-    - comment line np.savez in onmouse()  because undo board location is not intuitive
+    - add a right-click mouse listener on BF_Manual window : create a menu to undo (last corner, all corners).
+        ¤ in case of failure just make right-click erase all corners
+        ¤ in last resort don't save board location on disk
     - fix in-code documentation  --> especially check existing doc
     - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
     - license

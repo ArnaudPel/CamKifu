@@ -17,6 +17,11 @@ screenw = 1920
 # height of the screen, pixels
 screenh = 1200
 
+# shortest time (in seconds) between two processings: put thread to sleep if it's too early
+frame_period = 0.2
+
+# message to mark un-synchronization of threads reading a video file
+unsynced = "unsynced"
 
 # imports below must be done after variable declarations above,
 # so that cyclic imports are avoided.
@@ -26,8 +31,8 @@ from camkifu.board.bf_manual import BoardFinderManual
 from camkifu.board.bf_auto import BoardFinderAuto
 # the first element in the list will be loaded at startup.
 bfinders = [
-    BoardFinderManual,
     BoardFinderAuto,
+    BoardFinderManual,
 ]
 
 from camkifu.stone.sf_bgsub import BackgroundSub

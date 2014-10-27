@@ -1,9 +1,10 @@
 from queue import Full
-from threading import current_thread
+from threading import current_thread, Thread
 from time import sleep, time
 
 import cv2
 
+from camkifu.config.cvconf import unsynced, frame_period
 from camkifu.core.imgutil import show, draw_str
 
 
@@ -25,11 +26,12 @@ class VidProcessor(object):
         self.vmanager = vmanager
         self.own_images = {}
 
-        # todo see to set the frame period to 0.0 when processing a file. thought it was done already
-        self.frame_period = 0.2  # shortest period between two processings: put thread to sleep if it finishes early
+        self.frame_period = frame_period  # shortest time between two processings: put thread to sleep if it's too early
+        self.full_speed = False  # whether to respect the frame period or not
         self.last_read = 0.0  # gives the instant of the last image processing start (in seconds).
 
-        self.undoflag = False
+        self.undoflag = False  # todo move that down to ManualBoardFinder ?
+
         self._interruptflag = False
         self.pausedflag = False
 
@@ -51,22 +53,20 @@ class VidProcessor(object):
         while not self._interruptflag and (self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO) < end):
             self._checkpause()
             start = time()
-            if self.frame_period < start - self.last_read:
+            # check if we respect the minimal time period between two iterations
+            if self.full_speed or (self.frame_period < start - self.last_read):
                 self.last_read = start
-
-                # todo sync issue with boardFinder and stonesFinder: they should wait for each other when reading a file
-                #   or at least wait at milestones. right now the fastest vidprocessor consumes the file.
-                #   brings up an interesting fact : VidProcessors never see the same image, they each capt.read() !!
-
                 ret, frame = self.vmanager.capt.read()
                 if ret:
+                    do_frame_start = time()
                     self._doframe(frame)
+                    self.latency = time() - do_frame_start
                     self.checkkey()
-                    self.latency = time() - start
                 else:
-                    print("Could not read camera for {0}.".format(str(type(self))))
-                    self.latency = 0.0
-                    sleep(5)
+                    if frame != unsynced:
+                        print("Could not read camera for {0}.".format(str(type(self))))
+                        self.latency = 0.0
+                        sleep(5)
             else:
                 sleep(self.frame_period / 10)  # precision doesn't really matter here
         self._destroy_windows()
@@ -203,3 +203,34 @@ class VidProcessor(object):
             else:
                 cv2.destroyWindow(name)
         self.own_images.clear()
+
+
+class VisionThread(Thread):
+    """
+    Wrapper for VidProcessor, to run it in a daemon thread.
+
+    """
+    def __init__(self, processor):
+        super().__init__(name=processor.__class__.__name__)
+        self.daemon = True
+
+        # delegate
+        self.run = processor.execute
+        self.interrupt = processor.interrupt
+        self.pause = processor.pause
+
+    def __eq__(self, other):
+        """
+        Implementation that can match either a VisionThread or a VidProcessor.
+
+        """
+        try:
+            return (self.run == other.execute) and (self.interrupt == other.interrupt)
+        except AttributeError:
+            try:
+                return (self.run == other.run) and (self.interrupt == other.interrupt)
+            except AttributeError:
+                return False
+
+    def __hash__(self, *args, **kwargs):
+        return self.name.__hash__(*args, **kwargs)

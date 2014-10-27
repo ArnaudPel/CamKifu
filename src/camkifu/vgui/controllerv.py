@@ -184,8 +184,9 @@ class ControllerV(Controller):
 
     def _openvideo(self):
         """
-        Open a video file, that should be processed by detection algorithms.
-        This is likely to discard the previous video source being processed.
+        Change the video source to a file selected by user, that should be processed by detection algorithms.
+        This is likely to discard the previous video source being processed (up to the video manager to take that
+        change into account).
 
         """
         self._pause(True)
@@ -218,7 +219,7 @@ class ControllerV(Controller):
                 if value < self.kifu.lastmove().number:
                     self._pause(True)  # don't update Pause object here
                 else:
-                    self._pause(self.paused.__nonzero__())
+                    self._pause(self.paused.__bool__())
             except AttributeError:
                 pass  # most likely last_move() has returned null
 

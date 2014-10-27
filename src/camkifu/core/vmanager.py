@@ -1,9 +1,10 @@
 from time import sleep
-from threading import Thread
-
+from threading import Thread, current_thread, Lock
 import cv2
+from os.path import isfile
 
-from camkifu.config.cvconf import bfinders, sfinders
+from camkifu.config.cvconf import bfinders, sfinders, unsynced
+from camkifu.core.video import VisionThread
 
 
 __author__ = 'Arnaud Peloquin'
@@ -26,6 +27,7 @@ class VManagerBase(Thread):
 
         self.board_finder = None
         self.stones_finder = None
+        self.full_speed = False
 
     def init_capt(self):
         """
@@ -36,6 +38,14 @@ class VManagerBase(Thread):
             self.capt.release()
         #noinspection PyArgumentList
         self.capt = cv2.VideoCapture(self.controller.video)
+        if isfile(self.controller.video):
+            # todo synchronizing 2 threads on file breaks single start from GUI
+            #   if only starting a boardfinder but no stonesfinder, the former will wait
+            #   -> which is not THAT illogical actually.
+            self.capt = FileCaptureWrapper(self.capt)
+            self.full_speed = True
+        else:
+            self.full_speed = False
         self.current_video = self.controller.video
 
         # set the beginning of video files. is ignored by live camera
@@ -120,13 +130,13 @@ class VManager(VManagerBase):
         self.restart = False
         while not self.restart:
             if self.current_video != self.controller.video:
-                # global restart to avoid fatal "PyEval_RestoreThread: NULL tstate"
+                # global restart on the new video input
                 self.stop_processing()
                 self.restart = True
                 break
             sleep(0.3)
 
-        # do not allow thread to terminate
+        # do not allow VManager thread to terminate
         print("Vision processing restarting.")
         self.run()
 
@@ -150,6 +160,11 @@ class VManager(VManagerBase):
             message += proc.name + ", "
         message = message[0:len(message)-2]
         message += " interruption."
+        # release a potential FileCaptureWrapper that may keep threads sleeping
+        try:
+            self.capt.unsync_threads(True)
+        except AttributeError:
+            pass
         print(message)
 
     def confirm_stop(self, process):
@@ -161,7 +176,14 @@ class VManager(VManagerBase):
         Start the provided process and append it to the list of active processes.
 
         """
+        # reset a potential FileCaptureWrapper to normal behavior so that images flow again
+        try:
+            self.capt.unsync_threads(False)
+        except AttributeError:
+            pass
+        # actual spawning of process
         vt = VisionThread(process)
+        process.full_speed = self.full_speed
         self.processes.append(vt)
         print("{0} starting.".format(process.__class__.__name__))
         vt.start()
@@ -184,7 +206,7 @@ class VManager(VManagerBase):
             self.board_finder.interrupt()
             while self.board_finder in self.processes:
                 sleep(0.1)
-            del self.board_finder  # may help prevent misuse
+            self.board_finder = None  # may help prevent misuse
         # instantiate and start new instance
         self.board_finder = bf_class(self)
         self._spawn(self.board_finder)
@@ -205,32 +227,81 @@ class VManager(VManagerBase):
         self._spawn(self.stones_finder)
 
 
-class VisionThread(Thread):
+class FileCaptureWrapper():
     """
-    Wrapper for VidProcessor, to run it in a daemon thread.
+    Wrapper to synchronize image consumption from a file : all "nb_threads" threads must have received the
+    current image before the next image is consumed from VideoCapture.
+
+    Delegates all _getattr()__ calls to the provided capture object, except for read() on which the
+    synchronization is intended.
+
+    -- capture : the object from which actual read() calls will be consumed.
+    -- nb_threads : the number of threads to synchronize.
 
     """
-    def __init__(self, processor):
-        super().__init__(name=processor.__class__.__name__)
-        self.daemon = True
 
-        # delegate
-        self.run = processor.execute
-        self.interrupt = processor.interrupt
-        self.pause = processor.pause
+    def __init__(self, capture, nb_threads=2):
+        self.capture = capture
+        self.nb = nb_threads
+        self.buffer = None   # the current result from videocapture.read()
+        self.served = set()  # the threads that have received the currently buffered image
+        self.lock_init = Lock()     # synchronization on videocapture.read() calls the first time
+        self.lock_consume = Lock()  # synchronization on videocapture.read() calls
+        self.sleep_time = 0.05  # 50 ms
+        self.unsync = False     # True means that no thread should be kept sleeping, and the reading is stopped
 
-    def __eq__(self, other):
+    def __getattr__(self, item):
         """
-        Implementation that can match either a VisionThread or a VidProcessor.
+        Hijack the "read()" method, delegate all others.
 
         """
-        try:
-            return (self.run == other.execute) and (self.interrupt == other.interrupt)
-        except AttributeError:
-            try:
-                return (self.run == other.run) and (self.interrupt == other.interrupt)
-            except AttributeError:
-                return False
+        if item == "read":
+            return self.read_sync
+        else:
+            return self.capture.__getattribute__(item)
 
-    def __hash__(self, *args, **kwargs):
-        return self.name.__hash__(*args, **kwargs)
+    def read_sync(self):
+        """
+        Implements a custom read() method that provides the same image to all threads.
+        Wait until all threads have been served before consuming the next frame.
+
+        """
+        self.init_buffer()
+        thread = current_thread()
+        while not self.unsync and thread in self.served:
+            sleep(self.sleep_time)
+        self.served.add(thread)
+        self.consume()
+        return self.buffer
+
+    def init_buffer(self):
+        with self.lock_init:
+            if self.buffer is None:
+                self.buffer = self.capture.read()
+
+    def consume(self):
+        """
+        If unsync has been requested, set buffer to a None result.
+        Else if all threads have been served, consume next image from videocapture (update buffer).
+        Else do nothing.
+
+        """
+        with self.lock_consume:
+            if self.unsync:
+                self.buffer = False, unsynced
+            if self.nb <= len(self.served):
+                assert self.nb == len(self.served)  # todo remove after a few days testing
+                self.buffer = self.capture.read()
+                self.served.clear()
+
+    def unsync_threads(self, unsync):
+        """
+        Request the release of all threads waiting in self.read_sync()
+
+        -- unsync : True if all threads should be released, False to resume normal behavior.
+
+        """
+        self.unsync = unsync
+
+
+
