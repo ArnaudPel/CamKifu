@@ -40,6 +40,9 @@ class VUI(UI):
         b_run.grid(row=4, column=0)
         b_pause.grid(row=4, column=1)
 
+        # b_debug = Button(self.buttons, text="Debug", command=lambda: self.checkvar_onoff.set(True))
+        # b_debug.grid(row=5, column=0, columnspan=2)
+
     def toggle_active(self):
         self.execute("on" if self.checkvar_onoff.get() else "off")
 
@@ -63,6 +66,10 @@ class VUI(UI):
 
     def select_bf(self, label):
         self.radvar_bf.set(label)
+        if label is not None:
+            self.checkvar_onoff.set(True)
 
     def select_sf(self, label):
         self.radvar_sf.set(label)
+        if label is not None:
+            self.checkvar_onoff.set(True)

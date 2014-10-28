@@ -62,7 +62,6 @@ def main(video=0, sgf=None, bounds=(0, 1)):
         img_update(imqueue)
         root.after(5, tk_routine)
 
-    vmanager.start()
     root.after(0, tk_routine)
     glmain.center(root)
 
@@ -70,6 +69,7 @@ def main(video=0, sgf=None, bounds=(0, 1)):
     if "Darwin" in platform.system():
         os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
 
+    vmanager.start()
     root.mainloop()
 
 

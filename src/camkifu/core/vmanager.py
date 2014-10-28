@@ -39,9 +39,6 @@ class VManagerBase(Thread):
         #noinspection PyArgumentList
         self.capt = cv2.VideoCapture(self.controller.video)
         if isfile(self.controller.video):
-            # todo synchronizing 2 threads on file breaks single start from GUI
-            #   if only starting a boardfinder but no stonesfinder, the former will wait
-            #   -> which is not THAT illogical actually.
             self.capt = FileCaptureWrapper(self.capt)
             self.full_speed = True
         else:
@@ -122,9 +119,7 @@ class VManager(VManagerBase):
 
         # start/restart processes
         self.set_bf(type(self.board_finder) if self.board_finder is not None else bfinders[0])
-        self.controller.pipe("select_bf", [self.board_finder.label])
         self.set_sf(type(self.stones_finder) if self.stones_finder is not None else sfinders[0])
-        self.controller.pipe("select_sf", [self.stones_finder.label])
 
         # main loop, just watch for video input changes.
         self.restart = False
@@ -170,21 +165,26 @@ class VManager(VManagerBase):
     def confirm_stop(self, process):
         self.processes.remove(process)
         print("{0} terminated.".format(process.__class__.__name__))
+        # update a potential FileCaptureWrapper to wait for the right number of threads
+        try:
+            self.capt.nb_threads = len(self.processes)
+        except AttributeError:
+            pass
 
     def _spawn(self, process):
         """
         Start the provided process and append it to the list of active processes.
 
         """
-        # reset a potential FileCaptureWrapper to normal behavior so that images flow again
-        try:
-            self.capt.unsync_threads(False)
-        except AttributeError:
-            pass
-        # actual spawning of process
         vt = VisionThread(process)
         process.full_speed = self.full_speed
         self.processes.append(vt)
+        # reset a potential FileCaptureWrapper to normal behavior so that images flow again
+        try:
+            self.capt.unsync_threads(False)
+            self.capt.nb_threads = len(self.processes)
+        except AttributeError:
+            pass
         print("{0} starting.".format(process.__class__.__name__))
         vt.start()
 
@@ -210,6 +210,7 @@ class VManager(VManagerBase):
         # instantiate and start new instance
         self.board_finder = bf_class(self)
         self._spawn(self.board_finder)
+        self.controller.pipe("select_bf", [self.board_finder.label])
 
     def set_sf(self, sf_class):
         """
@@ -225,6 +226,7 @@ class VManager(VManagerBase):
         # instantiate and start new instance
         self.stones_finder = sf_class(self)
         self._spawn(self.stones_finder)
+        self.controller.pipe("select_sf", [self.stones_finder.label])
 
 
 class FileCaptureWrapper():
@@ -242,7 +244,7 @@ class FileCaptureWrapper():
 
     def __init__(self, capture, nb_threads=2):
         self.capture = capture
-        self.nb = nb_threads
+        self.nb_threads = nb_threads
         self.buffer = None   # the current result from videocapture.read()
         self.served = set()  # the threads that have received the currently buffered image
         self.lock_init = Lock()     # synchronization on videocapture.read() calls the first time
@@ -289,8 +291,9 @@ class FileCaptureWrapper():
         with self.lock_consume:
             if self.unsync:
                 self.buffer = False, unsynced
-            if self.nb <= len(self.served):
-                assert self.nb == len(self.served)  # todo remove after a few days testing
+                self.served.clear()
+            elif self.nb_threads <= len(self.served):
+                assert self.nb_threads == len(self.served)  # todo remove after a few days testing
                 self.buffer = self.capture.read()
                 self.served.clear()
 

@@ -1,6 +1,8 @@
 
 bugs
 a "Fatal Python error: PyEval_RestoreThread: NULL tstate" can occur when starting the VideoCapture (at startup or when swapping
-detection tools from the GUI).
+detection tools from the GUI).  Is it due to my broken mouse double-clicking without being asked ??
+Or more likely to the fact that openCV is running on Tkinter thread ? Try to see what's actually going on on GUI (main) thread.
+
 when clicking on an already running process in the menu, it restarts it. seems a bit extreme, maybe do nothing -- won't fix for now
 the save changes dialog doesn't show up when hitting CMD+Q  -- won't fix : this seems to be a pain with Tkinter, no time for that
