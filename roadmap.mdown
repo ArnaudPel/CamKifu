@@ -36,6 +36,7 @@ OPENCV 3 ALPHA :
 
 BEFORE CPP PUBLISH:
 
+    - try out things that were not available in python (startFindContours, freeman chaincode for contours, )
     - create a boardfinder_test.py that can compare detection against known locations.
     - point ck_test to "test/res/ck" and make CLI args optional (process all input in that folder)
     - write more test (+ code coverage tool ?), + provide videos and sgf ressources

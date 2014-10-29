@@ -33,9 +33,9 @@ def img_update(imqueue):
     """
     try:
         while True:
-            name, img, vidproc = imqueue.get_nowait()
+            name, img, vidproc, loc = imqueue.get_nowait()
             if img is not None:
-                show(img, name=name)
+                show(img, name=name, loc=loc)
                 key = cv2.waitKey(20)
                 vidproc.key = key
             else:
@@ -63,7 +63,7 @@ def main(video=0, sgf=None, bounds=(0, 1)):
         root.after(5, tk_routine)
 
     root.after(0, tk_routine)
-    glmain.center(root)
+    glmain.place(root)
 
     # mac OS special, to bring app to front at startup
     if "Darwin" in platform.system():

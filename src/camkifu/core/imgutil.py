@@ -223,28 +223,30 @@ def sort_conts(contours):
     """
     sortedconts = []
     for i, cont in enumerate(contours):
-        insort(sortedconts, Area(cont, i))
+        insort(sortedconts, BoundingBox(cont, i))
     return sortedconts
 
 
-class Area(object):
+class BoundingBox(object):
     """
-    The area of a contour, as computed by openCV.
+    Wrapper of the bounding rectangle of a contour (rotated to fit), as computed by openCV.
 
     """
-    def __init__(self, contour, pos, value=None):
+    def __init__(self, contour, pos):
         self.contour = contour
-        self.value = cv2.contourArea(contour) if value is None else value
         self.pos = pos  # arbitrary index that can be set to remember position of this contour in a structure
+        # self.box = cv2.boundingRect(contour)
+        box = cv2.minAreaRect(contour)
+        self.box_area = box[1][0]*box[1][1]
 
     def __gt__(self, other):
-        return other.value < self.value
+        return other.box_area < self.box_area
 
     def __lt__(self, other):
-        return self.value < other.value
+        return self.box_area < other.box_area
 
     def __repr__(self):
-        return "{0} pix2".format(self.value)
+        return "{0} pix2".format(self.box_area)
 
 
 class Chunk:

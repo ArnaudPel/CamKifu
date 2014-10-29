@@ -30,17 +30,39 @@ class BoardFinderAuto(BoardFinder):
     def _detect(self, frame):
 
         median = cv2.medianBlur(frame, 15)
+
+        # todo instead of edge detection : threshold binarization on an HSV image to only retain, a certain color/hue ?
+        #   the target color could be guessed from the global image :
+        #   computing an histo of hues and keeping the most frequent, hoping the goban is taking enough space
+        #   (maybe only try a mask reflecting the default projection of the goban rectangle on the image plane).
         canny = cv2.Canny(median, 25, 75)
 
-        my_canny, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # first parameter is the input image (it seems). appeared in opencv 3.0-alpha and is missing from the docs
+        _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) == 0:
             return False
         sortedconts = sort_conts(contours)
+
+        # todo instead of this horrendous drawing and hough : use sequence methods !!
+        #   ¤ Polygon approximation, dominant points (p245 onwards in learning opencv pdf)
+        #   ¤ Matching contours (p252 onwards in learning opencv pdf)
         ghost = np.zeros(frame.shape[0:2], dtype=np.uint8)
-        for i in range(min(3, len(contours))):
+        # draw the n largest contours to prepare for a Hough pass
+        for i in range(min(1, len(contours))):  # todo remove loop altogether if no longer needed
             contid = sortedconts[-1 - i].pos
             cv2.drawContours(ghost, contours, contid, (255, 255, 255), thickness=1)
+            # box = cv2.minAreaRect(contours[contid])
+            # box_points = cv2.boxPoints(box)
+            # cv2.line(ghost, point(box_points, 0), point(box_points, 1), color=(255, 0, 0))
+            # cv2.line(ghost, point(box_points, 1), point(box_points, 2), color=(255, 0, 0))
+            # cv2.line(ghost, point(box_points, 2), point(box_points, 3), color=(255, 0, 0))
+            # cv2.line(ghost, point(box_points, 3), point(box_points, 0), color=(255, 0, 0))
+        #     cv2.drawContours(median, contours, contid, (255, 255, 255), thickness=-1)
+        #     draw_str(ghost, 40, ghost.shape[0] - 20, "angle : " + str(box[2]))
+        # self._show(ghost, name="Bounding boxes debug")
+        # return False   # todo remove debug
 
+        # hough lines block
         threshold = 10
         minlen = min(*ghost.shape) / 3
         maxgap = minlen / 10
@@ -48,7 +70,7 @@ class BoardFinderAuto(BoardFinder):
 
         found = False
         if lines is not None:
-            draw_lines(median, lines[0])
+            draw_lines(median, lines[0])  # indicate to the human something is going on
             horiz = []
             vert = []
             for line in lines[0]:
@@ -60,6 +82,10 @@ class BoardFinderAuto(BoardFinder):
             grid = SegGrid(horiz, vert, frame)
             runmerge(grid)
 
+            # conditions triggering positive :
+            #   - 2 vertical line
+            #   - 2 or 3 horizontal lines
+            #   - these lines are longer than 1/3 of the image size (v or h respectively)
             if len(grid.vsegs) == 2 and len(grid.hsegs) in (2, 3) \
                     and frame.shape[0] / 3 < abs(grid.vsegs[1].intercept - grid.vsegs[0].intercept) \
                     and frame.shape[1] / 3 < abs(grid.hsegs[1].intercept - grid.hsegs[0].intercept):
@@ -70,7 +96,7 @@ class BoardFinderAuto(BoardFinder):
                         self.corners.add(grid.hsegs[i].intersection(grid.vsegs[j]))
 
         self.corners.paint(median)
-        draw_str(median, 40, 60, "Ok" if found else "Looking for board..")
+        draw_str(median, 40, median.shape[0] - 20, "Ok" if found else "Looking for board..")
         self._show(median)
         return found
 

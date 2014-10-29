@@ -17,6 +17,12 @@ screenw = 1920
 # height of the screen, pixels
 screenh = 1200
 
+# location of the board_finder window. set to None to center
+bf_loc = (1100, 70)
+
+# location of the stones_finder window. set to None to center
+sf_loc = (1100, 600)
+
 # shortest time (in seconds) between two processings: put thread to sleep if it's too early
 frame_period = 0.2
 

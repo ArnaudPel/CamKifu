@@ -158,26 +158,34 @@ class VidProcessor(object):
     def undo(self):
         self.undoflag = True
 
-    def _show(self, img, name=None, latency=True, thread=False):
+    def draw_metadata(self, img, latency, thread):
         """
-        Offer the image to the main thread for display.
+        Print info strings on the image.
 
         """
-        draw_str(img, 40, 20, "video progress {0} %".format(int(100 * self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))))
+        percent_progress = int(100 * self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
+        draw_str(img, 40, 20, "video progress {0} %".format(percent_progress))
         if latency:
             draw_str(img, 40, 40, "latency:  %.1f ms" % (self.latency * 1000))
         if thread:
             draw_str(img, 40, 60, "thread : " + current_thread().getName())
         if self.pausedflag:
             for img in self.own_images.values():
-                draw_str(img, int(img.shape[0]/2-30), int(img.shape[1] / 2), "PAUSED")
+                draw_str(img, int(img.shape[0] / 2 - 30), int(img.shape[1] / 2), "PAUSED")
+
+    def _show(self, img, name=None, latency=True, thread=False, loc=None):
+        """
+        Offer the image to the main thread for display.
+
+        """
+        self.draw_metadata(img, latency, thread)
         try:
             if name is None:
                 name = self._window_name()
             if self.vmanager.imqueue is not None:
-                self.vmanager.imqueue.put_nowait((name, img, self))
+                self.vmanager.imqueue.put_nowait((name, img, self, loc))
             else:
-                show(img, name=name)  # assume we are on main thread
+                show(img, name=name, loc=loc)  # assume we are on main thread
             self.own_images[name] = img
         except Full:
             print("Image queue full, not showing {0}".format(hex(id(img))))

@@ -70,6 +70,9 @@ class BoardFinderManual(BoardFinder):
 
     #noinspection PyUnusedLocal
     def onmouse(self, event, x, y, flag, param):
+        # todo instead of forcing a particular order : make each click relocate the related point
+        #   (the closest most likely, maybe also into account the cardinal location in the image)
+        #   thus no need for cumbersome "undo" scheme
         if event == cv2.EVENT_LBUTTONDOWN and not self.corners.ready():
             self.corners.add((x, y))
             if self.corners.ready():

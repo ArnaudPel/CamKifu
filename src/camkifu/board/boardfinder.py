@@ -4,7 +4,7 @@ from time import time
 from numpy import float32, array, vstack
 import cv2
 
-from camkifu.config.cvconf import canonical_size as csize
+from camkifu.config.cvconf import canonical_size as csize, bf_loc
 from camkifu.core.imgutil import draw_circles, draw_lines, order_hull
 from camkifu.core.video import VidProcessor
 
@@ -50,6 +50,13 @@ class BoardFinder(VidProcessor):
     def perform_undo(self):
         self.mtx = None
         self.undoflag = False
+
+    def _show(self, img, name=None, latency=True, thread=False, loc=None):
+        """
+        Override to take control of the location of the window of this boardfinder
+
+        """
+        super()._show(img, name, latency, thread, loc=bf_loc)
 
 
 class GobanCorners():

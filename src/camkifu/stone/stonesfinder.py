@@ -5,7 +5,7 @@ from time import time
 from numpy import zeros, uint8, int16, sum as npsum, empty, ogrid
 from numpy.ma import absolute, empty_like
 
-from camkifu.config.cvconf import canonical_size
+from camkifu.config.cvconf import canonical_size, sf_loc
 from camkifu.core.imgutil import draw_circles, draw_str, order_hull
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E
@@ -237,6 +237,13 @@ class StonesFinder(VidProcessor):
             for col in range(gsize):
                 x, y = self._posgrid[row, col]
                 draw_str(img, x - 10, y + 2, str(values[row, col]))
+
+    def _show(self, img, name=None, latency=True, thread=False, loc=None):
+        """
+        Override to take control of the location of the window of this stonesfinder
+
+        """
+        super()._show(img, name, latency, thread, loc=sf_loc)
 
 
 def evalz(zone, chan):
