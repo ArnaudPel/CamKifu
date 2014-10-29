@@ -60,9 +60,11 @@ ON CPP PUBLISH:
 
 CODE ROADMAP FOR COMMUNITY :
 
-Please note that a "Fatal Python error: PyEval_RestoreThread: NULL tstate" can occur from time to time at startup or
-when swapping from one detection tool to another in the GUI. As it seems to be originating in openCV, I have dropped the
-case after several unsuccessful tries. Anyhow, it doesn't seem to be a major hindrance at this stage of the project.
+Please note that a "Fatal Python error: PyEval_RestoreThread: NULL tstate" can occur from time to time and crash the
+interpreter itself. It occurs when using the GUI. It seems to be originating in the fact that openCV images have to
+be displayed on the main thread, also required by Tkinter. I have dropped the case after several unsuccessful tries,
+yet if this problem becomes a pain, try to display fewer images per second and it should soothe.
+
 
 PYTHON
     - channel all printing to a decent log

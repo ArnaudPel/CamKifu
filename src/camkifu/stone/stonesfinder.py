@@ -1,5 +1,6 @@
 from queue import Queue, Full
 import cv2
+from time import time
 
 from numpy import zeros, uint8, int16, sum as npsum, empty, ogrid
 from numpy.ma import absolute, empty_like
@@ -19,6 +20,7 @@ correc_size = 10
 class StonesFinder(VidProcessor):
     """
     Abstract class providing a base structure for stones-finding processes.
+    It relies on the providing of a transform matrix to extract only the goban pixels from the global frame.
 
     """
 
@@ -28,6 +30,7 @@ class StonesFinder(VidProcessor):
         self.mask_cache = None
         self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
         self.corrections = Queue(correc_size)
+        self.last_shown = 0  # the last time an image has been sent to display
 
     def _doframe(self, frame):
         transform = None
@@ -38,9 +41,11 @@ class StonesFinder(VidProcessor):
             self._learn()
             self._find(goban_img)
         else:
-            black = zeros((canonical_size, canonical_size), dtype=uint8)
-            draw_str(black, int(black.shape[0]/2-110), int(black.shape[1] / 2), "NO BOARD LOCATION AVAILABLE")
-            self._show(black)
+            if 1 < time() - self.last_shown:
+                black = zeros((canonical_size, canonical_size), dtype=uint8)
+                draw_str(black, int(black.shape[0]/2-110), int(black.shape[1] / 2), "NO BOARD LOCATION AVAILABLE")
+                self._show(black)
+                self.last_shown = time()
 
     def _find(self, goban_img):
         """
