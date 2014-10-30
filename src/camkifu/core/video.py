@@ -207,7 +207,7 @@ class VidProcessor(object):
         for name in self.own_images.keys():
             if self.vmanager.imqueue is not None:
                 # caveat: wait until a slot is available to ensure destruction
-                self.vmanager.imqueue.put((name, None, None))
+                self.vmanager.imqueue.put((name, None, None, None))
             else:
                 cv2.destroyWindow(name)
         self.own_images.clear()

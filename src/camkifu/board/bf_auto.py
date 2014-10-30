@@ -1,12 +1,13 @@
 from bisect import insort
-import math
 import random
 
 import cv2
+from math import sin, cos, pi
 import numpy as np
+from numpy import zeros, uint8
 
 from camkifu.board.boardfinder import BoardFinder, SegGrid
-from camkifu.core.imgutil import Segment, draw_lines, sort_conts, draw_str
+from camkifu.core.imgutil import Segment, draw_lines, sort_contours, draw_str
 
 
 __author__ = 'Arnaud Peloquin'
@@ -41,62 +42,49 @@ class BoardFinderAuto(BoardFinder):
         _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) == 0:
             return False
-        sortedconts = sort_conts(contours)
+        sorted_boxes = sort_contours(contours)
 
-        # todo instead of this horrendous drawing and hough : use sequence methods !!
-        #   ¤ Polygon approximation, dominant points (p245 onwards in learning opencv pdf)
-        #   ¤ Matching contours (p252 onwards in learning opencv pdf)
-        ghost = np.zeros(frame.shape[0:2], dtype=np.uint8)
-        # draw the n largest contours to prepare for a Hough pass
-        for i in range(min(1, len(contours))):  # todo remove loop altogether if no longer needed
-            contid = sortedconts[-1 - i].pos
-            cv2.drawContours(ghost, contours, contid, (255, 255, 255), thickness=1)
+        biggest = sorted_boxes[-1]
+        frame_area = frame.shape[0] * frame.shape[1]
+        if frame_area / 3 < biggest.box_area:
+            ghost = zeros((median.shape[0], median.shape[1]), dtype=uint8)
+            cv2.drawContours(ghost, contours, biggest.pos, (255, 255, 255), thickness=1)
+
+            # actually hough is not that bad for finding sides.. and still quite fast
+            thresh = int(min(ghost.shape[0], ghost.shape[1]) / 5)
+            lines = cv2.HoughLines(ghost, 1, pi/180, threshold=thresh)
+            segments = []
+            for line in lines:
+                # cv2.line(median, (line[0][0], line[0][1]), (line[0][2], line[0][3]), (255, 255, 60))
+                rho, theta = line[0]
+                a, b = cos(theta), sin(theta)
+                x0, y0 = a * rho, b * rho
+                pt1 = int(x0 + 1000 * (-b)), int(y0 + 1000 * a)
+                pt2 = int(x0 - 1000 * (-b)), int(y0 - 1000 * a)
+                segments.append(Segment((pt1[0], pt1[1], pt2[0], pt2[1]), median))
+                # cv2.line(median, pt1, pt2, (60, 255, 255))
+            # todo find a way to sort if there are too many lines found. run merge as before maybe.
+            for s1 in segments:
+                for s2 in segments:
+                    if s1.horiz != s2.horiz:
+                        # todo store intersections in a dynamic accumulator to build likely positions
+                        # -- use some sort of 4-means clustering to get the 4 corners.
+                        cv2.circle(median, s1.intersection(s2), 4, (50, 255, 255), thickness=2)
+            draw_str(median, 40, median.shape[0] - 40, "hough lines : %d" % len(lines))
+
+
             # box = cv2.minAreaRect(contours[contid])
             # box_points = cv2.boxPoints(box)
             # cv2.line(ghost, point(box_points, 0), point(box_points, 1), color=(255, 0, 0))
             # cv2.line(ghost, point(box_points, 1), point(box_points, 2), color=(255, 0, 0))
             # cv2.line(ghost, point(box_points, 2), point(box_points, 3), color=(255, 0, 0))
             # cv2.line(ghost, point(box_points, 3), point(box_points, 0), color=(255, 0, 0))
-        #     cv2.drawContours(median, contours, contid, (255, 255, 255), thickness=-1)
-        #     draw_str(ghost, 40, ghost.shape[0] - 20, "angle : " + str(box[2]))
-        # self._show(ghost, name="Bounding boxes debug")
-        # return False   # todo remove debug
-
-        # hough lines block
-        threshold = 10
-        minlen = min(*ghost.shape) / 3
-        maxgap = minlen / 10
-        lines = cv2.HoughLinesP(ghost, 1, math.pi / 180, threshold, minLineLength=minlen, maxLineGap=maxgap)
+            # draw_str(ghost, 40, ghost.shape[0] - 20, "angle : " + str(box[2]))
+            # cv2.drawContours(ghost, contours, biggest.pos, (255, 255, 255), thickness=1)
 
         found = False
-        if lines is not None:
-            draw_lines(median, lines[0])  # indicate to the human something is going on
-            horiz = []
-            vert = []
-            for line in lines[0]:
-                seg = Segment(line, frame)
-                if seg.horiz:
-                    insort(horiz, seg)
-                else:
-                    insort(vert, seg)
-            grid = SegGrid(horiz, vert, frame)
-            runmerge(grid)
-
-            # conditions triggering positive :
-            #   - 2 vertical line
-            #   - 2 or 3 horizontal lines
-            #   - these lines are longer than 1/3 of the image size (v or h respectively)
-            if len(grid.vsegs) == 2 and len(grid.hsegs) in (2, 3) \
-                    and frame.shape[0] / 3 < abs(grid.vsegs[1].intercept - grid.vsegs[0].intercept) \
-                    and frame.shape[1] / 3 < abs(grid.hsegs[1].intercept - grid.hsegs[0].intercept):
-                found = True
-                self.corners.clear()
-                for i in range(2):
-                    for j in range(2):
-                        self.corners.add(grid.hsegs[i].intersection(grid.vsegs[j]))
-
         self.corners.paint(median)
-        draw_str(median, 40, median.shape[0] - 20, "Ok" if found else "Looking for board..")
+        # draw_str(median, 40, median.shape[0] - 20, "Ok" if found else "Looking for board..")
         self._show(median)
         return found
 

@@ -212,9 +212,9 @@ def order_hull(cvhull):
     return hull
 
 
-def sort_conts(contours):
+def sort_contours(contours):
     """
-    Sort contours by increasing area.
+    Sort contours by increasing bounding-box area.
     contours -- an iterable, as returned by cv2.findContours()
 
     Return -- a sorted list of Area objects. The position of each Area object corresponds to
@@ -236,8 +236,8 @@ class BoundingBox(object):
         self.contour = contour
         self.pos = pos  # arbitrary index that can be set to remember position of this contour in a structure
         # self.box = cv2.boundingRect(contour)
-        box = cv2.minAreaRect(contour)
-        self.box_area = box[1][0]*box[1][1]
+        self.box = cv2.minAreaRect(contour)
+        self.box_area = self.box[1][0]*self.box[1][1]
 
     def __gt__(self, other):
         return other.box_area < self.box_area
