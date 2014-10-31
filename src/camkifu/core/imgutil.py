@@ -1,5 +1,5 @@
 from bisect import insort
-from math import sqrt
+from math import sqrt, acos, pi
 from sys import float_info, maxsize
 
 from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud
@@ -306,6 +306,12 @@ class Segment:
             self.intercept = self.slope * (ymid - seg[1]) + seg[0]
             self.horiz = False
 
+    def p1(self):
+        return self.coords[0], self.coords[1]
+
+    def p2(self):
+        return self.coords[2], self.coords[3]
+
     def __lt__(self, other):
         """
         Compare segments by their interception with middle line (not by their length !!)
@@ -323,7 +329,7 @@ class Segment:
     def __str__(self):
         return "Seg(intercept=" + str(self.intercept) + ")"
 
-    def __len__(self):
+    def norm(self):
         x2 = (self.coords[0] - self.coords[2]) ** 2
         y2 = (self.coords[1] - self.coords[3]) ** 2
         return sqrt(x2 + y2)
@@ -343,6 +349,14 @@ class Segment:
     def __getitem__(self, item):
         return self.coords[item]
 
+    def angle(self, other):
+        x0 = (self.coords[2] - self.coords[0]) / self.norm()
+        y0 = (self.coords[3] - self.coords[1]) / self.norm()
+        x1 = (other.coords[2] - other.coords[0]) / other.norm()
+        y1 = (other.coords[3] - other.coords[1]) / other.norm()
+        theta = acos(round(x0 * x1 + y0 * y1, 10))
+        return theta if theta <= pi / 2 else pi - theta
+
     #noinspection PyNoneFunctionAssignment
     def intersection(self, other):
         x = (other[0] - self[0], other[1] - self[1])
@@ -350,7 +364,7 @@ class Segment:
         d2 = (other[2] - other[0], other[3] - other[1])
         cross = float(d1[0] * d2[1] - d1[1] * d2[0])
         if abs(cross) < float_info.epsilon:
-            return False
+            return None
         else:
             t1 = (x[0] * d2[1] - x[1] * d2[0]) / cross
             return int(self[0] + t1 * d1[0]), int(self[1] + t1 * d1[1])

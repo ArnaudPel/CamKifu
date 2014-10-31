@@ -1,7 +1,7 @@
 from threading import Thread
 from time import sleep
 
-from ckmain import get_argparser
+from CkMain import get_argparser
 from camkifu.config.cvconf import bfinders, sfinders
 from camkifu.core.vmanager import VManagerBase
 from golib.gui.controller import ControllerBase

@@ -4,7 +4,7 @@ import random
 import cv2
 from math import sin, cos, pi
 import numpy as np
-from numpy import zeros, uint8
+from numpy import empty, zeros, uint8, float32
 
 from camkifu.board.boardfinder import BoardFinder, SegGrid
 from camkifu.core.imgutil import Segment, draw_lines, sort_contours, draw_str
@@ -27,9 +27,12 @@ class BoardFinderAuto(BoardFinder):
 
     def __init__(self, vmanager):
         super(BoardFinderAuto, self).__init__(vmanager)
+        self.lines_accu = []
+        self.groups_accu = []  # groups of points in the same image region
+        self.passes = 0  # the number of frames processed since the beginning
 
     def _detect(self, frame):
-
+        length_ref = min(frame.shape[0], frame.shape[1])  # a reference length linked to the image
         median = cv2.medianBlur(frame, 15)
 
         # todo instead of edge detection : threshold binarization on an HSV image to only retain, a certain color/hue ?
@@ -37,58 +40,147 @@ class BoardFinderAuto(BoardFinder):
         #   computing an histo of hues and keeping the most frequent, hoping the goban is taking enough space
         #   (maybe only try a mask reflecting the default projection of the goban rectangle on the image plane).
         canny = cv2.Canny(median, 25, 75)
-
         # first parameter is the input image (it seems). appeared in opencv 3.0-alpha and is missing from the docs
         _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) == 0:
             return False
         sorted_boxes = sort_contours(contours)
-
         biggest = sorted_boxes[-1]
         frame_area = frame.shape[0] * frame.shape[1]
-        if frame_area / 3 < biggest.box_area:
-            ghost = zeros((median.shape[0], median.shape[1]), dtype=uint8)
-            cv2.drawContours(ghost, contours, biggest.pos, (255, 255, 255), thickness=1)
-
-            # actually hough is not that bad for finding sides.. and still quite fast
-            thresh = int(min(ghost.shape[0], ghost.shape[1]) / 5)
-            lines = cv2.HoughLines(ghost, 1, pi/180, threshold=thresh)
-            segments = []
-            for line in lines:
-                # cv2.line(median, (line[0][0], line[0][1]), (line[0][2], line[0][3]), (255, 255, 60))
-                rho, theta = line[0]
-                a, b = cos(theta), sin(theta)
-                x0, y0 = a * rho, b * rho
-                pt1 = int(x0 + 1000 * (-b)), int(y0 + 1000 * a)
-                pt2 = int(x0 - 1000 * (-b)), int(y0 - 1000 * a)
-                segments.append(Segment((pt1[0], pt1[1], pt2[0], pt2[1]), median))
-                # cv2.line(median, pt1, pt2, (60, 255, 255))
-            # todo find a way to sort if there are too many lines found. run merge as before maybe.
-            for s1 in segments:
-                for s2 in segments:
-                    if s1.horiz != s2.horiz:
-                        # todo store intersections in a dynamic accumulator to build likely positions
-                        # -- use some sort of 4-means clustering to get the 4 corners.
-                        cv2.circle(median, s1.intersection(s2), 4, (50, 255, 255), thickness=2)
-            draw_str(median, 40, median.shape[0] - 40, "hough lines : %d" % len(lines))
-
-
-            # box = cv2.minAreaRect(contours[contid])
-            # box_points = cv2.boxPoints(box)
-            # cv2.line(ghost, point(box_points, 0), point(box_points, 1), color=(255, 0, 0))
-            # cv2.line(ghost, point(box_points, 1), point(box_points, 2), color=(255, 0, 0))
-            # cv2.line(ghost, point(box_points, 2), point(box_points, 3), color=(255, 0, 0))
-            # cv2.line(ghost, point(box_points, 3), point(box_points, 0), color=(255, 0, 0))
-            # draw_str(ghost, 40, ghost.shape[0] - 20, "angle : " + str(box[2]))
-            # cv2.drawContours(ghost, contours, biggest.pos, (255, 255, 255), thickness=1)
-
         found = False
-        self.corners.paint(median)
-        # draw_str(median, 40, median.shape[0] - 20, "Ok" if found else "Looking for board..")
-        self._show(median)
+        if frame_area / 3 < biggest.box_area:
+            segments = self.find_lines(biggest.pos, contours, length_ref, median.shape)
+            self.lines_accu.extend(segments)
+            # accumulate data of 4 images before running analysis
+            if not self.passes % 4:
+                self.group_intersections(length_ref)
+                while 4 < len(self.groups_accu):
+                    prev_length = len(self.groups_accu)
+                    self.merge_groups(length_ref, median)
+                    if len(self.groups_accu) == prev_length:
+                        break  # seems it won't get any better
+                found = self.updt_corners(median)
+
+        if not self.passes % 4:
+            self.corners.paint(median)
+            draw_str(median, 40, median.shape[0] - 20, "Ok" if found else "Looking for board..")
+            self._show(median)
+        self.passes += 1
+        return found
+
+    @staticmethod
+    def find_lines(pos, contours, length_ref, shape):
+        """
+        Use houghlines to find the sides of the contour (the goban hopefully).
+
+        Another method could have been cv2.approxPolyDP(), but it fits the polygon points inside the contour, whereas
+        what is needed here is a nicely fitted "tangent" for each side: the intersection points (corners) are outside
+        the contour most likely (round corners).
+
+        -- pos: the position to use in the list of contours
+        -- contours: the list of contours
+        -- length_ref: a reference used to parametrize thresholds
+        -- the shape of the image in which contours have been found
+
+        """
+        ghost = zeros((shape[0], shape[1]), dtype=uint8)
+        cv2.drawContours(ghost, contours, pos, (255, 255, 255), thickness=1)
+        thresh = int(length_ref / 5)
+        lines = cv2.HoughLines(ghost, 1, pi / 180, threshold=thresh)
+        segments = []
+        for line in lines:
+            rho, theta = line[0]
+            a, b = cos(theta), sin(theta)
+            x0, y0 = a * rho, b * rho
+            pt1 = int(x0 + 1000 * (-b)), int(y0 + 1000 * a)
+            pt2 = int(x0 - 1000 * (-b)), int(y0 - 1000 * a)
+            segments.append(Segment((pt1[0], pt1[1], pt2[0], pt2[1]), ghost))
+        # todo trim if there are too many lines ? merge them maybe ?
+        return segments
+
+    def group_intersections(self, length_ref):
+        """
+        Store tangent intersections into rough groups (connectivity-based clustering idea).
+        The objective is to obtain 4 groups of intersections, providing estimators of the corners
+        location.
+
+        """
+        for s1 in self.lines_accu:
+            for s2 in self.lines_accu:
+                if pi / 3 < s1.angle(s2):
+                    assigned = False
+                    p0 = s1.intersection(s2)
+                    for g in self.groups_accu:
+                        for p1 in g:
+                            # if the two points are close enough, group them
+                            if (p0[0] - p1[0]) ** 2 + (p0[0] - p1[0]) ** 2 < (length_ref / 80) ** 2:
+                                g.append(p0)
+                                assigned = True
+                                break
+                        if assigned:
+                            break
+                    if not assigned:
+                        # create a new group for each lonely point, it may be joined with others later
+                        self.groups_accu.append([p0])
+
+    def merge_groups(self, length_ref, median):
+        """
+        Do one connectivity-based clustering pass on the current groups.
+        This has been implemented quickly and is most likely not the best way to proceed.
+
+        """
+        todel = []
+        toprint = []
+        index = 0
+        for g0 in self.groups_accu:
+            merge = None
+            for p0 in g0:
+                for g1 in self.groups_accu:
+                    if g0 is not g1 and g1 not in todel:
+                        for p1 in g1:
+                            if (p0[0] - p1[0]) ** 2 + (p0[0] - p1[0]) ** 2 < (length_ref / 50) ** 2:
+                                merge = g1
+                                break
+                    if merge: break
+                if merge: break
+            if merge:
+                merge.extend(g0)
+                todel.append(g0)
+                toprint.append(index)
+            index += 1
+        for gdel in todel:
+            self.groups_accu.remove(gdel)
+        if len(toprint):
+            draw_str(median, 40, median.shape[0] - 60, "merged : g%s" % " g".join([str(x) for x in toprint]))
+
+    def updt_corners(self, median):
+        """
+        If 4 groups have been found: compute the mean point of each group and update corners accordingly.
+        In any case clear accumulation structures to prepare for next detection round.
+
+        """
+        found = False
+        if len(self.groups_accu) == 4:
+            found = True
+            self.corners.clear()
+            for g in self.groups_accu:
+                x, y = 0, 0
+                for pt in g:
+                    x += pt[0]
+                    y += pt[1]
+                mean_x = int(x / len(g))
+                mean_y = int(y / len(g))
+                self.corners.add((mean_x, mean_y))
+                # cv2.circle(median, (mean_x, mean_y), 2, (50, 255, 255), thickness=2)
+        draw_str(median, 40, median.shape[0] - 40, "clusters : %d" % len(self.groups_accu))
+        # draw_str(median, 40, median.shape[0] - 20, "lines accum : %d" % len(self.lines_accu))
+        # todo have a rolling cleanup over time ?
+        self.lines_accu.clear()
+        self.groups_accu.clear()
         return found
 
     def perform_undo(self):
+        # todo does "undo" make any sense here ?
         super(BoardFinderAuto, self).perform_undo()
         self.corners.clear()
 
