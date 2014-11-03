@@ -1,13 +1,12 @@
 from bisect import insort
 import random
-
 import cv2
 from math import sin, cos, pi
-import numpy as np
-from numpy import zeros, uint8, float32
+
+from numpy import zeros, uint8, float32, vstack
 
 from camkifu.board.boardfinder import BoardFinder, SegGrid
-from camkifu.core.imgutil import Segment, sort_contours
+from camkifu.core.imgutil import Segment, sort_contours, norm, get_ordered_hull
 
 
 __author__ = 'Arnaud Peloquin'
@@ -170,14 +169,24 @@ class BoardFinderAuto(BoardFinder):
                         x += pt[0]
                         y += pt[1]
                     centers.append((int(x / len(group)), int(y / len(group))))
-                # step 2 : run some final checks on the resulting corners (only minimal side length for now)
+                # step 2 : run some final checks on the resulting corners
                 found = True
-                for i in range(nb_corners):
-                    segment = Segment((centers[i - 1][0], centers[i - 1][1], centers[i][0], centers[i][1]), median)
-                    if segment.norm() < length_ref / 3:
+                centers = get_ordered_hull(centers)  # so that the sides length can be calculated
+                assert len(centers) == 4
+                #   - check 1: each side must be of a certain length
+                for i in range(len(centers)):
+                    if norm(centers[i-1], centers[i]) < length_ref / 3:
                         found = False
                         break
-                if found:
+                #   - check 2: at least one corner must have moved significantly (don't propagate motion due to approx)
+                update = True if self.corners.hull is None else False
+                if found and not update:
+                    for i in range(nb_corners):
+                        # hypothesis : both current and newly detected corners have been spacially sorted
+                        if 5 < norm(centers[i], self.corners.hull[i]):
+                            update = True
+                            break
+                if update:
                     self.corners.clear()
                     for pt in centers:
                         self.corners.add(pt)
@@ -296,8 +305,8 @@ def _least_squares(seg, neighb, valuations):
     p2 = seg.coords[2:4]
     p3 = neighb.coords[0:2]
     p4 = neighb.coords[2:4]
-    ndarray = np.vstack([p1, p2, p3, p4])
-    points = np.float32(ndarray)
+    ndarray = vstack([p1, p2, p3, p4])
+    points = float32(ndarray)
     regression = cv2.fitLine(points, cv2.DIST_L2, 0, 0.01, 0.01)
     error, projections = _error(points, regression)
     insort(valuations, (error, neighb, projections))
@@ -366,15 +375,15 @@ def _error(points, regr):
     x0 = regr[2][0]
     y0 = regr[3][0]
     # column vectors for matrix calculation
-    vect = np.vstack([vx, vy])
-    p0 = np.vstack([x0, y0])
+    vect = vstack([vx, vy])
+    p0 = vstack([x0, y0])
 
     projector = vect.dot(vect.T) / vect.T.dot(vect)  # projection matrix
 
     error = 0
     projections = []
     for point in points:
-        actual = np.vstack([point[0], point[1]])  # make sure we have column vector here as well
+        actual = vstack([point[0], point[1]])  # make sure we have column vector here as well
         projection = projector.dot(actual - p0) + p0
         errvect = actual - projection
         err = errvect.T.dot(errvect)

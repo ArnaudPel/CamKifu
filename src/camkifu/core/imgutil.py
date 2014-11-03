@@ -2,7 +2,7 @@ from bisect import insort
 from math import sqrt, acos, pi
 from sys import float_info, maxsize
 
-from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud
+from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud, vstack
 from numpy.ma import minimum, around
 import cv2
 
@@ -190,11 +190,19 @@ def rgb_histo(img):
     return flipud(h)
 
 
-def order_hull(cvhull):
+def cyclic_permute(cvhull):
     """
-    Re-order the hull points so that:
-        - the first point is the one showing at the upper left on the image.
-        - the points are ordered clockwise.
+    Apply a cyclic permutation to the given hull points, so that the first point is the one showing at
+    the upper left on the image. The overall sequence order of points is not modified.
+
+    -- cvhull : a sequence of points (x, y).
+
+    >>> cyclic_permute([(5, 367), (638, 364), (126, 96), (514, 92)])
+    [(126, 96), (514, 92), (5, 367), (638, 364)]
+    >>> cyclic_permute([(638, 364), (126, 96), (514, 92), (5, 367)])
+    [(126, 96), (514, 92), (5, 367), (638, 364)]
+    >>> cyclic_permute([(126, 96), (638, 364), (514, 92), (5, 367)])
+    [(126, 96), (638, 364), (514, 92), (5, 367)]
 
     """
     hull = []
@@ -212,6 +220,24 @@ def order_hull(cvhull):
     return hull
 
 
+def get_ordered_hull(points):
+    """
+    Return the convex hull of the given points, so that:
+    - the points are ordered clockwise
+    - the first point is the closest to the origin (upper left corner)
+
+    >>> get_ordered_hull([(5, 367), (638, 364), (126, 96), (514, 92)])
+    [(126, 96), (514, 92), (638, 364), (5, 367)]
+    >>> get_ordered_hull([(5, 367), (126, 96), (638, 364), (514, 92)])
+    [(126, 96), (514, 92), (638, 364), (5, 367)]
+    >>> get_ordered_hull([(5, 367), (126, 96), (514, 92), (638, 364)])
+    [(126, 96), (514, 92), (638, 364), (5, 367)]
+
+    """
+    cvhull = cv2.convexHull(vstack(points))
+    return cyclic_permute([x[0] for x in cvhull])
+
+
 def sort_contours(contours):
     """
     Sort contours by increasing bounding-box area.
@@ -225,6 +251,17 @@ def sort_contours(contours):
     for i, cont in enumerate(contours):
         insort(sortedconts, BoundingBox(cont, i))
     return sortedconts
+
+
+def norm(p1, p2):
+    """
+    Return the euclidean norm of the vector defined by points p1 and p2.
+
+    >>> "{:.6f}".format(norm((1, 1), (3, 7)))
+    '6.324555'
+
+    """
+    return sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
 
 
 class BoundingBox(object):
