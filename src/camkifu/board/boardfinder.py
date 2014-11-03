@@ -28,7 +28,8 @@ class BoardFinder(VidProcessor):
         self.last_positive = -1.0  # last time the board was detected
 
     def _doframe(self, frame):
-        if 3 < time() - self.last_positive:
+        last_positive = time() - self.last_positive
+        if 10 < last_positive:  # check for board location 10s after last positive detection
             if self._detect(frame):
                 source = array(self.corners.hull, dtype=float32)
                 dst = array([(0, 0), (csize, 0), (csize, csize), (0, csize)], dtype=float32)
@@ -38,6 +39,10 @@ class BoardFinder(VidProcessor):
                 except cv2.error:
                     print("Please mark a square-like area. The 4 points must form a convex hull.")
                     self.undoflag = True
+        else:
+            self.corners.paint(frame)
+            self.metadata.insert(0, "Last detection {0:.1f}s ago".format(last_positive))
+            self._show(frame)
 
     def _detect(self, frame):
         """
@@ -122,6 +127,7 @@ class GobanCorners():
 
 
 class SegGrid:
+    # todo clear that or actually implement separation on orthogonality (2-means on slope maybe ??).
     """
     A structure that store line segments in two different categories: horizontal and vertical.
     This implementation is not good as it should instead make two categories based on their

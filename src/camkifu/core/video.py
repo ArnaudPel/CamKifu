@@ -39,6 +39,8 @@ class VidProcessor(object):
         self.key = None
         self.latency = 0.0
 
+        self.metadata = []  # data to print on the next image, on element per row
+
     def execute(self):
         """
         Execute the video processing loop. Run until self.interrupt() is called, or if the
@@ -56,6 +58,7 @@ class VidProcessor(object):
             # check if we respect the minimal time period between two iterations
             if self.full_speed or (self.frame_period < start - self.last_read):
                 self.last_read = start
+                # todo provide a before_read() extension point to enable for skipping unnecessary read
                 ret, frame = self.vmanager.capt.read()
                 if ret:
                     do_frame_start = time()
@@ -163,12 +166,19 @@ class VidProcessor(object):
         Print info strings on the image.
 
         """
+        # step 1 : draw default metadata, from the top of image
         percent_progress = int(100 * self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
-        draw_str(img, 40, 20, "video progress {0} %".format(percent_progress))
+        x_offset = 40
+        line_spacing = 20
+        draw_str(img, x_offset, line_spacing, "video progress {0} %".format(percent_progress))
         if latency:
-            draw_str(img, 40, 40, "latency:  %.1f ms" % (self.latency * 1000))
+            draw_str(img, x_offset, 2*line_spacing, "latency:  %.1f ms" % (self.latency * 1000))
         if thread:
-            draw_str(img, 40, 60, "thread : " + current_thread().getName())
+            draw_str(img, x_offset, 3*line_spacing, "thread : " + current_thread().getName())
+        # step 2 : draw custom metadata, from the bottom of image
+        for i, line in enumerate(self.metadata):
+            draw_str(img, x_offset, img.shape[0] - (i+1)*line_spacing, line)
+        self.metadata.clear()
         if self.pausedflag:
             for img in self.own_images.values():
                 draw_str(img, int(img.shape[0] / 2 - 30), int(img.shape[1] / 2), "PAUSED")
