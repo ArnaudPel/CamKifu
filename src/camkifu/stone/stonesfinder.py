@@ -6,7 +6,7 @@ from numpy import zeros, uint8, int16, sum as npsum, empty, ogrid
 from numpy.ma import absolute, empty_like
 
 from camkifu.config.cvconf import canonical_size, sf_loc
-from camkifu.core.imgutil import draw_circles, draw_str, order_hull
+from camkifu.core.imgutil import draw_circles, draw_str, cyclic_permute
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E
 
@@ -181,6 +181,7 @@ class StonesFinder(VidProcessor):
         # todo remove this copy() and leave it to caller
         return img[sx: ex, sy: ey].copy(), (sx, sy, ex, ey)
 
+    # todo see if still needed
     def getmask(self, frame):
         """
         A boolean mask the size of "frame" that has a circle around each goban intersection.
@@ -243,7 +244,8 @@ class StonesFinder(VidProcessor):
         Override to take control of the location of the window of this stonesfinder
 
         """
-        super()._show(img, name, latency, thread, loc=sf_loc)
+        location = sf_loc if loc is None else loc
+        super()._show(img, name, latency, thread, loc=location)
 
 
 def evalz(zone, chan):
@@ -277,7 +279,7 @@ class PosGrid(object):
         start = size / gsize / 2
         end = size - start
 
-        hull = order_hull([(start, start), (end, start), (end, end), (start, end)])
+        hull = cyclic_permute([(start, start), (end, start), (end, end), (start, end)])
         assert len(hull) == 4, "The points expected here are the 4 corners of the grid."
         for i in range(gsize):
             xup = (hull[0][0] * (gsize - 1 - i) + hull[1][0] * i) / (gsize - 1)

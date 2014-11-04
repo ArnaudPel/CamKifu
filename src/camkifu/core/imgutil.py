@@ -238,19 +238,37 @@ def get_ordered_hull(points):
     return cyclic_permute([x[0] for x in cvhull])
 
 
-def sort_contours(contours):
+def _sort_contours(contours, wclass, area_bounds=None):
+    sortedconts = []
+    for i, cont in enumerate(contours):
+        wrapped = wclass(cont, i)
+        if area_bounds is None or area_bounds[0] < wrapped.area < area_bounds[1]:
+            insort(sortedconts, wrapped)
+    return sortedconts
+
+
+def sort_contours_box(contours, area_bounds=None):
     """
     Sort contours by increasing bounding-box area.
     contours -- an iterable, as returned by cv2.findContours()
 
-    Return -- a sorted list of Area objects. The position of each Area object corresponds to
+    Return -- a sorted list of BoundingBox objects. The position of each BB object corresponds to
     the contour's position in the provided iterable.
 
     """
-    sortedconts = []
-    for i, cont in enumerate(contours):
-        insort(sortedconts, BoundingBox(cont, i))
-    return sortedconts
+    return _sort_contours(contours, BoundingBox, area_bounds=area_bounds)
+
+
+def sort_contours_circle(contours, area_bounds=None):
+    """
+    Sort contours by increasing min enclosing-circle area.
+    contours -- an iterable, as returned by cv2.findContours()
+
+    Return -- a sorted list of EnclosingCircle objects. The position of each EC object corresponds to
+    the contour's position in the provided iterable.
+
+    """
+    return _sort_contours(contours, EnclosingCircle, area_bounds=area_bounds)
 
 
 def norm(p1, p2):
@@ -264,6 +282,14 @@ def norm(p1, p2):
     return sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
 
 
+def draw_contours_multicolor(img, contours):
+    for i, contour in enumerate(contours):
+        b = int(255 * (7 - i % 7) / 7)
+        g = int(255 * (i % 5 + 1) / 5)
+        r = int(255 * (3 - i % 3) / 3)
+        cv2.drawContours(img, contours, i, (b, g, r))
+
+
 class BoundingBox(object):
     """
     Wrapper of the bounding rectangle of a contour (rotated to fit), as computed by openCV.
@@ -274,16 +300,31 @@ class BoundingBox(object):
         self.pos = pos  # arbitrary index that can be set to remember position of this contour in a structure
         # self.box = cv2.boundingRect(contour)
         self.box = cv2.minAreaRect(contour)
-        self.box_area = self.box[1][0]*self.box[1][1]
-
-    def __gt__(self, other):
-        return other.box_area < self.box_area
+        self.area = self.box[1][0]*self.box[1][1]
 
     def __lt__(self, other):
-        return self.box_area < other.box_area
+        return self.area < other.area
 
     def __repr__(self):
-        return "{0} pix2".format(self.box_area)
+        return "BoundingBox: {:.2f} square pixels".format(self.area)
+
+
+class EnclosingCircle(object):
+    """
+    Wrapper of the min enclosing circle of a contour, as computed by openCV.
+
+    """
+    def __init__(self, contour, pos):
+        self.contour = contour
+        self.pos = pos
+        self.circle = cv2.minEnclosingCircle(contour)
+        self.area = pi * self.circle[1]**2
+
+    def __lt__(self, other):
+        return self.area < other.area
+
+    def __repr__(self):
+        return "EnclosingCircle: {:.2f} square pixels".format(self.area)
 
 
 class Chunk:

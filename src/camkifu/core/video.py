@@ -110,16 +110,12 @@ class VidProcessor(object):
         if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
             if self.pausedflag:
                 while self.pausedflag:
-                    # re-show last images, in order to re-activate the waitkey()
-                    for name, img in self.own_images.items():
-                        self._show(img, name=name)
                     sleep(0.1)
-                    self.checkkey()
         else:  # supposedly in single-threaded dev mode
             if self.pausedflag:
                 key = None
                 while True:
-                    # repeating the same key resumes processing. other keys are executed as if nothing happened
+                    # repeating the pause key resumes processing. other keys are executed as if nothing happened
                     try:
                         key = chr(cv2.waitKey(500))
                         if key in self.bindings:

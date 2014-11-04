@@ -1,11 +1,11 @@
 from bisect import insort
 from time import time
 
-from numpy import float32, array, vstack
+from numpy import float32, array
 import cv2
 
 from camkifu.config.cvconf import canonical_size as csize, bf_loc
-from camkifu.core.imgutil import draw_circles, draw_lines, order_hull
+from camkifu.core.imgutil import draw_circles, draw_lines, get_ordered_hull
 from camkifu.core.video import VidProcessor
 
 
@@ -41,7 +41,7 @@ class BoardFinder(VidProcessor):
                     self.undoflag = True
         else:
             self.corners.paint(frame)
-            self.metadata.insert(0, "Last detection {0:.1f}s ago".format(last_positive))
+            self.metadata.insert(0, "Last detection {0:d}s ago".format(int(last_positive)))
             self._show(frame)
 
     def _detect(self, frame):
@@ -115,8 +115,7 @@ class GobanCorners():
 
         """
         if 3 < len(self._points):
-            cvhull = cv2.convexHull(vstack(self._points))
-            self.hull = order_hull([x[0] for x in cvhull])
+            self.hull = get_ordered_hull(self._points)
             if len(self.hull) != 4:
                 self.hull = None
         else:
