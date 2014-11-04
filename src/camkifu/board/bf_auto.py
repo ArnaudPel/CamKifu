@@ -1,9 +1,9 @@
 import cv2
 from math import sin, cos, pi
-from numpy import zeros, uint8
+from numpy import zeros, uint8, vstack
 
 from camkifu.board.boardfinder import BoardFinder
-from camkifu.core.imgutil import Segment, sort_contours_box, norm, get_ordered_hull
+from camkifu.core.imgutil import Segment, sort_contours_box, norm, get_ordered_hull, connect_clusters
 
 
 __author__ = 'Arnaud Peloquin'
@@ -47,15 +47,15 @@ class BoardFinderAuto(BoardFinder):
         if frame_area / 3 < biggest.area:
             segments = self.find_lines(biggest.pos, contours, length_ref, median.shape)
             self.lines_accu.extend(segments)
-            # accumulate data of 4 images before running analysis
+            # accumulate data of 4 images before running board detection
             if not self.passes % 4:
                 self.group_intersections(length_ref)
                 while 4 < len(self.groups_accu):
                     prev_length = len(self.groups_accu)
-                    self.merge_groups(length_ref)
+                    connect_clusters(self.groups_accu, (length_ref / 50) ** 2)
                     if len(self.groups_accu) == prev_length:
                         break  # seems it won't get any better
-                found = self.updt_corners(median, length_ref)
+                found = self.updt_corners(length_ref)
 
         if not self.passes % 4:
             self.corners.paint(median)
@@ -119,37 +119,7 @@ class BoardFinderAuto(BoardFinder):
                         # create a new group for each lonely point, it may be joined with others later
                         self.groups_accu.append([p0])
 
-    def merge_groups(self, length_ref):
-        """
-        Do one connectivity-based clustering pass on the current groups.
-        This has been implemented quickly and is most likely not the best way to proceed.
-
-        """
-        todel = []
-        toprint = []
-        index = 0
-        for g0 in self.groups_accu:
-            merge = None
-            for p0 in g0:
-                for g1 in self.groups_accu:
-                    if g0 is not g1 and g1 not in todel:
-                        for p1 in g1:
-                            if (p0[0] - p1[0]) ** 2 + (p0[0] - p1[0]) ** 2 < (length_ref / 50) ** 2:
-                                merge = g1
-                                break
-                    if merge: break
-                if merge: break
-            if merge:
-                merge.extend(g0)
-                todel.append(g0)
-                toprint.append(index)
-            index += 1
-        for gdel in todel:
-            self.groups_accu.remove(gdel)
-        if len(toprint):
-            self.metadata.append("merged : g%s" % " g".join([str(x) for x in toprint]))
-
-    def updt_corners(self, median, length_ref):
+    def updt_corners(self, length_ref):
         """
         If 4 groups have been found: compute the mean point of each group and update corners accordingly.
         In any case clear accumulation structures to prepare for next detection round.
@@ -158,7 +128,7 @@ class BoardFinderAuto(BoardFinder):
         found = False
         nb_corners = 4
         if len(self.groups_accu) == nb_corners:
-                # step 1 : compute mean centers (centers of gravity) of each group
+                # step 1 : compute center of mass of each group
                 centers = []
                 for group in self.groups_accu:
                     x, y = 0, 0
@@ -169,7 +139,6 @@ class BoardFinderAuto(BoardFinder):
                 # step 2 : run some final checks on the resulting corners
                 found = True
                 centers = get_ordered_hull(centers)  # so that the sides length can be calculated
-                assert len(centers) == 4
                 #   - check 1: each side must be of a certain length
                 for i in range(len(centers)):
                     if norm(centers[i-1], centers[i]) < length_ref / 3:
@@ -187,7 +156,6 @@ class BoardFinderAuto(BoardFinder):
                     self.corners.clear()
                     for pt in centers:
                         self.corners.add(pt)
-                        # cv2.circle(median, pt, 2, (50, 255, 255), thickness=2)
         self.metadata.append("clusters : %d" % len(self.groups_accu))
         # self.metadata.append("lines accum : %d" % len(self.lines_accu))
         # todo have a rolling cleanup over time ?

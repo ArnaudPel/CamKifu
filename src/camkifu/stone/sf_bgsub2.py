@@ -2,10 +2,12 @@ from math import pi
 from queue import Empty
 
 import cv2
-from numpy import zeros_like, zeros, uint8, int32, empty, empty_like
+from numpy import zeros_like, zeros, uint8, int32, empty, empty_like, sum as npsum
 from time import time
+import sys
 
-from camkifu.core.imgutil import draw_str, sort_contours_circle, draw_contours_multicolor
+from camkifu.core.imgutil import draw_str, sort_contours_circle, draw_contours_multicolor, connect_clusters, \
+    sort_contours_box
 from golib.model.move import Move
 from camkifu.stone.stonesfinder import StonesFinder, compare, evalz
 from golib.config.golib_conf import gsize, B, W, E
@@ -13,16 +15,16 @@ from golib.config.golib_conf import gsize, B, W, E
 
 __author__ = 'Arnaud Peloquin'
 
-# the number of background sampling frames before trying to detect stones.
-bg_init_number = 25
+# the number of background sampling frames before allowing stones detection (background learning phase).
+bg_learning_frames = 50
 
-# possible states for a BackgroundSub instance :
+# possible states for a BackgroundSub2 instance :
 sampling = "sampling"
-watching = "watching"
+# watching = "watching"
 searching = "searching"
 
-# max number of 'untouched' searches before triggering the 'watching' state
-untouched_threshold = 7
+# number of frames to accumulate before running 'statistics' to find a stone
+accumulation_passes = 7
 
 
 class BackgroundSub2(StonesFinder):
@@ -41,6 +43,8 @@ class BackgroundSub2(StonesFinder):
         self._bg_model = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self._bg_initialization = 0
         self.fg_mask = None
+        self.candidates = []  # candidates for the next added stone
+        self.candid_acc = 0  # the number of frames since last candidate list clear
         self.lastpos = None
 
         self.state = sampling
@@ -79,10 +83,10 @@ class BackgroundSub2(StonesFinder):
             self.fg_mask = zeros((img.shape[0], img.shape[1]), dtype=uint8)
         self._bg_model.apply(img, fgmask=self.fg_mask, learningRate=0.01)
         self._bg_initialization += 1
-        if self._bg_initialization < bg_init_number:
+        if self._bg_initialization < bg_learning_frames:
             black = zeros((img.shape[0], img.shape[1]), dtype=uint8)
             draw_str(black, int(black.shape[0] / 2 - 70), int(black.shape[1] / 2),
-                     "SAMPLING ({0}/{1})".format(self._bg_initialization, bg_init_number))
+                     "SAMPLING ({0}/{1})".format(self._bg_initialization, bg_learning_frames))
             self._show(black)
             return False
         return True
@@ -92,50 +96,56 @@ class BackgroundSub2(StonesFinder):
         Try to detect stones by comparing against (cached) background colors.
 
         """
+        expected_radius = max(*img.shape) / gsize / 2  # the approximation of the radius of a stone, in pixels
+
         # todo read paper about MOG2, in order to know how to use it properly here
-        if not self.total_f_processed % 4:
-            pos = None
-            color = E
-            fg = self._bg_model.apply(img, fgmask=self.fg_mask, learningRate=0.01)
-            ret, fg = cv2.threshold(fg, 254, 255, cv2.THRESH_BINARY)
-            self.metadata.insert(0, "state : " + self.state)
-            self.metadata.append("frames : %d" % self.total_f_processed)
+        learn = 0 if self.total_f_processed % 5 else 0.01
+        fg = self._bg_model.apply(img, fgmask=self.fg_mask, learningRate=learn)
+        sorted_conts, contours = self.extract_contours(fg, expected_radius)
 
-            # try to remove some pollution to keep nice blobs
-            smoothed = fg.copy()
-            passes = 3
-            for i in range(passes):
-                cv2.erode(smoothed, (5, 5), dst=smoothed)
-            # for i in range(max(int(passes/2), 1)):
-            #     cv2.dilate(smoothed, (5, 5), dst=smoothed)
-            # smoothed = cv2.morphologyEx(fg, cv2.MORPH_OPEN, (5, 5))
-            # smoothed = cv2.morphologyEx(smoothed, cv2.MORPH_OPEN, (5, 5))
-            # smoothed = cv2.morphologyEx(smoothed, cv2.MORPH_OPEN, (5, 5))
+        # search for a contour that could be a new stone
+        # colors = zeros_like(img)
+        # draw_contours_multicolor(colors, contours)
 
-            prepared = cv2.Canny(smoothed, 25, 75)
-            _, contours, hierarchy = cv2.findContours(prepared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            expected_radius = max(*img.shape) / (2*gsize)
-            min_area = pi * (expected_radius/1.5)**2
-            max_area = pi * (expected_radius*1.5)**2
-            # sorted_conts = sort_contours_circle(contours)
-            sorted_conts = sort_contours_circle(contours, area_bounds=(min_area, max_area))
-            # colors = zeros_like(img)
-            # draw_contours_multicolor(colors, contours)
-            for wrapper in sorted_conts:
-                c = int(wrapper.circle[0][0]), int(wrapper.circle[0][1])
-                cv2.circle(img, c, int(wrapper.circle[1]), (0, 0, 255), thickness=2)
+        for wrapper in sorted_conts:
+            if 2 / 3 < wrapper.box[1][0] / wrapper.box[1][1] < 3 / 2:
+                ghost = zeros((img.shape[0], img.shape[1]), dtype=uint8)
+                box = cv2.boxPoints(wrapper.box, points=zeros((4, 2), dtype=uint8))
+                cv2.fillConvexPoly(ghost, box.astype(int32), color=(1, 1, 1))
+                ghost *= fg / 255
+                percent = npsum(ghost) / wrapper.area * 100
+                # cv2.drawContours(colors, contours, wrapper.pos, color=(255, 255, 255), thickness=-1)
 
-            # self._show(fg, name="Foreground", loc=(800, 600))
-            # self._show(prepared, name="SF-Canny", loc=(800, 600))
-            self._show(img, loc=(1200, 600))
-            if pos is not None:
-                if self.lastpos == pos:
-                    self.suggest(Move("cv", ctuple=(color, pos[0], pos[1])))
-                    self.state = sampling
-                else:
-                    self.lastpos = pos
-            else:
-                self.nb_untouched += 1
+                # finally display contours accepted as candidates
+                if 80 < percent:
+                    c = int(sum([pt[0] for pt in box]) / len(box)), int(sum([pt[1] for pt in box]) / len(box))
+                    cv2.circle(img, c, int(expected_radius), (0, 0, 255), thickness=2)
+
+        self.metadata.insert(0, "frames : {0}".format(self.total_f_processed))
+        # self.metadata.append("len(candidates): %d" % len(self.candidates))
+        if self.lastpos is not None:
+            cv2.circle(img, self.lastpos, int(expected_radius), (0, 0, 255))
+        self._show(img, loc=(1200, 600))
+
+    @staticmethod
+    def extract_contours(fg, expected_radius):
+        """
+        Extracts contours from the foreground mask that could correspond to a stone.
+        Contours are sorted by enclosing circle area ascending.
+
+        """
+        ret, fg_noshad = cv2.threshold(fg, 254, 255, cv2.THRESH_BINARY)  # discard the shadows (in grey)
+        # try to remove some pollution to keep nice blobs
+        smoothed = fg_noshad.copy()
+        passes = 3
+        for i in range(passes):
+            cv2.erode(smoothed, (5, 5), dst=smoothed)
+        prepared = cv2.Canny(smoothed, 25, 75)
+        _, contours, hierarchy = cv2.findContours(prepared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        min_area = (4/3 * expected_radius) ** 2
+        max_area = (3 * expected_radius) ** 2
+        sorted_conts = sort_contours_box(contours, area_bounds=(min_area, max_area))
+        return sorted_conts, contours
 
     def _window_name(self):
         return BackgroundSub2.label

@@ -71,6 +71,33 @@ def split_sq(img, nbsplits=5, offset=False):
             yield Chunk(hchunk.x + vchunk.x, hchunk.y + vchunk.y, vchunk.mat, img)
 
 
+def connect_clusters(groups, dist):
+    """
+    Do one connectivity-based clustering pass: merge groups from which at least one couple of points
+    is closer than 'dist' (the groups are separated by less than dist).
+
+    This has been implemented quickly and is most likely not the best way to proceed.
+
+    """
+    todel = []
+    for g0 in groups:
+        merge = None
+        for p0 in g0:
+            for g1 in groups:
+                if g0 is not g1 and g1 not in todel:
+                    for p1 in g1:
+                        if (p0[0] - p1[0]) ** 2 + (p0[0] - p1[0]) ** 2 < dist:
+                            merge = g1
+                            break
+                if merge: break
+            if merge: break
+        if merge:
+            merge.extend(g0)
+            todel.append(g0)
+    for gdel in todel:
+        groups.remove(gdel)
+
+
 def draw_circles(img, centers, color=(0, 0, 255), radius=5, thickness=1):
     for point in centers:
         if isinstance(point, ndarray) and point.shape == (1, 2):  # vertical points
