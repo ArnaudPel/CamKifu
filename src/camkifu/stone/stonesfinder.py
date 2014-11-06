@@ -86,6 +86,13 @@ class StonesFinder(VidProcessor):
         except Full:
             print("Corrections queue full (%s), ignoring %s -> %s" % (correc_size, str(err_move), str(exp_move)))
 
+    def is_empty(self, x, y):
+        """
+        Return true if the (x, y) goban position is empty (color = E).
+
+        """
+        return self.vmanager.controller.rules[y][x] == E
+
     def empties(self):
         """
         Yields the unoccupied positions of the goban in naive order.
@@ -258,8 +265,8 @@ def compare(reference, current):
     Return a distance between the two colors. The value is positive if current is
     brighter than the reference, and negative otherwise.
 
-    reference -- a vector
-    current -- a vector of same length as reference.
+    reference -- a vector, usually of shape (3, 1)
+    current -- a vector of same shape as reference.
 
     """
     sign = 1 if npsum(reference) <= npsum(current) else -1
@@ -271,9 +278,12 @@ class PosGrid(object):
     Store the location of each intersection of the goban.
     Can be extended to provide an evolutive version that can learn on the flight.
 
+    -- size : the length in pixels of one side of the goban canonical frame (supposed to be a square for now).
+
     """
 
     def __init__(self, size):
+        self.size = size
         self.pos = zeros((gsize, gsize, 2), dtype=int16)
         # the 2 lines below would benefit from some sort of automation
         start = size / gsize / 2
@@ -286,13 +296,44 @@ class PosGrid(object):
             xdown = (hull[3][0] * (gsize - 1 - i) + hull[2][0] * i) / (gsize - 1)
             for j in range(gsize):
                 self[i][j][0] = (xup * (gsize - 1 - j) + xdown * j) / (gsize - 1)
-
                 yleft = (hull[0][1] * (gsize - 1 - j) + hull[3][1] * j) / (gsize - 1)
                 yright = (hull[1][1] * (gsize - 1 - j) + hull[2][1] * j) / (gsize - 1)
                 self[i][j][1] = (yleft * (gsize - 1 - i) + yright * i) / (gsize - 1)
+
+    def get_intersection(self, point):
+        """
+        Return the closest intersection from the given (x,y) point.
+        Note : point coordinates are given in image coordinates frame (opencv, numpy), and this method will
+        return the converted numbers as (y, x), to be ready for the goban.
+
+        """
+        # to update with a more complex search when the grid is updated dynamically
+        return int(point[1] / self.size * gsize), int(point[0] / self.size * gsize)
 
     def __getitem__(self, item):
         return self.pos.__getitem__(item)
 
     def __getslice__(self, i, j):
         return self.pos.__getslice__(i, j)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
