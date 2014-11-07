@@ -3,7 +3,7 @@ from queue import Empty
 
 import cv2
 from numpy import zeros_like, zeros, uint8, int32, float32, empty, empty_like, sum as npsum, array, max as npmax,\
-    min as npmin, mean as npmean
+    min as npmin, mean as npmean, nditer
 from numpy.ma import absolute
 from time import time
 import sys
@@ -49,7 +49,7 @@ class BackgroundSub2(StonesFinder):
         self.candid_acc = 0  # the number of frames since last candidate list clear
 
         self.intersections = zeros((19, 19), dtype=object)  # keep track of intersections that have been moving
-        self.lastpos = None
+        self.triggered = []
 
         self.state = sampling
         self.nb_untouched = 0  # the number of successive searches that detected no motion at all
@@ -101,10 +101,17 @@ class BackgroundSub2(StonesFinder):
     def get_intersection(self, x, y):
         inter = self.intersections[x][y]
         if inter == 0:
-            # see numpy.vectorize(Intersection) to instanciate a full grid of objects
-            inter = Intersection()
+            inter = IntersectionTrigger(x, y)
             self.intersections[x][y] = inter
         return inter
+
+    @staticmethod
+    def debug_check_diff(diff):
+        # todo remove after a while
+        if not -255 <= npmin(diff):
+            raise AssertionError("Expected -255 <= diff but min value is %d" % npmin(diff))
+        if not npmax(diff) <= 255:
+            raise AssertionError("Expected diff <= 255 but max value is %d" % npmax(diff))
 
     def search(self, img):
         """
@@ -121,41 +128,54 @@ class BackgroundSub2(StonesFinder):
         # colors = zeros_like(img)
         # draw_contours_multicolor(colors, contours)
 
+        global_diff = (img.astype(float32) - self.background)
+
+        #  STEP ONE: TRIGGERS
         # search for a contour that could be a new stone. the unlikely areas have been trimmed already.
-        # roi_mask = zeros_like(img)  # regions of interest
         for wrapper in sorted_conts:
             # todo extract constraint-checking methods so that they can be re-ordered, and also just to clean the code
             # the bounding box must be a rough square
             if 2 / 3 < wrapper.box[1][0] / wrapper.box[1][1] < 3 / 2:
-                ghost = zeros((img.shape[0], img.shape[1]), dtype=uint8)  # todo optimize if it lives on
                 box = cv2.boxPoints(wrapper.box, points=zeros((4, 2), dtype=uint8))
-                cv2.fillConvexPoly(ghost, box.astype(int32), color=(1, 1, 1))
-                ghost *= fg / 255
                 # cv2.drawContours(colors, contours8, wrapper.pos, color=(255, 255, 255), thickness=-1)
 
-                # the foreground pixels inside the bounding box must be at least 80% non zero
-                if 0.8 < npsum(ghost) / wrapper.area:
-                    c = int(sum([pt[0] for pt in box]) / len(box)), int(sum([pt[1] for pt in box]) / len(box))
-                    cv2.circle(img, c, int(expected_radius), (0, 0, 255), thickness=2)
-                    # cv2.fillConvexPoly(roi_mask, box.astype(int32), color=(1, 1, 1))
-                    diff = absolute(img.astype(float32) - self.background) * ghost[:, :, None].astype(float32)
-                    if not 0 <= npmin(diff):
-                        raise AssertionError("Expected 0 <= diff but min value is %d" % npmin(diff))
-                    if not npmax(diff) <= 255:
-                        raise AssertionError("Expected diff <= 255 but max value is %d" % npmax(diff))
-                    sign = 1 if npsum(self.background*ghost[:, :, None]) < npsum(img*ghost[:, :, None]) else -1
-                    meand = sign * npsum(diff) / wrapper.area
-                    if 100 < abs(meand):
-                        x, y = self._posgrid.get_intersection(c)
-                        if self.is_empty(x, y):
+                # get the center of the box to determine which intersection of the goban has been triggered
+                x_mass = int(sum([pt[0] for pt in box]) / len(box))
+                y_mass = int(sum([pt[1] for pt in box]) / len(box))
+                box_center = x_mass, y_mass
+                x, y = self._posgrid.get_intersection(box_center)  # the related intersection of the goban
+
+                if self.is_empty(x, y):
+                    box_mask = zeros((img.shape[0], img.shape[1]), dtype=uint8)  # todo optimize if it lives on
+                    cv2.fillConvexPoly(box_mask, box.astype(int32), color=(1, 1, 1))
+                    box_mask *= fg / 255
+                    # the foreground pixels inside the bounding box must be at least 80% non-zero
+                    if 0.8 < npsum(box_mask) / wrapper.area:
+                        cv2.circle(img, box_center, int(expected_radius), (0, 0, 255), thickness=2)
+                        box_mask3d = box_mask.astype(float32)[:, :, None]
+                        diff = global_diff * box_mask3d
+                        self.debug_check_diff(diff)
+                        meand = get_meand(diff, wrapper.area)
+                        if 100 < abs(meand):
                             inter = self.get_intersection(x, y)
-                            inter.cleanup(self.total_f_processed - 15)
-                            move = (B if meand < 0 else W, x, y)
-                            inter.append(self.total_f_processed, move)
-                            if inter.is_positive():
-                                self.suggest(Move("cv", ctuple=move))
+                            inter.trigger(meand, self.total_f_processed, box_mask3d, wrapper.area)
+
+        # STEP 2: FOLLOW-UP
+        nb_active = 0
+        for x in range(gsize):
+            for y in range(gsize):
+                inter = self.intersections[x][y]
+                if inter != 0:
+                    inter.submit(global_diff, self.total_f_processed)
+                    if len(inter.history):   # todo remove debug
+                        nb_active += 1
+                    move = inter.is_positive()
+                    if move is not None:
+                        self.suggest(move)
+                        self.intersections[x][y] = 0  # todo find a cleaner way to park occupied intersections
 
         self.metadata.insert(0, "frames : {0}".format(self.total_f_processed))
+        self.metadata.append("active intersections : {}".format(nb_active))
         # self.metadata.append("len(candidates): %d" % len(self.candidates))
         # if self.lastpos is not None:
         #     cv2.circle(img, self.lastpos, int(expected_radius), (0, 0, 255))
@@ -185,7 +205,73 @@ class BackgroundSub2(StonesFinder):
         return BackgroundSub2.label
 
 
-class Intersection():
+def get_meand(diff, norm):
+    sign = - 1 if npsum(diff) < 0 else 1
+    return sign * npsum(absolute(diff)) / norm
+
+
+class IntersectionTrigger():
+
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+        self.mask = None  # the mask defining the image region of the last trigger
+        self.norm = None  # the norm of the image region of the last trigger (eg. its area)
+        self.history = []
+        self.memorize = 7  # number of frames after the last trigger submissions are accepted
+
+    def trigger(self, meand, frame_nr, mask, norm):
+        """
+        To be called when the foreground has identified this intersection as a likely stone.
+
+        """
+        self.mask = mask
+        self.norm = norm
+        self.history.append((frame_nr, meand, True))
+
+    def submit(self, diff_img, frame_nr):
+        """
+        To be called after the foreground has identified this intersection as a likely stone. ('after' meaning the
+        next frame and on).
+
+        """
+        self.forget(frame_nr)
+        if len(self.history):
+            last_entry = self.history[-1]
+            if last_entry[0] != frame_nr:
+                meand = get_meand(diff_img * self.mask, self.norm)
+                # cv2.imwrite("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/intersection zone.png", diff_img * self.mask)
+                # sys.exit(42)
+                self.history.append((frame_nr, meand, False))
+            elif not last_entry[2]:  # if the last entry is not a trigger
+                raise ValueError("Submitted same frame twice to IntersectionTrigger")
+
+    def forget(self, frame_nr):
+        if len(self.history):
+            while self.history[0][0] < frame_nr - self.memorize:
+                self.history.pop(0)  # remove entries that are too old
+            i = 0
+            while i < len(self.history) and not self.history[i][2]:
+                # delete non-trigger entries at beginning of the list if any
+                i += 1
+            self.history = self.history[i:]  # assume the list is sorted asc, and keep only the last part
+
+    def is_positive(self):
+        # if the sample has been run to its full possible extent, check conditions
+        if self.memorize <= len(self.history):
+            trig = 0
+            for entry in self.history:
+                if entry[2]:
+                    trig += 1
+                    if 2 < trig:
+                        meand = npmean([x[1] for x in self.history])
+                        print("meand: {}".format(meand))  # todo remove debug
+                        if meand < -100 or 120 < (meand):
+                            return Move('cv', ctuple=(B if meand < 0 else W, self.x, self.y))
+                        break
+        return None
+
+
+class IntersectionHisto():
 
     def __init__(self):
         self.history = []  # the results of foreground analysis for this intersection over time
@@ -208,7 +294,7 @@ class Intersection():
         i = 0
         while i < len(self.history) and self.history[i][0] < oldest_f:
             i += 1
-        self.history = self.history[i:]  # assume the list is sorted, and keep only the last up-to-date part
+        self.history = self.history[i:]  # assume the list is sorted asc, and keep only the last up-to-date part
 
     def clear(self):
         self.history.clear()
