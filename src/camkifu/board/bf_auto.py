@@ -59,7 +59,7 @@ class BoardFinderAuto(BoardFinder):
 
         if not self.passes % 4:
             self.corners.paint(median)
-            self.metadata.insert(0, "Board found" if found else "Looking for board..")
+            self.metadata["Board  : {}"] = "found" if found else "searching"
             self._show(median)
         self.passes += 1
         return found
@@ -155,18 +155,13 @@ class BoardFinderAuto(BoardFinder):
                 if update:
                     self.corners.clear()
                     for pt in centers:
-                        self.corners.add(pt)
-        self.metadata.append("clusters : %d" % len(self.groups_accu))
+                        self.corners.submit(pt)
+        self.metadata["Clusters : {}"].append(len(self.groups_accu))
         # self.metadata.append("lines accum : %d" % len(self.lines_accu))
         # todo have a rolling cleanup over time ?
         self.lines_accu.clear()
         self.groups_accu.clear()
         return found
-
-    def perform_undo(self):
-        # todo does "undo" make any sense here ?
-        super(BoardFinderAuto, self).perform_undo()
-        self.corners.clear()
 
     def _window_name(self):
         return "Board Finder Auto"

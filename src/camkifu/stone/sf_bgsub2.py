@@ -67,7 +67,6 @@ class BackgroundSub2(StonesFinder):
             self.search(filtered)
             self.last_on = time()
         self.total_f_processed += 1
-        # self._show(filtered)
 
     def _learn(self):
         try:
@@ -174,8 +173,8 @@ class BackgroundSub2(StonesFinder):
                         self.suggest(move)
                         self.intersections[x][y] = 0  # todo find a cleaner way to park occupied intersections
 
-        self.metadata.insert(0, "frames : {0}".format(self.total_f_processed))
-        self.metadata.append("active intersections : {}".format(nb_active))
+        self.metadata["frames : {}"] = self.total_f_processed
+        self.metadata["active intersections : {}"].append(nb_active)
         # self.metadata.append("len(candidates): %d" % len(self.candidates))
         # if self.lastpos is not None:
         #     cv2.circle(img, self.lastpos, int(expected_radius), (0, 0, 255))

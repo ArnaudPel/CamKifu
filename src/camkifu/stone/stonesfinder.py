@@ -246,13 +246,13 @@ class StonesFinder(VidProcessor):
                 x, y = self._posgrid[row, col]
                 draw_str(img, x - 10, y + 2, str(values[row, col]))
 
-    def _show(self, img, name=None, latency=True, thread=False, loc=None):
+    def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
         """
         Override to take control of the location of the window of this stonesfinder
 
         """
         location = sf_loc if loc is None else loc
-        super()._show(img, name, latency, thread, loc=location)
+        super()._show(img, name, latency, thread, loc=location, max_frequ=max_frequ)
 
 
 def evalz(zone, chan):

@@ -2,6 +2,7 @@ from threading import Thread
 from time import sleep
 
 from CkMain import get_argparser
+from camkifu.board.bf_manual import BoardFinderManual
 from camkifu.config.cvconf import bfinders, sfinders
 from camkifu.core.vmanager import VManagerBase
 from golib.gui.controller import ControllerBase
@@ -51,41 +52,58 @@ class VManagerSeq(VManagerBase):
 
     """
 
+    states = ("board detection", "stones detection", "stop")
+
     def __init__(self, controller=None):
         super(VManagerSeq, self).__init__(controller)
+        self.state = VManagerSeq.states[0]
         self.current_proc = None
+        self.bf_locked = False  # special flag for board finder manual which has to be kept running in some situations
+
+    def init_bf(self):
+        self.board_finder = bfinders[0](self)
+        self.board_finder.bindings['o'] = self.unlock_bf
+        self.board_finder.bindings['q'] = self.stop_processing
+
+    def init_sf(self):
+        self.stones_finder = sfinders[0](self)
+        self.stones_finder.bindings['z'] = self.goto_detect
+        self.stones_finder.bindings['q'] = self.stop_processing
+
+    def goto_detect(self):
+        print("requesting return to board detection state")
+        self.state = VManagerSeq.states[0]
+        # special for manual board finder : it must not be killed although it has got a board location, to allow for
+        # user to correct as many points as needed. See self.init_bf() for the key binding giving the 'ok' signal.
+        self.bf_locked = isinstance(self.board_finder, BoardFinderManual)
+        self.stones_finder.interrupt()
+
+    def unlock_bf(self):
+        self.bf_locked = False
 
     def run(self):
         self.init_capt()
-        self.board_finder = bfinders[0](self)
-        self.stones_finder = sfinders[0](self)
-
-        states = ("board detection", "stones detection")
-        state = states[0]
-
+        self.init_bf()
+        self.init_sf()
         while True:
-
-            if state == states[0]:
+            if self.state == VManagerSeq.states[0]:
                 self.current_proc = self.board_finder
-                ProcessKiller(self.board_finder, lambda: self.board_finder.mtx is not None).start()
+                stop_condition = lambda: not self.bf_locked and self.board_finder.mtx is not None
+                ProcessKiller(self.board_finder, stop_condition).start()
                 self.board_finder.execute()
-                if self.board_finder.mtx is not None:
-                    state = states[1]
+                if self.state == VManagerSeq.states[0] and self.board_finder.mtx is not None:
+                    self.state = VManagerSeq.states[1]
                 else:
                     break
-
-            elif state == states[1]:
+            elif self.state == VManagerSeq.states[1]:
                 self.current_proc = self.stones_finder
                 self.stones_finder.execute()
-                if self.stones_finder.undoflag:
-                    self.board_finder.perform_undo()
-                    state = states[0]
-                    self.stones_finder.undoflag = False
-                else:
-                    break
+            else:
+                break
 
     def stop_processing(self):
         print("requesting {0} exit.".format(self.current_proc.__class__.__name__))
+        self.state = VManagerSeq.states[2]
         self.current_proc.interrupt()
 
 

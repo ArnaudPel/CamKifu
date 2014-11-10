@@ -1,3 +1,4 @@
+from collections import defaultdict
 from queue import Full
 from threading import current_thread, Thread
 from time import sleep, time
@@ -30,16 +31,23 @@ class VidProcessor(object):
         self.full_speed = False  # whether to respect the frame period or not
         self.last_read = 0.0  # gives the instant of the last image processing start (in seconds).
 
-        self.undoflag = False  # todo move that down to ManualBoardFinder ?
-
         self._interruptflag = False
         self.pausedflag = False
 
-        self.bindings = {'p': self.pause, 'q': self.interrupt, 'z': self.undo}
+        self.bindings = {'p': self.pause, 'q': self.interrupt}
         self.key = None
         self.latency = 0.0
 
-        self.metadata = []  # data to print on the next image, on element per row
+        # Tkinter and openCV must cohabit on the main thread to display things.
+        # If this main thread is too crammed with openCV showing images, bad things start to happen
+        # The variables below help relieving the main thread by not showing all images requested.
+        self.last_shown = 0  # the last time an image has been shown for this VidProcessor
+        self.ignored_show = 0  # the number of images ignored since last_shown
+
+        # metadata to print on the next image.
+        # the structure is a dict because some images may not be shown, so data may have to be aggregated / overwritten
+        # usage : for k, v in self.metadata.items(): k.format(v)  --  one key per row
+        self.metadata = defaultdict(list)
 
     def execute(self):
         """
@@ -154,10 +162,7 @@ class VidProcessor(object):
             pass  # not interested in non-char keys ATM
         self.key = None
 
-    def undo(self):
-        self.undoflag = True
-
-    def draw_metadata(self, img, latency, thread):
+    def _draw_metadata(self, img, latency, thread):
         """
         Print info strings on the image.
 
@@ -167,34 +172,50 @@ class VidProcessor(object):
         x_offset = 40
         line_spacing = 20
         draw_str(img, x_offset, line_spacing, "video progress {0} %".format(percent_progress))
+        draw_str(img, x_offset, 2*line_spacing, "images not shown:  %d" % self.ignored_show)
         if latency:
-            draw_str(img, x_offset, 2*line_spacing, "latency:  %.1f ms" % (self.latency * 1000))
+            draw_str(img, x_offset, 3*line_spacing, "latency:  %.1f ms" % (self.latency * 1000))
         if thread:
-            draw_str(img, x_offset, 3*line_spacing, "thread : " + current_thread().getName())
+            draw_str(img, x_offset, 4*line_spacing, "thread : " + current_thread().getName())
         # step 2 : draw custom metadata, from the bottom of image
-        for i, line in enumerate(self.metadata):
-            draw_str(img, x_offset, img.shape[0] - (i+1)*line_spacing, line)
+        i = 0
+        for k, v in self.metadata.items():
+            draw_str(img, x_offset, img.shape[0] - (i+1)*line_spacing, k.format(v))
+            i += 1
         self.metadata.clear()
         if self.pausedflag:
             for img in self.own_images.values():
                 draw_str(img, int(img.shape[0] / 2 - 30), int(img.shape[1] / 2), "PAUSED")
 
-    def _show(self, img, name=None, latency=True, thread=False, loc=None):
+    def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
         """
         Offer the image to the main thread for display.
 
+        -- name : None lets the default name to be used (as per self._window_name()). One different window per name.
+        -- thread : print current thread name on the image
+        -- loc : the location of the window on the screen
+        -- max_frequ : the max number of images displayed per second, when running with GUI (otherwise ignored).
+
         """
-        self.draw_metadata(img, latency, thread)
-        try:
-            if name is None:
-                name = self._window_name()
-            if self.vmanager.imqueue is not None:
-                self.vmanager.imqueue.put_nowait((name, img, self, loc))
+        if name is None:
+            name = self._window_name()
+        if self.vmanager.imqueue is not None:
+            if 1 / max_frequ < time() - self.last_shown:
+                self._draw_metadata(img, latency, thread)
+                try:
+                    self.vmanager.imqueue.put_nowait((name, img, self, loc))
+                    self.own_images[name] = img
+                    self.ignored_show = 0
+                    self.last_shown = time()
+                except Full:
+                    self.ignored_show += 1
+                    print("Image queue full, not showing {0}".format(hex(id(img))))
             else:
-                show(img, name=name, loc=loc)  # assume we are on main thread
+                self.ignored_show += 1
+        else:
+            self._draw_metadata(img, latency, thread)
+            show(img, name=name, loc=loc)  # assume we are on main thread
             self.own_images[name] = img
-        except Full:
-            print("Image queue full, not showing {0}".format(hex(id(img))))
 
     def _window_name(self):
         """

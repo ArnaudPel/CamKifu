@@ -13,7 +13,6 @@ __author__ = 'Arnaud Peloquin'
 class BoardFinderManual(BoardFinder):
     """
     Let the user indicate the corners of the Goban manually, by clicking on each of them.
-    Press 'z' to undo one click.
 
     """
 
@@ -31,17 +30,15 @@ class BoardFinderManual(BoardFinder):
         try:
             np_file = np.load(gobanloc_npz)
             for p in np_file["location"]:
-                self.corners.add(p)
+                self.corners.submit(p)
             self.manual_found = True
         except IOError or TypeError:
             pass
 
     def _detect(self, frame):
-        if self.undoflag:
-            self.perform_undo()
+        cv2.setMouseCallback(self._window_name(), self.onmouse)
         if not self.manual_found:
             self._lockpos()
-            cv2.setMouseCallback(self._window_name(), self.onmouse)
             detected = False
         else:
             self._unlockpos()
@@ -68,25 +65,14 @@ class BoardFinderManual(BoardFinder):
         """
         self.capture_pos = None
 
-    #noinspection PyUnusedLocal
     def onmouse(self, event, x, y, flag, param):
-        # todo instead of forcing a particular order : make each click relocate the related point
-        #   (the closest most likely, maybe also into account the cardinal location in the image)
-        #   thus no need for cumbersome "undo" scheme
-        if event == cv2.EVENT_LBUTTONDOWN and not self.corners.ready():
-            self.corners.add((x, y))
-            if self.corners.ready():
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.corners.submit((x, y))
+            if self.corners.is_ready():
+                self.last_positive = 0  # update transform matrix as soon as possible
                 self.manual_found = True
+                # noinspection PyUnusedLocal, PyProtectedMember
                 np.savez(gobanloc_npz, location=self.corners._points)
-
-    def perform_undo(self):
-        super(BoardFinderManual, self).perform_undo()
-        self.manual_found = False
-        self.corners.pop()
-        try:
-            os.remove(gobanloc_npz)
-        except OSError:
-            pass
 
     def _window_name(self):
         return "Manual Grid Detection"

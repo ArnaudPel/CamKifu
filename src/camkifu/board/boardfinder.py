@@ -3,9 +3,10 @@ from time import time
 
 from numpy import float32, array
 import cv2
+import sys
 
 from camkifu.config.cvconf import canonical_size as csize, bf_loc
-from camkifu.core.imgutil import draw_circles, draw_lines, get_ordered_hull
+from camkifu.core.imgutil import draw_circles, draw_lines, get_ordered_hull, norm
 from camkifu.core.video import VidProcessor
 
 
@@ -29,7 +30,7 @@ class BoardFinder(VidProcessor):
 
     def _doframe(self, frame):
         last_positive = time() - self.last_positive
-        if 10 < last_positive:  # check for board location 10s after last positive detection
+        if 10 < last_positive:  # re-run board location search 10s after last positive detection
             if self._detect(frame):
                 source = array(self.corners.hull, dtype=float32)
                 dst = array([(0, 0), (csize, 0), (csize, csize), (0, csize)], dtype=float32)
@@ -37,11 +38,11 @@ class BoardFinder(VidProcessor):
                     self.mtx = cv2.getPerspectiveTransform(source, dst)
                     self.last_positive = time()
                 except cv2.error:
+                    self.mtx = None  # the stones finder must stop
                     print("Please mark a square-like area. The 4 points must form a convex hull.")
-                    self.undoflag = True
         else:
             self.corners.paint(frame)
-            self.metadata.insert(0, "Last detection {0:d}s ago".format(int(last_positive)))
+            self.metadata["Last detection {}s ago"] = int(last_positive)
             self._show(frame)
 
     def _detect(self, frame):
@@ -52,16 +53,12 @@ class BoardFinder(VidProcessor):
         """
         raise NotImplementedError("Abstract method meant to be extended")
 
-    def perform_undo(self):
-        self.mtx = None
-        self.undoflag = False
-
-    def _show(self, img, name=None, latency=True, thread=False, loc=None):
+    def _show(self, img, name=None, latency=True, thread=False, loc=None, max_freq=2):
         """
         Override to take control of the location of the window of this boardfinder
 
         """
-        super()._show(img, name, latency, thread, loc=bf_loc)
+        super()._show(img, name, latency, thread, loc=bf_loc, max_frequ=max_freq)
 
 
 class GobanCorners():
@@ -78,11 +75,22 @@ class GobanCorners():
         else:
             self._points = []
 
-    def ready(self):
+    def is_ready(self):
         return self.hull is not None
 
-    def add(self, point):
-        self._points.append(point)
+    def submit(self, point):
+        """
+        Add the point if less than 4 have been provided, otherwise correct the closest point.
+
+        """
+        if len(self._points) < 4:
+            self._points.append(point)
+        else:
+            closest = (sys.maxsize, None)  # (distance, index_in_list)
+            for i, pt in enumerate(self._points):
+                if norm(pt, point) < closest[0]:
+                    closest = (norm(pt, point), i)
+            self._points[closest[1]] = point
         self._check()
 
     def pop(self):

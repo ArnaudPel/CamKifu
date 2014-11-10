@@ -66,7 +66,7 @@ class BackgroundSub(StonesFinder):
                 self.watch(filtered)
             # self._drawgrid(filtered)
         self.last_on = time()
-        self.metadata.insert(0, "state : " + self.state)
+        self.metadata["state : {}"] = self.state
         self._show(filtered)
 
     def _learn(self):

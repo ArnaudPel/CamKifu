@@ -36,17 +36,20 @@ class VManagerBase(Thread):
         """
         if self.capt is not None:
             self.capt.release()
-        #noinspection PyArgumentList
-        self.capt = cv2.VideoCapture(self.controller.video)
-        if isfile(self.controller.video):
-            self.capt = FileCaptureWrapper(self.capt)
-            self.full_speed = True
-        else:
-            self.full_speed = False
+        self.capt = self._get_capture()
+        self.full_speed = isfile(self.controller.video)
         self.current_video = self.controller.video
 
         # set the beginning of video files. is ignored by live camera
         self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
+
+    def _get_capture(self):
+        """
+        Return the proper video capture object for this vmanager. Extension point.
+
+        """
+        #noinspection PyArgumentList
+        return cv2.VideoCapture(self.controller.video)
 
     def run(self):
         raise NotImplementedError("Abstract method meant to be extended")
@@ -96,6 +99,12 @@ class VManager(VManagerBase):
         self.controller._on = self._on
         self.controller._off = self._off
         self.processes = []  # video processors currently running
+
+    def _get_capture(self):
+        capt = super()._get_capture()
+        if isfile(self.controller.video):
+            capt = FileCaptureWrapper(capt)
+        return capt
 
     def run(self):
         """
