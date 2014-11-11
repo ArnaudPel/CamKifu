@@ -1,9 +1,8 @@
-from bisect import insort
 from time import time
-
-from numpy import float32, array
 import cv2
 import sys
+
+from numpy import float32, array
 
 from camkifu.config.cvconf import canonical_size as csize, bf_loc
 from camkifu.core.imgutil import draw_circles, draw_lines, get_ordered_hull, norm
@@ -133,69 +132,3 @@ class GobanCorners():
         return "Corners:" + str(self._points)
 
 
-class SegGrid:
-    # todo clear that or actually implement separation on orthogonality (2-means on slope maybe ??).
-    """
-    A structure that store line segments in two different categories: horizontal and vertical.
-    This implementation is not good as it should instead make two categories based on their
-    reciprocal orthogonality.
-
-    These two groups can represent the horizontal and vertical lines of a goban.
-
-    """
-    def __init__(self, hsegs, vsegs, img):
-        assert isinstance(hsegs, list), "hsegs must be of type list."
-        assert isinstance(vsegs, list), "vsegs must be of type list."
-        self.hsegs = hsegs
-        self.vsegs = vsegs
-        self.img = img
-
-    def __add__(self, other):
-        assert isinstance(other, SegGrid), "can't add: other should be a grid."
-        assert self.img.shape == other.img.shape, "images should have same shape when adding grids."
-        hsegs = [seg for seg in self.hsegs + other.hsegs]
-        vsegs = [seg for seg in self.vsegs + other.vsegs]
-        hsegs.sort()
-        vsegs.sort()
-        return SegGrid(hsegs, vsegs, self.img)
-
-    def __iter__(self):
-        return SegGridIter(self)
-
-    def __len__(self):
-        return len(self.hsegs) + len(self.vsegs)
-
-    def __str__(self):
-        rep = "Grid(hsegs:" + str(len(self.hsegs))
-        rep += ", vsegs:" + str(len(self.vsegs)) + ")"
-        return rep
-
-    def enumerate(self):
-        return self.hsegs + self.vsegs
-
-    def insort(self, segment):
-        insort(self.hsegs, segment) if segment.horiz else insort(self.vsegs, segment)
-
-
-class SegGridIter(object):
-    """
-    Iterator used in SegGrid.__iter__()
-
-    """
-    def __init__(self, grid):
-        self.grid = grid
-        self.idx = -1
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        self.idx += 1
-        l1 = len(self.grid.hsegs)
-        if self.idx < l1:
-            return self.grid.hsegs[self.idx]
-        elif self.idx - l1 < len(self.grid.vsegs):
-            return self.grid.vsegs[self.idx - l1]
-        else:
-            assert self.idx == len(self.grid), "Should describe entire grid once and only once."
-            raise StopIteration

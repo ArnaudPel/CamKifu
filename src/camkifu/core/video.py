@@ -36,7 +36,7 @@ class VidProcessor(object):
 
         self.bindings = {'p': self.pause, 'q': self.interrupt}
         self.key = None
-        self.latency = 0.0
+        self.latency = 0.0  # self._doframe() processing latency (not the whole latency between two frames)
 
         # Tkinter and openCV must cohabit on the main thread to display things.
         # If this main thread is too crammed with openCV showing images, bad things start to happen
@@ -58,16 +58,15 @@ class VidProcessor(object):
         faster than self.frame_period. Set this value to 0 to run flat out.
 
         """
-        end = self.vmanager.controller.bounds[1]
         self._interruptflag = False
-        while not self._interruptflag and (self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO) < end):
+        while not self._interrupt_mainloop():
             self._checkpause()
             start = time()
-            # check if we respect the minimal time period between two iterations
-            if self.full_speed or (self.frame_period < start - self.last_read):
+            # check that the minimal time period between two iterations is respected
+            frequency_condition = self.full_speed or (self.frame_period < start - self.last_read)
+            if self.ready_to_read() and frequency_condition:
                 self.last_read = start
-                # todo provide a before_read() extension point to enable for skipping unnecessary read
-                ret, frame = self.vmanager.capt.read()
+                ret, frame = self.vmanager.capt.read(self)  # todo hide capt under vmanager.read() ? no big deal but eh
                 if ret:
                     do_frame_start = time()
                     self._doframe(frame)
@@ -82,6 +81,23 @@ class VidProcessor(object):
                 sleep(self.frame_period / 10)  # precision doesn't really matter here
         self._destroy_windows()
         self.vmanager.confirm_stop(self)
+
+    def _interrupt_mainloop(self):
+        """
+        The condition evaluated by the main loop of self.execute(), True indicates interruption.
+        Extension point.
+
+        """
+        return self._interruptflag or \
+                    (self.vmanager.controller.bounds[1] <= self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
+
+    def ready_to_read(self):
+        """
+        Indicate if self is ready to consume frames from the VideoCapture. Extension point that can be used
+        if a VidProcessor is waiting for something and will ignore frames passed down to it via self._doframe().
+
+        """
+        return not self._interruptflag
 
     def _doframe(self, frame):
         """
@@ -123,7 +139,8 @@ class VidProcessor(object):
             if self.pausedflag:
                 key = None
                 while True:
-                    # repeating the pause key resumes processing. other keys are executed as if nothing happened
+                    # repeating the pause key resumes processing.
+                    # any key in the bindings resumes processing (and the command is executed).
                     try:
                         key = chr(cv2.waitKey(500))
                         if key in self.bindings:
@@ -248,11 +265,18 @@ class VisionThread(Thread):
     def __init__(self, processor):
         super().__init__(name=processor.__class__.__name__)
         self.daemon = True
+        self.processor = processor
 
         # delegate
         self.run = processor.execute
-        self.interrupt = processor.interrupt
-        self.pause = processor.pause
+
+    def __getattr__(self, item):
+        """
+        Delegate all attributes to processor if not found in VisionThread.
+
+        """
+        # todo is this clean or should it be replaced with multiple inheritance ? + read doc again about __getattr__
+        return self.processor.__getattribute__(item)
 
     def __eq__(self, other):
         """

@@ -47,6 +47,16 @@ class StonesFinder(VidProcessor):
                 self._show(black)
                 self.last_shown = time()
 
+    def ready_to_read(self):
+        """
+        Don't read frames if the board location is not known.
+
+        """
+        try:
+            return super().ready_to_read() and self.vmanager.board_finder.mtx is not None
+        except AttributeError:
+            return False
+
     def _find(self, goban_img):
         """
         Detect stones in the (already) canonical image of the goban.

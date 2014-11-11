@@ -36,20 +36,13 @@ class VManagerBase(Thread):
         """
         if self.capt is not None:
             self.capt.release()
-        self.capt = self._get_capture()
+        # noinspection PyArgumentList
+        self.capt = CaptureReader(cv2.VideoCapture(self.controller.video), self)
         self.full_speed = isfile(self.controller.video)
         self.current_video = self.controller.video
 
         # set the beginning of video files. is ignored by live camera
         self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
-
-    def _get_capture(self):
-        """
-        Return the proper video capture object for this vmanager. Extension point.
-
-        """
-        #noinspection PyArgumentList
-        return cv2.VideoCapture(self.controller.video)
 
     def run(self):
         raise NotImplementedError("Abstract method meant to be extended")
@@ -99,12 +92,6 @@ class VManager(VManagerBase):
         self.controller._on = self._on
         self.controller._off = self._off
         self.processes = []  # video processors currently running
-
-    def _get_capture(self):
-        capt = super()._get_capture()
-        if isfile(self.controller.video):
-            capt = FileCaptureWrapper(capt)
-        return capt
 
     def run(self):
         """
@@ -209,11 +196,6 @@ class VManager(VManagerBase):
     def confirm_stop(self, process):
         self.processes.remove(process)
         print("{0} terminated.".format(process.__class__.__name__))
-        # update a potential FileCaptureWrapper to wait for the right number of threads
-        try:
-            self.capt.nb_threads = len(self.processes)
-        except AttributeError:
-            pass
 
     def _spawn(self, process):
         """
@@ -226,7 +208,6 @@ class VManager(VManagerBase):
         # reset a potential FileCaptureWrapper to normal behavior so that images flow again
         try:
             self.capt.unsync_threads(False)
-            self.capt.nb_threads = len(self.processes)
         except AttributeError:
             pass
         print("{0} starting.".format(process.__class__.__name__))
@@ -259,28 +240,30 @@ class VManager(VManagerBase):
             self.board_finder = None
 
 
-class FileCaptureWrapper():
+class CaptureReader():
     """
-    Wrapper to synchronize image consumption from a file : all "nb_threads" threads must have received the
+    Wrapper to synchronize image consumption from a file : all VidProcessors that are active must have received the
     current image before the next image is consumed from VideoCapture.
 
     Delegates all _getattr()__ calls to the provided capture object, except for read() on which the
     synchronization is intended.
 
-    -- capture : the object from which actual read() calls will be consumed.
-    -- nb_threads : the number of threads to synchronize.
-
     """
 
-    def __init__(self, capture, nb_threads=2):
+    def __init__(self, capture, vmanager):
+        """
+        -- capture : the object from which actual read() calls will be consumed.
+        -- vmanager : the owner of the VidProcessors to synchronize.
+
+        """
         self.capture = capture
-        self.nb_threads = nb_threads
+        self.vmanager = vmanager
         self.buffer = None   # the current result from videocapture.read()
         self.served = set()  # the threads that have received the currently buffered image
         self.lock_init = Lock()     # synchronization on videocapture.read() calls the first time
         self.lock_consume = Lock()  # synchronization on videocapture.read() calls
         self.sleep_time = 0.05  # 50 ms
-        self.unsync = False     # True means that no thread should be kept sleeping, and the reading is stopped
+        self.unsync = False     # True means that the reading is stopped, and no thread should be kept sleeping
 
     def __getattr__(self, item):
         """
@@ -288,21 +271,24 @@ class FileCaptureWrapper():
 
         """
         if item == "read":
-            return self.read_sync
+            return self.read_multi
         else:
             return self.capture.__getattribute__(item)
 
-    def read_sync(self):
+    def read_multi(self, caller):
         """
-        Implements a custom read() method that provides the same image to all threads.
-        Wait until all threads have been served before consuming the next frame.
+        Implements a custom read() method that provides the same image to all VidProcessor threads.
+        Wait until all have been served before consuming the next frame.
+
+        Note : the logic of this method is based on concurrent access. Precisely, self.served is supposed to be
+        cleared by the last served thread while others are waiting in this method's "sleep" loop.
 
         """
         self.init_buffer()
-        thread = current_thread()
-        while not self.unsync and thread in self.served:
+        while not self.unsync and caller in self.served:  # self.served may be cleared by another thread while sleeping
             sleep(self.sleep_time)
-        self.served.add(thread)
+            self.consume()  # check the possibility that others processors became passive without being noticed
+        self.served.add(caller)
         self.consume()
         return self.buffer
 
@@ -322,14 +308,33 @@ class FileCaptureWrapper():
             if self.unsync:
                 self.buffer = False, unsynced
                 self.served.clear()
-            elif self.nb_threads <= len(self.served):
-                assert self.nb_threads == len(self.served)  # todo remove after a few days testing
-                self.buffer = self.capture.read()
-                self.served.clear()
+            else:
+                served_all = True
+                for vp in self.get_active():
+                    if vp.processor not in self.served:
+                        served_all = False
+                        break
+                if served_all:
+                    self.buffer = self.capture.read()
+                    self.served.clear()
+
+    def get_active(self):
+        """
+        Return the list of VidProcessor that are (supposedly) actively reading frames at the moment.
+
+        """
+        active = []
+        for vidproc in self.vmanager.processes:
+            try:
+                if vidproc.ready_to_read():
+                    active.append(vidproc)
+            except AttributeError:
+                pass
+        return active
 
     def unsync_threads(self, unsync):
         """
-        Request the release of all threads waiting in self.read_sync()
+        Request the release of all threads waiting in self.read_multi()
 
         -- unsync : True if all threads should be released, False to resume normal behavior.
 
