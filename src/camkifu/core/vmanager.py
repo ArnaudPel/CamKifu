@@ -36,16 +36,30 @@ class VManagerBase(Thread):
         """
         if self.capt is not None:
             self.capt.release()
-        # noinspection PyArgumentList
-        self.capt = CaptureReader(cv2.VideoCapture(self.controller.video), self)
+        self.capt = self._get_capture()
         self.full_speed = isfile(self.controller.video)
         self.current_video = self.controller.video
 
         # set the beginning of video files. is ignored by live camera
         self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
 
+    def _get_capture(self):
+        """
+        Return the proper video capture object for this vmanager. Extension point.
+
+        """
+        #noinspection PyArgumentList
+        return cv2.VideoCapture(self.controller.video)
+
     def run(self):
         raise NotImplementedError("Abstract method meant to be extended")
+
+    def read(self, _):
+        """
+        Proxy to ignore the vidprocessor passing itself.
+
+        """
+        return self.capt.read()
 
     def corrected(self, err_move, exp_move):
         """
@@ -92,6 +106,12 @@ class VManager(VManagerBase):
         self.controller._on = self._on
         self.controller._off = self._off
         self.processes = []  # video processors currently running
+
+    def _get_capture(self):
+        return CaptureReader(super()._get_capture(), self)
+
+    def read(self, vidprocessor):
+        return self.capt.read(vidprocessor)
 
     def run(self):
         """
@@ -271,7 +291,11 @@ class CaptureReader():
 
         """
         if item == "read":
-            return self.read_multi
+            if isfile(self.vmanager.controller.video):
+                return self.read_multi
+            else:
+                # no meddling if the input is not a file, yet the parameter has to be ignored
+                return lambda _: self.capture.read()
         else:
             return self.capture.__getattribute__(item)
 

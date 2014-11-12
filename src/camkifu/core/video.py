@@ -66,7 +66,7 @@ class VidProcessor(object):
             frequency_condition = self.full_speed or (self.frame_period < start - self.last_read)
             if self.ready_to_read() and frequency_condition:
                 self.last_read = start
-                ret, frame = self.vmanager.capt.read(self)  # todo hide capt under vmanager.read() ? no big deal but eh
+                ret, frame = self.vmanager.read(self)
                 if ret:
                     do_frame_start = time()
                     self._doframe(frame)
