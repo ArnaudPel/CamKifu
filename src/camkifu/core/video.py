@@ -6,7 +6,7 @@ from time import sleep, time
 import cv2
 
 from camkifu.config.cvconf import unsynced, frame_period
-from camkifu.core.imgutil import show, draw_str
+from camkifu.core.imgutil import show, draw_str, destroy_win
 
 
 __author__ = 'Arnaud Peloquin'
@@ -185,24 +185,27 @@ class VidProcessor(object):
 
         """
         # step 1 : draw default metadata, from the top of image
-        percent_progress = int(100 * self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
-        x_offset = 40
-        line_spacing = 20
-        draw_str(img, x_offset, line_spacing, "video progress {0} %".format(percent_progress))
-        draw_str(img, x_offset, 2*line_spacing, "images not shown:  %d" % self.ignored_show)
-        if latency:
-            draw_str(img, x_offset, 3*line_spacing, "latency:  %.1f ms" % (self.latency * 1000))
-        if thread:
-            draw_str(img, x_offset, 4*line_spacing, "thread : " + current_thread().getName())
-        # step 2 : draw custom metadata, from the bottom of image
-        i = 0
-        for k, v in self.metadata.items():
-            draw_str(img, x_offset, img.shape[0] - (i+1)*line_spacing, k.format(v))
-            i += 1
-        self.metadata.clear()
-        if self.pausedflag:
-            for img in self.own_images.values():
-                draw_str(img, int(img.shape[0] / 2 - 30), int(img.shape[1] / 2), "PAUSED")
+        try:
+            percent_progress = int(100 * self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
+            x_offset = 40
+            line_spacing = 20
+            draw_str(img, x_offset, line_spacing, "video progress {0} %".format(percent_progress))
+            draw_str(img, x_offset, 2*line_spacing, "images not shown:  %d" % self.ignored_show)
+            if latency:
+                draw_str(img, x_offset, 3*line_spacing, "latency:  %.1f ms" % (self.latency * 1000))
+            if thread:
+                draw_str(img, x_offset, 4*line_spacing, "thread : " + current_thread().getName())
+                # step 2 : draw custom metadata, from the bottom of image
+            i = 0
+            for k, v in self.metadata.items():
+                draw_str(img, x_offset, img.shape[0] - (i+1)*line_spacing, k.format(v))
+                i += 1
+            self.metadata.clear()
+            if self.pausedflag:
+                for img in self.own_images.values():
+                    draw_str(img, int(img.shape[0] / 2 - 30), int(img.shape[1] / 2), "PAUSED")
+        except Exception as exc:
+            print("VidProcessor._draw_metadata(): ".format(exc))
 
     def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
         """
@@ -253,7 +256,7 @@ class VidProcessor(object):
                 # caveat: wait until a slot is available to ensure destruction
                 self.vmanager.imqueue.put((name, None, None, None))
             else:
-                cv2.destroyWindow(name)
+                destroy_win(name)
         self.own_images.clear()
 
 
@@ -276,6 +279,7 @@ class VisionThread(Thread):
 
         """
         # todo is this clean or should it be replaced with multiple inheritance ? + read doc again about __getattr__
+        assert self.processor is not self  # todo fix infinite recursion bug hiding there (this assert is a wild guess)
         return self.processor.__getattribute__(item)
 
     def __eq__(self, other):

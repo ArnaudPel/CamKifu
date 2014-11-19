@@ -1,5 +1,5 @@
 from time import sleep
-from threading import Thread, current_thread, Lock
+from threading import Thread, Lock
 import cv2
 from os.path import isfile
 
@@ -139,6 +139,7 @@ class VManager(VManagerBase):
             # force restart
             self.board_finder = None
             self.stones_finder = None
+            self.controller.pipe("video_changed")
 
     def check_bf(self):
         """
@@ -314,7 +315,10 @@ class CaptureReader():
             self.consume()  # check the possibility that others processors became passive without being noticed
         self.served.add(caller)
         self.consume()
-        return self.buffer
+        try:
+            return self.buffer[0], self.buffer[1].copy()  # readers may write on the image, don't expose it.
+        except AttributeError:
+            return self.buffer
 
     def init_buffer(self):
         with self.lock_init:

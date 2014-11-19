@@ -16,7 +16,7 @@ from camkifu.vgui.vui import VUI
 import glmain
 from camkifu.core.vmanager import VManager
 from camkifu.vgui.controllerv import ControllerV
-from camkifu.core.imgutil import show
+from camkifu.core.imgutil import show, destroy_win
 
 __author__ = 'Arnaud Peloquin'
 
@@ -39,7 +39,7 @@ def img_update(imqueue):
                 key = cv2.waitKey(20)
                 vidproc.key = key
             else:
-                cv2.destroyWindow(name)
+                destroy_win(name)
     except Empty:
         pass
 
@@ -51,6 +51,7 @@ def main(video=0, sgf=None, bounds=(0, 1)):
     video -- Filename or device descriptor, as used in cv2.VideoCapture().
 
     """
+    assert cv2.__version__ == "3.0.0-beta"  # disable that if needs be, this is just meant as a quick indication
     root = Tk(className="Camkifu")
     app = VUI(root)
     app.pack()
@@ -84,6 +85,8 @@ def get_argparser():
 
     bhelp = "Video file bounds, expressed as ratios in [0, 1]. See openCV VideoCapture.set()"
     parser.add_argument("-b", "--bounds", default=(0, 1), type=float, nargs=2, metavar="R", help=bhelp)
+
+    # todo add argument to choose finders: eg bf_auto doesn't want on certain files but we want to test an sf quickly
 
     return parser
 

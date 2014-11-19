@@ -167,8 +167,17 @@ def show(img, auto_down=True, name="Camkifu", loc=None):
             center = (screenw / 2, screenh / 2)
             cv2.moveWindow(name, max(0, int(center[0] - toshow.shape[0] / 2)), int(toshow.shape[1] / 2))
         windows.add(name)
-
     cv2.imshow(name, toshow)
+
+
+def destroy_win(name):
+    """
+    Destroy the window having the provided name. Rise KeyError if this window had not been shown
+    by the show() method implemented in this file.
+
+    """
+    windows.remove(name)
+    cv2.destroyWindow(name)
 
 
 def _factor(img):
@@ -189,14 +198,14 @@ def _factor(img):
 def saturate(img):
     """
     Convert the image to HSV, multiply both Saturation and Value by 1.5,
-    and return corresponding enhanced RGB image.
+    and return corresponding enhanced BGR image (opencv defaults to BGR and not RGB).
 
     """
     maxsv = ones_like(img)
     maxsv[:, :, 1:3] *= 255
-    saturated = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    saturated = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     saturated[:, :, 1:3] = minimum(maxsv[:, :, 1:3], saturated[:, :, 1:3] * 1.5)
-    return cv2.cvtColor(saturated, cv2.COLOR_HSV2RGB)
+    return cv2.cvtColor(saturated, cv2.COLOR_HSV2BGR)
 
 
 def rgb_histo(img):

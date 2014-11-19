@@ -41,7 +41,8 @@ class ControllerV(Controller):
             "register_bf": self.add_bfinder,
             "register_sf": self.add_sfinder,
             "select_bf": self.select_bfinder,
-            "select_sf": self.select_sfinder
+            "select_sf": self.select_sfinder,
+            "video_changed": self.prompt_new_kifu
         }
 
         if sgffile is not None:
@@ -49,7 +50,7 @@ class ControllerV(Controller):
 
         self.paused = Pause()
 
-    def pipe(self, instruction, args):
+    def pipe(self, instruction, args=None):
         """
         Send an instruction to this controller, that will be treated asynchronously.
         instruction -- a callable.
@@ -86,7 +87,10 @@ class ControllerV(Controller):
                 count += 1
                 instruction, args = self.queue.get_nowait()
                 try:
-                    self.api[instruction](*args)
+                    if args is not None:
+                        self.api[instruction](*args)
+                    else:
+                        self.api[instruction]()
                 except KeyError:
                     pass  # instruction not implemented here
                 except Exception as e:
@@ -149,6 +153,15 @@ class ControllerV(Controller):
     def select_sfinder(self, label):
         self.display.select_sf(label)
 
+    def prompt_new_kifu(self):
+        """
+        To be called when the current Kifu must imperatively be replaced.
+        For example, if the video input has changed, there isn't much sense in keeping the same SGF.
+
+        """
+        if not self._opensgf():
+            self._newsgf()
+
     def cvappend(self, move):
         """
         Append the provided move to the current game. Implementation dedicated to automated detection.
@@ -179,8 +192,9 @@ class ControllerV(Controller):
     def _opensgf(self):
         """ Method override to pause vision threads during long GUI operations. """
         self._pause(True)
-        super(ControllerV, self)._opensgf()
+        opened = super(ControllerV, self)._opensgf()
         self._pause(False)
+        return opened
 
     def _openvideo(self):
         """
@@ -190,10 +204,11 @@ class ControllerV(Controller):
 
         """
         self._pause(True)
-        vidfile = self.display.promptopen()
-        if len(vidfile):
-            self.video = vidfile
-            self.bounds = (0, 1)  # reset to default bounds (read entire file)
+        if not self.kifu.modified or self.display.promptdiscard(title="Discard current changes ?"):
+            vidfile = self.display.promptopen()
+            if len(vidfile):
+                self.video = vidfile
+                self.bounds = (0, 1)  # reset to default bounds (read entire file)
         self._pause(False)
 
     def _openlive(self):
