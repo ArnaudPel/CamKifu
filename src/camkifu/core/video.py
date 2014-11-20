@@ -29,14 +29,13 @@ class VidProcessor(object):
 
         self.frame_period = frame_period  # shortest time between two processings: put thread to sleep if it's too early
         self.full_speed = False  # whether to respect the frame period or not
-        self.last_read = 0.0  # gives the instant of the last image processing start (in seconds).
+        self.last_read = 0.0  # the instant of the last successful frame read (before the processing of that frame).
 
         self._interruptflag = False
         self.pausedflag = False
 
         self.bindings = {'p': self.pause, 'q': self.interrupt}
         self.key = None
-        self.latency = 0.0  # self._doframe() processing latency (not the whole latency between two frames)
 
         # Tkinter and openCV must cohabit on the main thread to display things.
         # If this main thread is too crammed with openCV showing images, bad things start to happen
@@ -61,21 +60,17 @@ class VidProcessor(object):
         self._interruptflag = False
         while not self._interrupt_mainloop():
             self._checkpause()
-            start = time()
             # check that the minimal time period between two iterations is respected
-            frequency_condition = self.full_speed or (self.frame_period < start - self.last_read)
+            frequency_condition = self.full_speed or (self.frame_period < time() - self.last_read)
             if self.ready_to_read() and frequency_condition:
-                self.last_read = start
                 ret, frame = self.vmanager.read(self)
                 if ret:
-                    do_frame_start = time()
+                    self.last_read = time()
                     self._doframe(frame)
-                    self.latency = time() - do_frame_start
                     self.checkkey()
                 else:
                     if frame != unsynced:
                         print("Could not read camera for {0}.".format(str(type(self))))
-                        self.latency = 0.0
                         sleep(5)
             else:
                 sleep(self.frame_period / 10)  # precision doesn't really matter here
@@ -192,7 +187,7 @@ class VidProcessor(object):
             draw_str(img, x_offset, line_spacing, "video progress {0} %".format(percent_progress))
             draw_str(img, x_offset, 2*line_spacing, "images not shown:  %d" % self.ignored_show)
             if latency:
-                draw_str(img, x_offset, 3*line_spacing, "latency:  %.1f ms" % (self.latency * 1000))
+                draw_str(img, x_offset, 3*line_spacing, "latency:  %.1f ms" % ((time() - self.last_read) * 1000))
             if thread:
                 draw_str(img, x_offset, 4*line_spacing, "thread : " + current_thread().getName())
                 # step 2 : draw custom metadata, from the bottom of image
@@ -279,8 +274,8 @@ class VisionThread(Thread):
 
         """
         # todo is this clean or should it be replaced with multiple inheritance ? + read doc again about __getattr__
-        assert self.processor is not self  # todo fix infinite recursion bug hiding there (this assert is a wild guess)
-        return self.processor.__getattribute__(item)
+        if item != "processor":  # avoid infinite looping if 'processor' attribute doesn't exist
+            return self.processor.__getattribute__(item)
 
     def __eq__(self, other):
         """
