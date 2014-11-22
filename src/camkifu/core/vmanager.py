@@ -19,7 +19,7 @@ class VManagerBase(Thread):
     def __init__(self, controller, imqueue=None):
         Thread.__init__(self, name="Vision")
         self.controller = controller
-        self.controller.corrected = self.corrected
+        self.bind_controller()
         self.imqueue = imqueue
 
         self.capt = None  # initialized in run() with video argument
@@ -28,6 +28,14 @@ class VManagerBase(Thread):
         self.board_finder = None
         self.stones_finder = None
         self.full_speed = False
+
+    def bind_controller(self):
+        """
+        Make some attributes of self.controller point to this vmanager implementations. (Proxy)
+
+        """
+        self.controller.corrected = self.corrected
+        self.controller.next = self.next
 
     def init_capt(self):
         """
@@ -60,6 +68,16 @@ class VManagerBase(Thread):
 
         """
         return self.capt.read()
+
+    def next(self):
+        """
+        Call next() on all VidProcessor.
+
+        """
+        if self.board_finder is not None:
+            self.board_finder.next()
+        if self.stones_finder is not None:
+            self.stones_finder.next()
 
     def corrected(self, err_move, exp_move):
         """
@@ -102,16 +120,23 @@ class VManager(VManagerBase):
         self.daemon = True
         self.bf_class = bfinders[0]
         self.sf_class = sfinders[0]
+        self.processes = []  # video processors currently running
+
+    def bind_controller(self):
+        super().bind_controller()
         self.controller._pause = self._pause
         self.controller._on = self._on
         self.controller._off = self._off
-        self.processes = []  # video processors currently running
 
     def _get_capture(self):
         return CaptureReader(super()._get_capture(), self)
 
     def read(self, vidprocessor):
         return self.capt.read(vidprocessor)
+
+    def next(self):
+        for proc in self.processes:
+            proc.next()
 
     def run(self):
         """
@@ -295,7 +320,7 @@ class CaptureReader():
             if isfile(self.vmanager.controller.video):
                 return self.read_multi
             else:
-                # no meddling if the input is not a file, yet the parameter has to be ignored
+                # no meddling if the input is not a file, yet the argument has to be ignored
                 return lambda _: self.capture.read()
         else:
             return self.capture.__getattribute__(item)
@@ -368,6 +393,3 @@ class CaptureReader():
 
         """
         self.unsync = unsync
-
-
-

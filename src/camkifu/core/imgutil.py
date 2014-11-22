@@ -1,5 +1,5 @@
 from bisect import insort
-from math import sqrt, acos, pi
+from math import sqrt, acos, pi, cos, sin
 from sys import float_info, maxsize
 
 from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud, vstack
@@ -112,8 +112,8 @@ def draw_lines(img, segments, color=(0, 255, 0)):
     thickness = 1 + 2 * _factor(img)
     for seg in segments:
         if isinstance(seg, Segment):
-            p1 = (seg.coords[0], seg.coords[1])
-            p2 = (seg.coords[2], seg.coords[3])
+            p1 = (seg.coords[0] + seg.offset[0], seg.coords[1] + seg.offset[1])
+            p2 = (seg.coords[2] + seg.offset[0], seg.coords[3] + seg.offset[1])
         else:
             if len(seg) == 4:
                 p1 = (seg[0], seg[1])
@@ -224,6 +224,21 @@ def rgb_histo(img):
         pts = column_stack((bins, hist))
         cv2.polylines(h, [pts], False, col)
     return flipud(h)
+
+
+def segment_from_hough(img, hough_line):
+    """
+    Create a Segment based on a line as returned by cv2.HoughLines()
+
+    """
+    rho, theta = hough_line[0]
+    a, b = cos(theta), sin(theta)
+    x0, y0 = a * rho, b * rho
+    extent = max(img.shape[0], img.shape[1])
+    pt1 = int(x0 + extent * (-b)), int(y0 + extent * a)
+    pt2 = int(x0 - extent * (-b)), int(y0 - extent * a)
+    segment = Segment((pt1[0], pt1[1], pt2[0], pt2[1]), img)
+    return segment
 
 
 def cyclic_permute(cvhull):
@@ -409,6 +424,9 @@ class Segment:
         ydiff = seg[3] - seg[1]
 
         self.coords = seg
+        self.offset = 0, 0
+
+        # todo remove the horiz/vertic logic, and make Segment a simple converter class (from hough, houghP, etc..)
         if abs(ydiff) < abs(xdiff):
             # horizontal segments (well, segments that are more horizontal than vertical)
             self.slope = float(ydiff) / xdiff
@@ -425,6 +443,13 @@ class Segment:
 
     def p2(self):
         return self.coords[2], self.coords[3]
+
+    def set_offset(self, x, y):
+        """
+        The offset to apply to this segment coordinates (ex: to re-integrate it in a bigger image)
+
+        """
+        self.offset = x, y
 
     def __lt__(self, other):
         """
@@ -471,7 +496,7 @@ class Segment:
         theta = acos(round(x0 * x1 + y0 * y1, 10))
         return theta if theta <= pi / 2 else pi - theta
 
-    #noinspection PyNoneFunctionAssignment
+    # noinspection PyNoneFunctionAssignment
     def intersection(self, other):
         x = (other[0] - self[0], other[1] - self[1])
         d1 = (self[2] - self[0], self[3] - self[1])

@@ -33,6 +33,7 @@ class VidProcessor(object):
 
         self._interruptflag = False
         self.pausedflag = False
+        self.next_flag = False  # see self.next()
 
         self.bindings = {'p': self.pause, 'q': self.interrupt}
         self.key = None
@@ -91,6 +92,9 @@ class VidProcessor(object):
         Indicate if self is ready to consume frames from the VideoCapture. Extension point that can be used
         if a VidProcessor is waiting for something and will ignore frames passed down to it via self._doframe().
 
+        This indication is crucial for file read synchronization : other threads will not be kept waiting on self if
+        it is not ready to read (see class CaptureReader).
+
         """
         return not self._interruptflag
 
@@ -110,7 +114,8 @@ class VidProcessor(object):
 
     def pause(self, dopause=None):
         """
-        Pause the video processing loop if "dopause" is True, otherwise resume loop.
+        Pause the video processing loop if "dopause" is True, resume loop if "dopause" is false.
+        If "dopause" is not provided, toggle "paused" state.
 
         """
         if dopause is not None:
@@ -120,6 +125,14 @@ class VidProcessor(object):
             # no value provided, interpret as a toggle
             self.pausedflag = not self.pausedflag
 
+    def next(self):
+        """
+        Indicate that one frame may be allowed to be read if self is in "paused" state. Has no effect if self is
+        not paused, since in this case frames are supposed to be flowing already.
+
+        """
+        self.next_flag = True
+
     def _checkpause(self):
         """
         Multi-threaded env: will sleep thread as long as self.pausedflag is True.
@@ -127,9 +140,9 @@ class VidProcessor(object):
 
         """
         if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
-            if self.pausedflag:
-                while self.pausedflag:
-                    sleep(0.1)
+            while self.pausedflag and not self.next_flag:
+                sleep(0.1)
+            self.next_flag = False
         else:  # supposedly in single-threaded dev mode
             if self.pausedflag:
                 key = None

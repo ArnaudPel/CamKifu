@@ -1,9 +1,9 @@
 import cv2
-from math import sin, cos, pi
-from numpy import zeros, uint8, vstack
+from math import pi
+from numpy import zeros, uint8
 
 from camkifu.board.boardfinder import BoardFinder
-from camkifu.core.imgutil import Segment, sort_contours_box, norm, get_ordered_hull, connect_clusters
+from camkifu.core.imgutil import sort_contours_box, norm, get_ordered_hull, connect_clusters, segment_from_hough
 
 
 __author__ = 'Arnaud Peloquin'
@@ -31,7 +31,7 @@ class BoardFinderAuto(BoardFinder):
         length_ref = min(frame.shape[0], frame.shape[1])  # a reference length linked to the image
         median = cv2.medianBlur(frame, 15)
 
-        # todo instead of edge detection : threshold binarization on an HSV image to only retain, a certain color/hue ?
+        # todo instead of edge detection : threshold binarization on an HSV image to only retain, a certain color/hue ?
         #   the target color could be guessed from the global image :
         #   computing an histo of hues and keeping the most frequent, hoping the goban is taking enough space
         #   (maybe only try a mask reflecting the default projection of the goban rectangle on the image plane).
@@ -85,12 +85,7 @@ class BoardFinderAuto(BoardFinder):
         lines = cv2.HoughLines(ghost, 1, pi / 180, threshold=thresh)
         segments = []
         for line in lines:
-            rho, theta = line[0]
-            a, b = cos(theta), sin(theta)
-            x0, y0 = a * rho, b * rho
-            pt1 = int(x0 + 1000 * (-b)), int(y0 + 1000 * a)
-            pt2 = int(x0 - 1000 * (-b)), int(y0 - 1000 * a)
-            segments.append(Segment((pt1[0], pt1[1], pt2[0], pt2[1]), ghost))
+            segments.append(segment_from_hough(ghost, line))
         # todo trim if there are too many lines ? merge them maybe ?
         return segments
 
@@ -158,24 +153,9 @@ class BoardFinderAuto(BoardFinder):
                         self.corners.submit(pt)
         self.metadata["Clusters : {}"].append(len(self.groups_accu))
         # self.metadata.append("lines accum : %d" % len(self.lines_accu))
-        # todo have a rolling cleanup over time ?
         self.lines_accu.clear()
         self.groups_accu.clear()
         return found
 
     def _window_name(self):
         return "Board Finder Auto"
-
-
-
-
-
-
-
-
-
-
-
-
-
-

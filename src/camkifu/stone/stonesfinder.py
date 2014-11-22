@@ -2,11 +2,12 @@ from queue import Queue, Full
 import cv2
 from time import time
 
-from numpy import zeros, uint8, int16, sum as npsum, empty, ogrid
+from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid
+from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute, empty_like
 
 from camkifu.config.cvconf import canonical_size, sf_loc
-from camkifu.core.imgutil import draw_circles, draw_str, cyclic_permute
+from camkifu.core.imgutil import draw_circles, draw_str
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E
 
@@ -130,7 +131,7 @@ class StonesFinder(VidProcessor):
         """
         Yields the unoccupied positions of the goban along an inward spiral.
 
-        inset -- the inner margin defining the start of the inward spiral [0 = outer border -> gsize/2 = center position].
+        inset -- the inner margin defining the start of the inward spiral [0=outer border -> gsize/2=center position].
                  it always ends at the center of the goban.
 
         """
@@ -176,9 +177,9 @@ class StonesFinder(VidProcessor):
 
         """
         assert isinstance(cursor, float)
-        p = self._posgrid[r][c]
-        pbefore = self._posgrid[r - 1][c - 1].copy()
-        pafter = self._posgrid[min(r + 1, gsize - 1)][min(c + 1, gsize - 1)].copy()
+        p = self._posgrid.mtx[r][c]
+        pbefore = self._posgrid.mtx[r - 1][c - 1].copy()
+        pafter = self._posgrid.mtx[min(r + 1, gsize - 1)][min(c + 1, gsize - 1)].copy()
         if r == 0:
             pbefore[0] = -p[0]
         elif r == gsize - 1:
@@ -243,7 +244,7 @@ class StonesFinder(VidProcessor):
             centers = []
             for i in range(19):
                 for j in range(19):
-                    centers.append(self._posgrid[i][j])
+                    centers.append(self._posgrid.mtx[i][j])
             draw_circles(img, centers)
 
     def _drawvalues(self, img, values):
@@ -253,7 +254,7 @@ class StonesFinder(VidProcessor):
         """
         for row in range(gsize):
             for col in range(gsize):
-                x, y = self._posgrid[row, col]
+                x, y = self._posgrid.mtx[row, col]
                 draw_str(img, x - 10, y + 2, str(values[row, col]))
 
     def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
@@ -294,56 +295,63 @@ class PosGrid(object):
 
     def __init__(self, size):
         self.size = size
-        self.pos = zeros((gsize, gsize, 2), dtype=int16)
-        # the 2 lines below would benefit from some sort of automation
+        self.mtx = zeros((gsize, gsize, 2), dtype=int16)  # stores the pixel position of each intersection o the goban
+
+        # initialize grid with default values
         start = size / gsize / 2
         end = size - start
-
-        hull = cyclic_permute([(start, start), (end, start), (end, end), (start, end)])
-        assert len(hull) == 4, "The points expected here are the 4 corners of the grid."
+        hull = [(start, start), (end, start), (end, end), (start, end)]
         for i in range(gsize):
             xup = (hull[0][0] * (gsize - 1 - i) + hull[1][0] * i) / (gsize - 1)
             xdown = (hull[3][0] * (gsize - 1 - i) + hull[2][0] * i) / (gsize - 1)
             for j in range(gsize):
-                self[i][j][0] = (xup * (gsize - 1 - j) + xdown * j) / (gsize - 1)
+                self.mtx[i][j][0] = (xup * (gsize - 1 - j) + xdown * j) / (gsize - 1)
                 yleft = (hull[0][1] * (gsize - 1 - j) + hull[3][1] * j) / (gsize - 1)
                 yright = (hull[1][1] * (gsize - 1 - j) + hull[2][1] * j) / (gsize - 1)
-                self[i][j][1] = (yleft * (gsize - 1 - i) + yright * i) / (gsize - 1)
+                self.mtx[i][j][1] = (yleft * (gsize - 1 - i) + yright * i) / (gsize - 1)
 
     def get_intersection(self, point):
         """
-        Return the closest intersection from the given (x,y) point.
+        Return the closest intersection from the given (x,y) point of the canonical frame (goban frame).
         Note : point coordinates are given in image coordinates frame (opencv, numpy), and this method will
         return the converted numbers as (y, x), to be ready for the goban.
 
         """
-        # to update with a more complex search when the grid is updated dynamically
-        return int(point[1] / self.size * gsize), int(point[0] / self.size * gsize)
+        # a simpler version would use the fact that self.learn() shifts the whole grid to store and apply the offset
+        # over time, and then return the hook initialization as below. yet that's a more generic implementation.
+        hook = None
+        target = (int(point[0] / self.size * gsize), int(point[1] / self.size * gsize), self.size)
+        while target != hook:
+            hook = target
+            # not neat: if more than one iteration is performed, 3 to 5 distances are computed twice each time !
+            # but premature optimization is the root of evil :)
+            for i in range(-1, 2):
+                x = hook[0] + i
+                for j in range(-1, 2):
+                    y = hook[1] + j
+                    try:
+                        dist = sum(absolute(self.mtx[x][y] - point))
+                        if dist < target[2]:
+                            target = (x, y, dist)
+                    except IndexError:
+                        pass
+        # at least one point must have been calculated successfully. better assert that since exceptions are silenced
+        assert target[2] < self.size
+        return target[1], target[0]  # invert to match goban coordinates frame
 
-    def __getitem__(self, item):
-        return self.pos.__getitem__(item)
+    def learn(self, grid, factor=0.5):
+        """
+        Update the current grid positions: compute the mean diff vector between the current mtx and the provided grid.
+        Then shift all the positions of the current grid by this vector. The diff vector is multiplied by factor before
+        being applied.
 
-    def __getslice__(self, i, j):
-        return self.pos.__getslice__(i, j)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        """
+        assert 0 < factor <= 1  # if 0, why call ?
+        diff = grid - self.mtx
+        vect = npsum(diff, axis=(0, 1), dtype=float32, keepdims=True)
+        # then, normalize.
+        # in theory, should be the count of points that moved in at least one direction. but that's good enough for now.
+        vect /= count_nonzero(diff) / 2
+        adjust = vect * factor
+        print("Adjust vector : {}".format(adjust))
+        self.mtx += adjust.astype(int16)

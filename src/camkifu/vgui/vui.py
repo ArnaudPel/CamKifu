@@ -1,6 +1,6 @@
 from tkinter import Button, Menu, StringVar, BooleanVar
 
-from golib.gui.ui import UI
+from golib.gui.ui import UI, mod1
 
 
 __author__ = 'Arnaud Peloquin'
@@ -39,6 +39,10 @@ class VUI(UI):
         b_pause = Button(self.buttons, text="Pause", command=lambda: self.execute("pause"))
         b_run.grid(row=4, column=0)
         b_pause.grid(row=4, column=1)
+
+        b_next = Button(self.buttons, text="Next", command=lambda: self.execute("next"))
+        self.bind_all("<{0}-f>".format(mod1), lambda _: self.execute("next"))
+        b_next.grid(row=5, column=0, columnspan=2)
 
         # b_debug = Button(self.buttons, text="Debug", command=lambda: self.checkvar_onoff.set(True))
         # b_debug.grid(row=5, column=0, columnspan=2)

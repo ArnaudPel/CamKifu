@@ -9,6 +9,7 @@ __author__ = 'Arnaud Peloquin'
 commands_size = 10
 
 
+# noinspection PyMethodMayBeStatic
 class ControllerV(Controller):
     """
     Extension of the default GUI controller, adding the handling of Vision threads.
@@ -26,7 +27,8 @@ class ControllerV(Controller):
         self.input.bind("<<execute>>", self._cmd)
 
         try:
-            self.input.commands["on"] = lambda: self._on()  # lambda needed to enable external method biding at runtime
+            self.input.commands["next"] = lambda: self.next()  # lambda needed to bind method externally at runtime
+            self.input.commands["on"] = lambda: self._on()  # lambda needed (same reason)
             self.input.commands["off"] = lambda: self._off()  # lambda needed (same reason)
             self.input.commands["run"] = self._run
             self.input.commands["pause"] = lambda: self._pause(self.paused.true())
@@ -127,6 +129,14 @@ class ControllerV(Controller):
         """
         To be set from outside (eg. by Vision Manager).
         The user has made a manual modification to the Goban.
+
+        """
+        pass
+
+    def next(self):
+        """
+        To be set from outside (eg. by Vision Manager).
+        The user has clicked "Next".
 
         """
         pass
