@@ -94,7 +94,7 @@ class BackgroundSub(StonesFinder):
         The method should be called until it returns true (may need several passes)
 
         """
-        for x, y in self.empties():
+        for x, y in self._empties():
             zone, points = self._getzone(img, x, y)
             #copy = img.copy()
             for chan in range(3):
@@ -149,7 +149,7 @@ class BackgroundSub(StonesFinder):
         # deltas = []
         # todo analyse one intersection out of two in order to speed up search, and have a method to search around a
             # given targeted intersection to detect disturbance motion faster. See if one row is enough for that.
-        for x, y in self.empties_spiral():
+        for x, y in self._empties_spiral():
             delta = self.compare_pos(img, x, y)
 
             if not -search_diff_threshold < delta < search_diff_threshold:

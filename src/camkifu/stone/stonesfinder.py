@@ -31,7 +31,7 @@ class StonesFinder(VidProcessor):
         self.mask_cache = None
         self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
         self.corrections = Queue(correc_size)
-        self.last_shown = 0  # the last time an image has been sent to display
+        self.total_f_processed = 0  # total number of frames processed since init. Dev var essentially.
 
     def _doframe(self, frame):
         transform = None
@@ -41,12 +41,12 @@ class StonesFinder(VidProcessor):
             goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
             self._learn()
             self._find(goban_img)
+            self.total_f_processed += 1
         else:
             if 1 < time() - self.last_shown:
                 black = zeros((canonical_size, canonical_size), dtype=uint8)
-                draw_str(black, int(black.shape[0]/2-110), int(black.shape[1] / 2), "NO BOARD LOCATION AVAILABLE")
+                draw_str(black, "NO BOARD LOCATION AVAILABLE", int(black.shape[0] / 2 - 110), int(black.shape[1] / 2))
                 self._show(black)
-                self.last_shown = time()
 
     def ready_to_read(self):
         """
@@ -104,7 +104,7 @@ class StonesFinder(VidProcessor):
         """
         return self.vmanager.controller.rules[y][x] == E
 
-    def empties(self):
+    def _empties(self):
         """
         Yields the unoccupied positions of the goban in naive order.
         Note: this implementation allows for the positions to be updated by another thread during yielding.
@@ -115,7 +115,7 @@ class StonesFinder(VidProcessor):
                 if self.vmanager.controller.rules[x][y] == E:
                     yield y, x
 
-    def empties_spiral(self):
+    def _empties_spiral(self):
         """
         Yields the unoccupied positions of the goban along an inward spiral.
         Aims to help detect hand / arm appearance faster by analysing outer border(s) first.
@@ -255,7 +255,7 @@ class StonesFinder(VidProcessor):
         for row in range(gsize):
             for col in range(gsize):
                 x, y = self._posgrid.mtx[row, col]
-                draw_str(img, x - 10, y + 2, str(values[row, col]))
+                draw_str(img, str(values[row, col]), x - 10, y + 2)
 
     def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
         """

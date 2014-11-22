@@ -130,7 +130,7 @@ def draw_lines(img, segments, color=(0, 255, 0)):
             print(e)
 
 
-def draw_str(dst, x, y, s):
+def draw_str(dst, s, x=None, y=None):
     """
     Print a white string with a black shadow on the image. (Thank you opencv python samples)
 
@@ -140,6 +140,9 @@ def draw_str(dst, x, y, s):
     s : the string to print
 
     """
+    if x is None:
+        x = int(dst.shape[0] / 2 - len(s) * 3.5)  # try to center horizontally depending on the string length
+        y = int(dst.shape[1] / 2)
     # the shadow
     cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.LINE_AA)
     # the white text

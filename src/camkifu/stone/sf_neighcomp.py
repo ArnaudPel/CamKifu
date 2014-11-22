@@ -34,7 +34,7 @@ class NeighbourComp(StonesFinder):
 
         # evaluate each empty intersection of the goban
         sample = zeros((gsize, gsize, 3), int32)
-        empties = list(self.empties())  # todo is caching still needed ?
+        empties = list(self._empties())  # todo is caching still needed ?
 
         for x in range(gsize):
             for y in range(gsize):

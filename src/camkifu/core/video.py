@@ -197,21 +197,21 @@ class VidProcessor(object):
             percent_progress = int(100 * self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
             x_offset = 40
             line_spacing = 20
-            draw_str(img, x_offset, line_spacing, "video progress {0} %".format(percent_progress))
-            draw_str(img, x_offset, 2*line_spacing, "images not shown:  %d" % self.ignored_show)
+            draw_str(img, "video progress {0} %".format(percent_progress), x_offset, line_spacing)
+            draw_str(img, "images not shown:  %d" % self.ignored_show, x_offset, 2 * line_spacing)
             if latency:
-                draw_str(img, x_offset, 3*line_spacing, "latency:  %.1f ms" % ((time() - self.last_read) * 1000))
+                draw_str(img, "latency:  %.1f ms" % ((time() - self.last_read) * 1000), x_offset, 3 * line_spacing)
             if thread:
-                draw_str(img, x_offset, 4*line_spacing, "thread : " + current_thread().getName())
+                draw_str(img, "thread : " + current_thread().getName(), x_offset, 4 * line_spacing)
                 # step 2 : draw custom metadata, from the bottom of image
             i = 0
             for k, v in self.metadata.items():
-                draw_str(img, x_offset, img.shape[0] - (i+1)*line_spacing, k.format(v))
+                draw_str(img, k.format(v), x_offset, img.shape[0] - (i + 1) * line_spacing)
                 i += 1
             self.metadata.clear()
             if self.pausedflag:
                 for img in self.own_images.values():
-                    draw_str(img, int(img.shape[0] / 2 - 30), int(img.shape[1] / 2), "PAUSED")
+                    draw_str(img, "PAUSED", int(img.shape[0] / 2 - 30), int(img.shape[1] / 2))
         except Exception as exc:
             print("VidProcessor._draw_metadata(): ".format(exc))
 

@@ -1,17 +1,15 @@
-from math import pi
 from queue import Empty
+from time import time
 
 import cv2
-from numpy import zeros_like, zeros, uint8, int32, float32, empty, empty_like, sum as npsum, array, max as npmax,\
-    min as npmin, mean as npmean, nditer
+from numpy import zeros, uint8, int32, float32, sum as npsum, array, max as npmax,\
+    min as npmin, mean as npmean
 from numpy.ma import absolute
-from time import time
-import sys
 
-from camkifu.core.imgutil import draw_str, draw_contours_multicolor, connect_clusters, sort_contours_box
+from camkifu.core.imgutil import draw_str, sort_contours_box
 from golib.model.move import Move
-from camkifu.stone.stonesfinder import StonesFinder, compare, evalz
-from golib.config.golib_conf import gsize, B, W, E
+from camkifu.stone.stonesfinder import StonesFinder
+from golib.config.golib_conf import gsize, B, W
 
 
 __author__ = 'Arnaud Peloquin'
@@ -55,8 +53,6 @@ class BackgroundSub2(StonesFinder):
         self.nb_untouched = 0  # the number of successive searches that detected no motion at all
         self.last_on = time()  # instant when last active. to be used to detect long sleeps.
 
-        self.total_f_processed = 0  # total number of frames processed since init. Dev var essentially.
-
     def _find(self, goban_img):
         filtered = cv2.medianBlur(goban_img, 7)  # todo search what's best here given the new bg modeling
         if self.state == sampling:
@@ -66,7 +62,6 @@ class BackgroundSub2(StonesFinder):
         else:
             self.search(filtered)
             self.last_on = time()
-        self.total_f_processed += 1
 
     def _learn(self):
         try:
@@ -91,8 +86,8 @@ class BackgroundSub2(StonesFinder):
         self._bg_initialization += 1
         if self._bg_initialization < bg_learning_frames:
             black = zeros((img.shape[0], img.shape[1]), dtype=uint8)
-            draw_str(black, int(black.shape[0] / 2 - 70), int(black.shape[1] / 2),
-                     "SAMPLING ({0}/{1})".format(self._bg_initialization, bg_learning_frames))
+            draw_str(black, "SAMPLING ({0}/{1})".format(self._bg_initialization, bg_learning_frames),
+                     int(black.shape[0] / 2 - 70), int(black.shape[1] / 2))
             self._show(black)
             return False
         return True
