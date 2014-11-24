@@ -1,7 +1,7 @@
 from numpy import zeros_like
 from camkifu.core.imgutil import draw_str
 from camkifu.stone.stonesfinder import StonesFinder
-from golib.config.golib_conf import gsize
+from golib.config.golib_conf import gsize, B
 
 
 class StonesFinderTuto(StonesFinder):
@@ -18,17 +18,13 @@ class StonesFinderTuto(StonesFinder):
         self.canvas = None
 
     def _find(self, goban_img):
-        count = 0
-        if self.canvas is None:
-            self.canvas = zeros_like(goban_img)
-        for r, c in self._empties_spiral():
-            if count == self.total_f_processed % gsize**2:
-                zone, pt = self._getzone(goban_img, r, c)
-                self.canvas[pt[0]:pt[2], pt[1]:pt[3], :] = zone
-                break
-            count += 1
-        self.last_shown = 0  # force display of all images
-        self._show(self.canvas)
+        # check emptiness to avoid complaints since this method will be called in a loop
+        if self.is_empty(2, 12):
+            # using "opencv" coordinates frame for x and y
+            self.suggest(B, 2, 12)
+        if self.is_empty(12, 2):
+            # using "numpy" coordinates frame for x and y
+            self.suggest(B, 2, 12, 'tk')
 
     def _learn(self):
         pass

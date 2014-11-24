@@ -11,6 +11,7 @@ from camkifu.config.cvconf import canonical_size, sf_loc
 from camkifu.core.imgutil import draw_circles, draw_str, Segment
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E
+from golib.model.move import Move
 
 
 __author__ = 'Arnaud Peloquin'
@@ -80,17 +81,21 @@ class StonesFinder(VidProcessor):
     def _window_name(self):
         return "camkifu.stone.stonesfinder.StonesFinder"
 
-    def suggest(self, move):
+    def suggest(self, color, x, y, ctype='cv'):
         """
         Suggest the add of a new stone to the goban.
+        -- color : in (E, B, W)
+        -- x, y : the coordinates
+        -- ctype : the type of coordinates frame (see Move._interpret()), defaults to 'cv'
 
         """
+        move = Move(ctype, ctuple=(color, x, y))
         print(move)
         self.vmanager.controller.pipe("append", [move])
 
     def corrected(self, err_move, exp_move):
         """
-        Entry point to provide corrections made by the user to the stones on the Goban. See _learn().
+        Entry point to provide corrections made by the user to stone(s) location(s) on the Goban. See _learn().
 
         """
         try:

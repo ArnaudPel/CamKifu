@@ -4,7 +4,6 @@ from collections import defaultdict
 import cv2
 from numpy import int32, zeros
 
-from golib.model.move import Move
 from camkifu.stone.stonesfinder import StonesFinder, evalz
 from golib.config.golib_conf import gsize, E
 
@@ -71,7 +70,7 @@ class NeighbourComp(StonesFinder):
 
         if pos is not None:
             if self.lastpos == pos:
-                self.suggest(Move("cv", ctuple=(color, pos[0], pos[1])))
+                self.suggest(color, pos[0], pos[1])
             else:
                 self.lastpos = pos
 

@@ -7,7 +7,6 @@ from numpy import zeros, uint8, int32, float32, sum as npsum, array, max as npma
 from numpy.ma import absolute
 
 from camkifu.core.imgutil import draw_str, sort_contours_box
-from golib.model.move import Move
 from camkifu.stone.stonesfinder import StonesFinder
 from golib.config.golib_conf import gsize, B, W
 
@@ -165,7 +164,7 @@ class BackgroundSub2(StonesFinder):
                         nb_active += 1
                     move = inter.is_positive()
                     if move is not None:
-                        self.suggest(move)
+                        self.suggest(*move)
                         self.intersections[x][y] = 0  # todo find a cleaner way to park occupied intersections
 
         self.metadata["frames : {}"] = self.total_f_processed
@@ -233,8 +232,6 @@ class IntersectionTrigger():
             last_entry = self.history[-1]
             if last_entry[0] != frame_nr:
                 meand = get_meand(diff_img * self.mask, self.norm)
-                # cv2.imwrite("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/intersection zone.png", diff_img * self.mask)
-                # sys.exit(42)
                 self.history.append((frame_nr, meand, False))
             elif not last_entry[2]:  # if the last entry is not a trigger
                 raise ValueError("Submitted same frame twice to IntersectionTrigger")
@@ -260,55 +257,7 @@ class IntersectionTrigger():
                         meand = npmean([x[1] for x in self.history])
                         print("meand: {}".format(meand))  # todo remove debug
                         if meand < -100 or 120 < (meand):
-                            return Move('cv', ctuple=(B if meand < 0 else W, self.x, self.y))
+                            color = B if meand < 0 else W
+                            return color, self.x, self.y
                         break
         return None
-
-
-class IntersectionHisto():
-
-    def __init__(self):
-        self.history = []  # the results of foreground analysis for this intersection over time
-        self.positive_threshold = 5
-
-    def append(self, frame, move):
-        assert not self.is_positive(), "intersection should already have been marked as occupied."
-        # todo what if we find the same intersection more than once in the same frame ? consider it pollution ?
-        self.history.append((frame, move))
-
-    def is_positive(self):
-        # todo maybe add some kind of check on the positions ? if so the real coordinates have to be stored as well
-        return self.positive_threshold <= len(self.history)
-
-    def cleanup(self, oldest_f):
-        """
-        Delete any move that has occurred before frame 'oldest_f'.
-
-        """
-        i = 0
-        while i < len(self.history) and self.history[i][0] < oldest_f:
-            i += 1
-        self.history = self.history[i:]  # assume the list is sorted asc, and keep only the last up-to-date part
-
-    def clear(self):
-        self.history.clear()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -4,8 +4,6 @@ import cv2
 from numpy import zeros_like, zeros, int32, empty
 from time import time
 
-from camkifu.core.imgutil import draw_str
-from golib.model.move import Move
 from camkifu.stone.stonesfinder import StonesFinder, compare, evalz
 from golib.config.golib_conf import gsize, B, W, E
 
@@ -96,12 +94,12 @@ class BackgroundSub(StonesFinder):
         """
         for x, y in self._empties():
             zone, points = self._getzone(img, x, y)
-            #copy = img.copy()
+            # copy = img.copy()
             for chan in range(3):
                 self._background[x, y, chan] = evalz(zone, chan) / self.zone_area
-                #cv2.rectangle(copy, points[0:2], points[2:4], (255, 0, 0), thickness=-1)
-                #self._show(copy, name="Sampling Zone")
-                #if cv2.waitKey() == 113: raise SystemExit()
+                # cv2.rectangle(copy, points[0:2], points[2:4], (255, 0, 0), thickness=-1)
+                # self._show(copy, name="Sampling Zone")
+                # if cv2.waitKey() == 113: raise SystemExit()
         sampled(img)
         return True
 
@@ -116,7 +114,7 @@ class BackgroundSub(StonesFinder):
         """
         zone, points = self._getzone(img, x, y)
         # noinspection PyNoneFunctionAssignment
-        mean_eval = empty((3), dtype=self._background.dtype)
+        mean_eval = empty(3, dtype=self._background.dtype)
         for chan in range(3):
             mean_eval[chan] = evalz(zone, chan) / self.zone_area
         delta = compare(self._background[x][y], mean_eval)
@@ -148,7 +146,7 @@ class BackgroundSub(StonesFinder):
         # subtract = zeros_like(img)  # debug variable, see below for usage.
         # deltas = []
         # todo analyse one intersection out of two in order to speed up search, and have a method to search around a
-            # given targeted intersection to detect disturbance motion faster. See if one row is enough for that.
+        #     given targeted intersection to detect disturbance motion faster. See if one row is enough for that.
         for x, y in self._empties_spiral():
             delta = self.compare_pos(img, x, y)
 
@@ -178,7 +176,7 @@ class BackgroundSub(StonesFinder):
 
         if pos is not None:
             if self.lastpos == pos:
-                self.suggest(Move("cv", ctuple=(color, pos[0], pos[1])))
+                self.suggest(color, pos[0], pos[1])
                 self.state = sampling
             else:
                 self.lastpos = pos
