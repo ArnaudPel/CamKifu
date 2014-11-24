@@ -1,3 +1,4 @@
+from math import pi
 from queue import Queue, Full
 import cv2
 from time import time
@@ -7,7 +8,7 @@ from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute, empty_like
 
 from camkifu.config.cvconf import canonical_size, sf_loc
-from camkifu.core.imgutil import draw_circles, draw_str
+from camkifu.core.imgutil import draw_circles, draw_str, Segment
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E
 
@@ -265,6 +266,103 @@ class StonesFinder(VidProcessor):
         location = sf_loc if loc is None else loc
         super()._show(img, name, latency, thread, loc=location, max_frequ=max_frequ)
 
+    def search_intersections(self, img):
+        """
+        Return a matrix indicating which intersections are likely to be empty.
+
+        The search is based on hough lines detection: if good lines are found inside the intersection zone, it is
+        very unlikely that a stone would be present.
+
+        @todo additional objective: adjusting the position of the grid (some more work ahead for it to work) if a good
+        intersection of lines inside a zone is found
+
+        """
+        canny = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        canny = cv2.Canny(canny, 25, 75)
+        # noinspection PyNoneFunctionAssignment
+        grid = self._posgrid.mtx.copy()
+        for r in range(gsize):
+            for c in range(gsize):
+                zone, points = self._getzone(canny, r, c)
+                min_side = min(zone.shape[0], zone.shape[1])
+                thresh = int(min_side * 3 / 4)
+                min_len = int(min_side * 2 / 3)
+                lines = cv2.HoughLinesP(zone, 1, pi / 180, threshold=thresh, maxLineGap=0, minLineLength=min_len)
+                if lines is not None and 0 < len(lines):
+                    self.update_grid(lines, points, zone, grid[r][c])
+        return grid
+
+    @staticmethod
+    def update_grid(lines, points, zone, result_slot):
+        """
+        Analyse the lines, in the context of the zone:
+            - if there's only one valid line, or too many lines, mark the zone as empty (negate result_slot).
+            - if there is a decent (1 < x < 5) number of lines, compute the center of mass of their intersections
+              that are located inside the zone (including a safety margin). then update result_slot accordingly
+              with the new values, negated as well to indicate the zone is probably empty.
+
+        Short version : negative values indicate that the zone (probably) contains no stone. The negative values
+        may have been updated as well.
+
+        """
+        # step one: only retain lines that are either vertical or horizontal enough
+        segments = []
+        for line in lines:
+            seg = Segment(line[0], zone)
+            if seg.slope < 0.1:  # horizontal / vertical check
+                seg.set_offset(points[1], points[0])  # swap "points" to opencv coord
+                segments.append(seg)
+        # step two, analyse filtered lines
+        if len(segments):
+            # if at least one line present, indicates that the intersection is occupied
+            # todo check that the line is inside the same borders as below to ignore tangents around stones
+            result_slot[:] *= -1
+            # pass
+        # then if there's a decent amount of lines, try to refine intersection location
+        if 1 < len(segments) < 5:
+            x_sum = 0
+            y_sum = 0
+            number = 0
+            margin = min(zone.shape[0], zone.shape[1]) / 7
+            for seg1 in segments:
+                for seg2 in segments:
+                    if seg1 is not seg2:
+                        i = seg1.intersection(seg2)
+                        if i is not None:
+                            i = i[0] + points[1], i[1] + points[0]  # add offset to match global image coordinates
+                            if points[1] + margin < i[0] < points[3] - margin \
+                                    and points[0] + margin < i[1] < points[2] - margin:
+                                x_sum += i[0]
+                                y_sum += i[1]
+                                number += 1
+            if 0 < number:
+                result_slot[0] = - y_sum / number
+                result_slot[1] = - x_sum / number
+
+    def display_intersections(self, grid, img):
+        """
+        Dev method to see how the intersection analysis is doing.
+        There's been some care given to line and column visual differentiation, hope it makes sens :)
+
+        """
+        for i in range(grid.shape[0]):
+            for j in range(grid.shape[1]):
+                inter = grid[i][j]
+                dif = self._posgrid.mtx[i][j] + inter
+                if 0 < abs(dif[0]) + abs(dif[1]):
+                    # convert back to opencv coords frame
+                    cv2.circle(img, (-inter[1], -inter[0]), 5, color=(0, 0, 0), thickness=6)
+                cv2.circle(img, (-inter[1], -inter[0]), 5, color=self.get_display_color(i, j), thickness=2)
+        self._show(img)
+
+    @staticmethod
+    def get_display_color(i, j):
+        factor = 0.5 if i % 2 else 1
+        blue = 40 / factor
+        green = (230 if j % 2 else 10) * factor
+        red = (10 if j % 2 else 200) * factor
+        return blue, green, red
+
 
 def evalz(zone, chan):
     """ Return an integer evaluation for the zone. """
@@ -286,8 +384,7 @@ def compare(reference, current):
 
 class PosGrid(object):
     """
-    Store the location of each intersection of the goban.
-    Can be extended to provide an evolutive version that can learn on the flight.
+    Store the location of each intersection of the goban, in "numpy coordinates frame" format.
 
     -- size : the length in pixels of one side of the goban canonical frame (supposed to be a square for now).
 
@@ -296,6 +393,8 @@ class PosGrid(object):
     def __init__(self, size):
         self.size = size
         self.mtx = zeros((gsize, gsize, 2), dtype=int16)  # stores the pixel position of each intersection o the goban
+        self.adjust_vect = zeros(2, dtype=float32)
+        self.adjust_contribs = 0
 
         # initialize grid with default values
         start = size / gsize / 2
@@ -339,19 +438,25 @@ class PosGrid(object):
         assert target[2] < self.size
         return target[1], target[0]  # invert to match goban coordinates frame
 
-    def learn(self, grid, factor=0.5):
+    def learn(self, grid, rate=0.2):
         """
         Update the current grid positions: compute the mean diff vector between the current mtx and the provided grid.
         Then shift all the positions of the current grid by this vector. The diff vector is multiplied by factor before
         being applied.
 
         """
-        assert 0 < factor <= 1  # if 0, why call ?
+        assert 0 < rate <= 1  # if 0, why call ?
         diff = grid - self.mtx
         vect = npsum(diff, axis=(0, 1), dtype=float32, keepdims=True)
         # then, normalize.
         # in theory, should be the count of points that moved in at least one direction. but that's good enough for now.
-        vect /= count_nonzero(diff) / 2
-        adjust = vect * factor
-        print("Adjust vector : {}".format(adjust))
-        self.mtx += adjust.astype(int16)
+        contributors = count_nonzero(absolute(diff[:, :, 0]) + absolute(diff[:, :, 1]))
+        vect /= contributors
+        self.adjust_vect *= (1.0 - rate)
+        self.adjust_vect += vect * rate
+        self.adjust_contribs += contributors
+        if 20 < self.adjust_contribs:
+            print("Adjust vector : {}".format(self.adjust_vect))
+            self.mtx += self.adjust_vect.astype(int16)
+            self.adjust_vect[:] = 0
+            self.adjust_contribs = 0
