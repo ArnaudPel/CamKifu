@@ -206,7 +206,7 @@ class StonesFinder(VidProcessor):
         return img[sx: ex, sy: ey].copy(), (sx, sy, ex, ey)
 
     # todo see if still needed
-    def getmask(self, frame):
+    def getmask(self, shape):
         """
         A boolean mask the size of "frame" that has a circle around each goban intersection.
         Multiply a frame by this mask to zero-out anything outside the circles.
@@ -218,11 +218,11 @@ class StonesFinder(VidProcessor):
             # location. The former will imply the introduction of a structure to store all zones areas, at least one
             #  per line.
             print("initializing mask")
-            self.mask_cache = empty_like(frame)
-            mask = empty(frame.shape[0:2], dtype=uint8)
+            self.mask_cache = empty(shape)
+            mask = empty(shape[0:2], dtype=uint8)
             for row in range(gsize):
                 for col in range(gsize):
-                    zone, (sx, sy, ex, ey) = self._getzone(frame, row, col)  # todo expose proportions ?
+                    zone, (sx, sy, ex, ey) = self._getzone(mask, row, col)  # todo expose proportions ?
                     a = zone.shape[0] / 2
                     b = zone.shape[1] / 2
                     r = min(a, b)
@@ -231,8 +231,11 @@ class StonesFinder(VidProcessor):
                     mask[sx: ex, sy: ey] = zmask
 
             # duplicate mask to match image depth
-            for i in range(self.mask_cache.shape[2]):
-                self.mask_cache[:, :, i] = mask
+            if len(shape) == 3:
+                for i in range(self.mask_cache.shape[2]):
+                    self.mask_cache[:, :, i] = mask
+            else:
+                self.mask_cache[:] = mask
 
             # store the area of one zone for normalizing purposes
             zone, _ = self._getzone(mask, 0, 0)

@@ -213,7 +213,7 @@ class VidProcessor(object):
                 for img in self.own_images.values():
                     draw_str(img, "PAUSED", int(img.shape[0] / 2 - 30), int(img.shape[1] / 2))
         except Exception as exc:
-            print("VidProcessor._draw_metadata(): ".format(exc))
+            print("VidProcessor._draw_metadata(): {}".format(exc))
 
     def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
         """

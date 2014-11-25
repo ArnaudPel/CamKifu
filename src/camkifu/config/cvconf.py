@@ -35,19 +35,22 @@ unsynced = "unsynced"
 # from test.objects.sf_dummy import DummyFinder
 from camkifu.board.bf_manual import BoardFinderManual
 from camkifu.board.bf_auto import BoardFinderAuto
+
 # the first element in the list will be loaded at startup.
 bfinders = [
     BoardFinderAuto,
     BoardFinderManual,
 ]
 
+from camkifu.stone.sf_clustering import SfClustering
+from camkifu.stone.sf_tuto import StonesFinderTuto
+from camkifu.stone.sf_bgsub2 import BackgroundSub2
 from camkifu.stone.sf_bgsub import BackgroundSub
-from camkifu.stone.sf_neighcomp import NeighbourComp
 # the first element in the list will be loaded at startup.
 sfinders = [
     # DummyFinder,
+    SfClustering,
     BackgroundSub,
-    NeighbourComp,
+    StonesFinderTuto,
+    BackgroundSub2,
 ]
-
-

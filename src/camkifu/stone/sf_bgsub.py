@@ -46,7 +46,7 @@ class BackgroundSub(StonesFinder):
 
     def _find(self, goban_img):
         filtered = cv2.medianBlur(goban_img, 7)
-        filtered *= self.getmask(filtered)
+        filtered *= self.getmask(filtered.shape)
         if self.state == sampling:
             done = self.sample(filtered)
             if done:
