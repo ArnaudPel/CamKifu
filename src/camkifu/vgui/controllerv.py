@@ -40,6 +40,7 @@ class ControllerV(Controller):
 
         self.api = {
             "append": self.cvappend,
+            "delete": self.cvdelete,
             "register_bf": self.add_bfinder,
             "register_sf": self.add_sfinder,
             "select_bf": self.select_bfinder,
@@ -181,16 +182,33 @@ class ControllerV(Controller):
         self.rules.put(move)
         self._append(move)
 
+    def cvdelete(self, x, y):
+        """
+        Remove the move at the given position from the current game. Implementation dedicated to automated
+        detection.
+
+        Raises exception if there is no move present at that location.
+
+        """
+        with self.rlock:
+            self.selected = x, y
+            self._delete(learn=False)  # don't send info back to algorithm since it (supposedly) comes from it already
+
     def _mouse_release(self, event):
         """ Method override to add correction event. """
         move = super(ControllerV, self)._mouse_release(event)
         if move is not None:
             self.corrected(None, move)
 
-    def _delete(self, _):
-        """ Method override to add correction event. """
-        move = super(ControllerV, self)._delete(_)
-        if move is not None:
+    def _delete(self, event=None, learn=True):
+        """
+        Method override to introduce a correction event, passed down to stones finder.
+
+        learn -- True to pass this correction down to the listeners, False to do it silently.
+
+        """
+        move = super(ControllerV, self)._delete(event)
+        if learn and move is not None:
             self.corrected(move, None)
 
     def _drag(self, event):

@@ -20,10 +20,10 @@ class StonesFinderTuto(StonesFinder):
     def _find(self, goban_img):
         # check emptiness to avoid complaints since this method will be called in a loop
         if self.is_empty(2, 12):
-            # using "opencv" coordinates frame for x and y
+            # using "numpy" coordinates frame for x and y
             self.suggest(B, 2, 12)
         if self.is_empty(12, 2):
-            # using "numpy" coordinates frame for x and y
+            # using "opencv" coordinates frame for x and y
             self.suggest(B, 2, 12, 'tk')
 
     def _learn(self):

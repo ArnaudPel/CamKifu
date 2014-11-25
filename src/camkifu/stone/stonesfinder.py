@@ -81,17 +81,31 @@ class StonesFinder(VidProcessor):
     def _window_name(self):
         return "camkifu.stone.stonesfinder.StonesFinder"
 
-    def suggest(self, color, x, y, ctype='cv'):
+    def suggest(self, color, x, y, ctype='np'):
         """
         Suggest the add of a new stone to the goban.
         -- color : in (E, B, W)
         -- x, y : the coordinates
-        -- ctype : the type of coordinates frame (see Move._interpret()), defaults to 'cv'
+        -- ctype : the type of coordinates frame (see Move._interpret()), defaults to 'np' (numpy)
 
         """
         move = Move(ctype, ctuple=(color, x, y))
         print(move)
         self.vmanager.controller.pipe("append", [move])
+
+    def remove(self, x, y, ctype='np'):
+        """
+        Although allowing automated removal of stones doesn't seem to be a very safe idea given the current
+        robustness of stones finders, here's an implementation.
+
+        x, y -- the location in numpy coordinates frame.
+        ctype -- the type of coordinates frame (see Move._interpret()), defaults to 'np' (numpy)
+
+        """
+        assert not self.is_empty(x, y), "Can't remove stone from empty intersection."
+        move = Move(ctype, ("", x, y))
+        print("delete {}".format(move))
+        self.vmanager.controller.pipe("delete", (move.x, move.y))
 
     def corrected(self, err_move, exp_move):
         """
