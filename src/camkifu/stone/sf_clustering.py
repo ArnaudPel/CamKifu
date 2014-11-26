@@ -101,11 +101,12 @@ class SfClustering(StonesFinder):
         self.metadata["Conflict: {:10.1f}%"] = 100 * conflicts / (gsize**2)
         # self.display_intersections(grid, canvas)
         self._posgrid.learn(absolute(grid))
-        # if conflicts < 7:
-        #     for i in range(gsize):
-        #         for j in range(gsize):
-        #             if detected[i][j] is not E and self.is_empty(i, j):
-        #                 self.suggest(detected[i][j], i, j)
+        if conflicts < 7:
+            moves = []
+            for i in range(gsize):
+                for j in range(gsize):
+                    moves.append((detected[i][j], i, j))
+            self.bulk_update(moves)
         self._show(canvas)
 
     def _learn(self):

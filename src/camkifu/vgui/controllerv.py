@@ -1,6 +1,8 @@
 from queue import Full, Empty, Queue
+from time import sleep
 
 from camkifu.core.exceptions import PipeWarning
+from golib.config.golib_conf import B, W, E
 from golib.gui.controller import Controller
 
 
@@ -39,13 +41,14 @@ class ControllerV(Controller):
             self.log(ae)
 
         self.api = {
-            "append": self.cvappend,
-            "delete": self.cvdelete,
-            "register_bf": self.add_bfinder,
-            "register_sf": self.add_sfinder,
-            "select_bf": self.select_bfinder,
-            "select_sf": self.select_sfinder,
-            "video_changed": self.prompt_new_kifu
+            "append": self._cvappend,
+            "delete": self._cvdelete,
+            "bulk": self._cv_bulk,
+            "register_bf": self._add_bfinder,
+            "register_sf": self._add_sfinder,
+            "select_bf": self._select_bfinder,
+            "select_sf": self._select_sfinder,
+            "video_changed": self._prompt_new_kifu
         }
 
         if sgffile is not None:
@@ -102,6 +105,37 @@ class ControllerV(Controller):
         except Empty:
             pass
 
+    def is_empty_blocking(self, x, y, seconds=0.1):
+        """
+        Return True if the position is empty, false otherwise.
+
+        @warning This method makes the thread sleep as long as current move is not the last move. This limitation
+        is based on the fact that variations are not allowed, and the rules object is modified by browsing moves.
+        The caveat is that calling this method from the GUI thread while not being at the last move would most likely
+        freeze the GUI.
+
+        Incidentally, this method implicitly provides a way to pause vision algorithms in the middle of a computation,
+        which makes for a more responsive behavior.
+
+        x, y -- interpreted in the opencv (=tk) coordinates frame.
+        seconds -- the duration of one sleep iteration.
+
+        """
+        while not self.at_last_move():
+            sleep(seconds)
+        return self.rules[x][y] is E
+
+    def locate(self, x, y):
+        """
+        Look for a Move object having (x, y) location in the kifu.
+
+        x, y -- interpreted in the opencv (=tk) coordinates frame.
+
+        """
+        node = self.kifu.locate(x, y)
+        if node is not None:
+            return node.getmove()
+
     def _on(self):
         """
         To be set from outside (eg. by Vision Manager).
@@ -150,21 +184,21 @@ class ControllerV(Controller):
         if self.at_last_move():
             self._pause(self.paused.false())
         else:
-            self.log("Processing can't create variation in game. Please navigate to the last move.")
+            self.log("Processing can't create variations in game. Please navigate to the last move.")
 
-    def add_bfinder(self, bf_class, callback):
+    def _add_bfinder(self, bf_class, callback):
         self.display.add_bf(bf_class, callback)
 
-    def add_sfinder(self, label, callback):
+    def _add_sfinder(self, label, callback):
         self.display.add_sf(label, callback)
 
-    def select_bfinder(self, label):
+    def _select_bfinder(self, label):
         self.display.select_bf(label)
 
-    def select_sfinder(self, label):
+    def _select_sfinder(self, label):
         self.display.select_sf(label)
 
-    def prompt_new_kifu(self):
+    def _prompt_new_kifu(self):
         """
         To be called when the current Kifu must imperatively be replaced.
         For example, if the video input has changed, there isn't much sense in keeping the same SGF.
@@ -173,7 +207,7 @@ class ControllerV(Controller):
         if not self._opensgf():
             self._newsgf()
 
-    def cvappend(self, move):
+    def _cvappend(self, move):
         """
         Append the provided move to the current game. Implementation dedicated to automated detection.
 
@@ -182,7 +216,7 @@ class ControllerV(Controller):
         self.rules.put(move)
         self._append(move)
 
-    def cvdelete(self, x, y):
+    def _cvdelete(self, x, y):
         """
         Remove the move at the given position from the current game. Implementation dedicated to automated
         detection.
@@ -193,6 +227,49 @@ class ControllerV(Controller):
         with self.rlock:
             self.selected = x, y
             self._delete(learn=False)  # don't send info back to algorithm since it (supposedly) comes from it already
+
+    def _cv_bulk(self, moves):
+        """
+        Bulk update of the goban with multiple moves, allowing for better performance (up to 2 updates only of GUI and
+        structures for the whole bulk).
+
+        moves -- the list of moves to apply. those may be of color 'E', then meaning the removal of the
+        stone already present (the thread applying the update will most likely complain if no stone is present).
+
+        """
+        order = {E: 0, B: 1, W: 1}  # keep B/W order, but removals must be performed and confirmed before appending
+        moves = sorted(moves, key=lambda m: order[m.color])
+        # todo this is currently being run on main thread. see to use a worker thread instead ?
+        with self.rlock:
+            if self.at_last_move():
+                self.rules.reset()
+                i = 0
+                mv = moves[i]
+                while mv.color is E:
+                    torem = self.kifu.locate(mv.x, mv.y).getmove()
+                    self.rules.remove(torem, reset=False)
+                    self.kifu.delete(torem)
+                    self.current_mn -= 1
+                    i += 1
+                    if i < len(moves):
+                        mv = moves[i]
+                    else: break
+                if i:
+                    self.rules.confirm()  # save the changes and update GUI
+                while i < len(moves):
+                    assert mv.color in (B, W)
+                    mv.number = self.current_mn + 1
+                    self.rules.put(mv, reset=False)
+                    self.kifu.append(mv)
+                    self.current_mn += 1
+                    i += 1
+                    if i < len(moves):
+                        mv = moves[i]
+                    else: break
+                self.rules.confirm()  # save the changes and update GUI
+                self.log_mn()
+            else:
+                raise NotImplementedError("Variations not allowed yet. Please navigate to end of game.")
 
     def _mouse_release(self, event):
         """ Method override to add correction event. """

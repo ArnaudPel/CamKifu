@@ -10,7 +10,7 @@ from numpy.ma import absolute, empty_like
 from camkifu.config.cvconf import canonical_size, sf_loc
 from camkifu.core.imgutil import draw_circles, draw_str, Segment
 from camkifu.core.video import VidProcessor
-from golib.config.golib_conf import gsize, E
+from golib.config.golib_conf import gsize, E, B, W
 from golib.model.move import Move
 
 
@@ -107,6 +107,27 @@ class StonesFinder(VidProcessor):
         print("delete {}".format(move))
         self.vmanager.controller.pipe("delete", (move.x, move.y))
 
+    def bulk_update(self, tuples, ctype='np'):
+        """
+        tuples  -- [ (color1, x1, y1), (color2, x2, y2), ... ]  a list of moves. set color to E to remove stone
+
+        """
+        moves = []
+        for color, x, y in tuples:
+            if color is E and not self.is_empty(x, y):
+                    moves.append(Move(ctype, (color, x, y)))
+            elif color in (B, W):
+                if not self.is_empty(x, y):
+                    existing_mv = self.vmanager.controller.locate(y, x)
+                    if color is not existing_mv.color:  # if existing_mv is None, better to crash now, so no None check
+                        # delete current stone to be able to put the other color
+                        moves.append(Move(ctype, (E, x, y)))
+                    else:
+                        continue  # already up to date, go to next iteration
+                moves.append(Move(ctype, (color, x, y)))
+        if len(moves):
+            self.vmanager.controller.pipe("bulk", [moves])
+
     def corrected(self, err_move, exp_move):
         """
         Entry point to provide corrections made by the user to stone(s) location(s) on the Goban. See _learn().
@@ -122,7 +143,7 @@ class StonesFinder(VidProcessor):
         Return true if the (x, y) goban position is empty (color = E).
 
         """
-        return self.vmanager.controller.rules[y][x] == E
+        return self.vmanager.controller.is_empty_blocking(y, x)
 
     def _empties(self):
         """
@@ -132,7 +153,7 @@ class StonesFinder(VidProcessor):
         """
         for x in range(gsize):
             for y in range(gsize):
-                if self.vmanager.controller.rules[x][y] == E:
+                if self.vmanager.controller.is_empty_blocking(x, y):
                     yield y, x
 
     def _empties_spiral(self):
@@ -158,22 +179,22 @@ class StonesFinder(VidProcessor):
         y = inset
         for x in range(inset, gsize - inset):
             # todo extract "do_yield()" method to remove code duplicate ?
-            if self.vmanager.controller.rules[x][y] == E:
+            if self.vmanager.controller.is_empty_blocking(x, y):
                 yield y, x
 
         x = gsize - inset - 1
         for y in range(inset + 1, gsize - inset):
-            if self.vmanager.controller.rules[x][y] == E:
+            if self.vmanager.controller.is_empty_blocking(x, y):
                 yield y, x
 
         y = gsize - inset - 1
-        for x in range(gsize - inset - 2, inset - 1, -1):  # reverse just to have a nice spiral. not actually useful
-            if self.vmanager.controller.rules[x][y] == E:
+        for x in range(gsize - inset - 2, inset - 1, -1):  # reverse just to have a nice order. not actually useful
+            if self.vmanager.controller.is_empty_blocking(x, y):
                 yield y, x
 
         x = inset
         for y in range(gsize - inset - 2, inset, -1):
-            if self.vmanager.controller.rules[x][y] == E:
+            if self.vmanager.controller.is_empty_blocking(x, y):
                 yield y, x
 
     def getcolors(self):
