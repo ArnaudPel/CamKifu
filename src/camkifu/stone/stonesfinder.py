@@ -1,4 +1,4 @@
-from math import pi
+from math import pi, cos, sin
 from queue import Queue, Full
 import cv2
 from time import time
@@ -178,7 +178,6 @@ class StonesFinder(VidProcessor):
         """
         y = inset
         for x in range(inset, gsize - inset):
-            # todo extract "do_yield()" method to remove code duplicate ?
             if self.vmanager.controller.is_empty_blocking(x, y):
                 yield y, x
 
@@ -351,9 +350,9 @@ class StonesFinder(VidProcessor):
         # step one: only retain lines that are either vertical or horizontal enough
         segments = []
         for line in lines:
-            seg = Segment(line[0], zone)
-            if seg.slope < 0.1:  # horizontal / vertical check
-                seg.set_offset(points[1], points[0])  # swap "points" to opencv coord
+            seg = Segment(line[0])
+            if 0.995 < abs(cos(seg.theta)) or 0.995 < abs(sin(seg.theta)):  # horizontal / vertical check
+                seg.offset = points[1], points[0]  # swap "points" to opencv coord
                 segments.append(seg)
         # step two, analyse filtered lines
         if len(segments):

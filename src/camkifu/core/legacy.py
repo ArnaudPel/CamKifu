@@ -85,7 +85,7 @@ def _merge(grid, precision=1):
                 bestmatch = valuations[0]
                 if bestmatch[0] < precision:  # if error acceptable
                     segments.remove(bestmatch[1])
-                    segmt = Segment(_get_seg(bestmatch[2]), grid.img)
+                    segmt = Segment(_get_seg(bestmatch[2]))
                     merged.insort(segmt)
                 else:
                     discarded.insort(seg)

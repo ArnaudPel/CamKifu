@@ -229,18 +229,19 @@ def rgb_histo(img):
     return flipud(h)
 
 
-def segment_from_hough(img, hough_line):
+def segment_from_hough(hough_line, img_shape):
     """
     Create a Segment based on a line as returned by cv2.HoughLines()
 
+    img_shape -- as img.shape, gives an order of magnitude for the segment length.
     """
     rho, theta = hough_line[0]
     a, b = cos(theta), sin(theta)
     x0, y0 = a * rho, b * rho
-    extent = max(img.shape[0], img.shape[1])
+    extent = max(img_shape[0], img_shape[1])
     pt1 = int(x0 + extent * (-b)), int(y0 + extent * a)
     pt2 = int(x0 - extent * (-b)), int(y0 - extent * a)
-    segment = Segment((pt1[0], pt1[1], pt2[0], pt2[1]), img)
+    segment = Segment((pt1[0], pt1[1], pt2[0], pt2[1]))
     return segment
 
 
@@ -410,36 +411,24 @@ class Chunk:
 
 class Segment:
     """
-    Segment that stores, on top of its coordinates:
-    - an indicator of orientation (self.horiz, True for horizontal)
-    - the intersection of this Segment with the corresponding middle line (horizontal for vertical and vice versa).
-    - the slope of the segment (computation is orientation-dependent)
-
-    Note: the concept of classifying segments by horizontal/vertical status is not good, which means this Segment
-    implementation is not either. Classifying segments based on their relative orthogonality is more relevant.
+    Helper class to store a segment (two 2d points), and offer util methods around it.
+    Coordinates storage format: (x0, y0, x1, y1).
 
     """
-    def __init__(self, seg, img):
 
-        xmid = img.shape[1] / 2
-        ymid = img.shape[0] / 2
-        xdiff = seg[2] - seg[0]
-        ydiff = seg[3] - seg[1]
+    def __init__(self, coordinates):
+        """
+        seg -- (x0, y0, x1, y1)
 
-        self.coords = seg
+        """
+        self.coords = coordinates
+        self.theta = acos((coordinates[2] - coordinates[0]) / self.norm())
+
+        # metadata that may be set from outside (ex: to re-integrate this Segment in a bigger image).
         self.offset = 0, 0
 
-        # todo remove the horiz/vertic logic, and make Segment a simple converter class (from hough, houghP, etc..)
-        if abs(ydiff) < abs(xdiff):
-            # horizontal segments (well, segments that are more horizontal than vertical)
-            self.slope = float(ydiff) / xdiff
-            self.intercept = self.slope * (xmid - seg[0]) + seg[1]
-            self.horiz = True
-        else:
-            # vertical segments
-            self.slope = float(xdiff) / ydiff
-            self.intercept = self.slope * (ymid - seg[1]) + seg[0]
-            self.horiz = False
+    def __getitem__(self, item):
+        return self.coords[item]
 
     def p1(self):
         return self.coords[0], self.coords[1]
@@ -447,51 +436,21 @@ class Segment:
     def p2(self):
         return self.coords[2], self.coords[3]
 
-    def set_offset(self, x, y):
-        """
-        The offset to apply to this segment coordinates (ex: to re-integrate it in a bigger image)
-
-        """
-        self.offset = x, y
-
-    def __lt__(self, other):
-        """
-        Compare segments by their interception with middle line (not by their length !!)
-
-        """
-        return self.intercept < other.intercept
-
-    def __gt__(self, other):
-        """
-        Compare segments by their interception with middle line (not by their length !!)
-
-        """
-        return self.intercept > other.intercept
-
-    def __str__(self):
-        return "Seg(intercept=" + str(self.intercept) + ")"
-
     def norm(self):
+        """
+        Return the euclidean (l2) norm of this segment.
+
+        """
         x2 = (self.coords[0] - self.coords[2]) ** 2
         y2 = (self.coords[1] - self.coords[3]) ** 2
         return sqrt(x2 + y2)
 
-    @staticmethod
-    def lencmp(seg1, seg2):
+    def line_angle(self, other):
         """
-        Compare segments based on their L2-norm. The default comparison being on the intercepts,
-        this one had to be external. see __lt__(self, other), __gt__(self, other)
+        Return the smallest angle between the line of direction "segment" and the line of direction "other"
+        (return value between 0 and pi / 2).
 
         """
-        a = len(seg1)
-        b = len(seg2)
-        # return cmp(a, b)
-        return (a > b) - (a < b)  # quick fix made during 2to3
-
-    def __getitem__(self, item):
-        return self.coords[item]
-
-    def angle(self, other):
         x0 = (self.coords[2] - self.coords[0]) / self.norm()
         y0 = (self.coords[3] - self.coords[1]) / self.norm()
         x1 = (other.coords[2] - other.coords[0]) / other.norm()
@@ -499,8 +458,11 @@ class Segment:
         theta = acos(round(x0 * x1 + y0 * y1, 10))
         return theta if theta <= pi / 2 else pi - theta
 
-    # noinspection PyNoneFunctionAssignment
     def intersection(self, other):
+        """
+        Return the coordinates of the intersection of "self" with "other".
+
+        """
         x = (other[0] - self[0], other[1] - self[1])
         d1 = (self[2] - self[0], self[3] - self[1])
         d2 = (other[2] - other[0], other[3] - other[1])
@@ -510,3 +472,6 @@ class Segment:
         else:
             t1 = (x[0] * d2[1] - x[1] * d2[0]) / cross
             return int(self[0] + t1 * d1[0]), int(self[1] + t1 * d1[1])
+
+    def __str__(self):
+        return "Seg({} + {}, {:.2f}rad)".format(self.coords, self.offset, self.theta)

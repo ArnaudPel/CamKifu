@@ -30,11 +30,6 @@ class BoardFinderAuto(BoardFinder):
     def _detect(self, frame):
         length_ref = min(frame.shape[0], frame.shape[1])  # a reference length linked to the image
         median = cv2.medianBlur(frame, 15)
-
-        # todo instead of edge detection : threshold binarization on an HSV image to only retain, a certain color/hue ?
-        #   the target color could be guessed from the global image :
-        #   computing an histo of hues and keeping the most frequent, hoping the goban is taking enough space
-        #   (maybe only try a mask reflecting the default projection of the goban rectangle on the image plane).
         canny = cv2.Canny(median, 25, 75)
         # first parameter is the input image (it seems). appeared in opencv 3.0-alpha and is missing from the docs
         _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -83,10 +78,10 @@ class BoardFinderAuto(BoardFinder):
         cv2.drawContours(ghost, contours, pos, (255, 255, 255), thickness=1)
         thresh = int(length_ref / 5)
         lines = cv2.HoughLines(ghost, 1, pi / 180, threshold=thresh)
+        # todo increase threshold in a loop if there are too many lines found (or change other parameters)
         segments = []
         for line in lines:
-            segments.append(segment_from_hough(ghost, line))
-        # todo trim if there are too many lines ? merge them maybe ?
+            segments.append(segment_from_hough(line, ghost.shape))
         return segments
 
     def group_intersections(self, length_ref):
@@ -98,7 +93,7 @@ class BoardFinderAuto(BoardFinder):
         """
         for s1 in self.lines_accu:
             for s2 in self.lines_accu:
-                if pi / 3 < s1.angle(s2):
+                if pi / 3 < s1.line_angle(s2):
                     assigned = False
                     p0 = s1.intersection(s2)
                     for g in self.groups_accu:
