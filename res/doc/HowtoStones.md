@@ -3,7 +3,7 @@
 This tutorial is an insight on how the code dealing with video processing has been organized. In one sentence, the `VManager` class is responsible for creating and managing instance(s) of `BoardFinder` and `StonesFinder`, which both extend the `VipProcessor` base class.
 
 ## Coordinates systems
-A special care has to be observed regarding how matrices indices are used, since `numpy` and `opencv` do not use the same coordinates system. Usually there is as little fiddling with that as can be, but  TODO  For this reason, things like `y, x = get_numpy_stored_stuff()` and `opencv_stuff = ndarray[y][x]` may occur at several places in the project.
+A special care has to be observed regarding how matrices indices are used, since `numpy` and `opencv` do not use the same coordinates system. Usually there is as little fiddling with that as can be, but  conversions do occur here and there in the project.
  
 If needs be, here's a visual example of the two different logics
  
@@ -119,11 +119,10 @@ from golib.config.golib_conf import B, W
 def _find(self, goban_img):
     # check emptiness to avoid complaints since this method will be called in a loop
     if self.is_empty(2, 12):
-        # using "opencv" coordinates frame for x and y
-        self.suggest(B, 2, 12)
-        
-    if self.is_empty(12, 2):
         # using "numpy" coordinates frame for x and y
+        self.suggest(B, 2, 12)
+    if self.is_empty(12, 2):
+        # using "opencv" coordinates frame for x and y
         self.suggest(B, 2, 12, 'tk')
 ```
 
@@ -131,7 +130,7 @@ This example also makes for a good reminder of the kind of confusion that can oc
 
 #### Intersections: zone
 
-The base method `_getzone` returns, for a goban's lines intersection, the corresponding pixel zone. Let's get a feeling by displaying the 37 zones representing the diagonals of the goban:
+The base method `_getrect` returns, for a goban's lines intersection, the corresponding pixel zone. Let's get a feeling by displaying the 37 zones representing the diagonals of the goban:
  
 ```python
 from numpy import zeros_like
@@ -142,14 +141,14 @@ def _find(self, goban_img):
     for r in range(gsize):      # row index
         for c in range(gsize):  # column index
             if r == c or r == gsize - c - 1:
-                zone, pt = self._getzone(goban_img, r, c)
-                canvas[pt[0]:pt[2], pt[1]:pt[3], :] = zone
+                x0, y0, x1, y1 = self._getrect(r, c)
+                canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
     self._show(canvas)
 ```
 
 `zone` is a numpy array containing the pixels of the required subregion of the image. `pt`, for "point", gives the coordinates of that (rectangle) zone inside the image: `pt = [x_start, y_start, x_end, y_end]` 
 
-Note that by default, the values returned by `_getzone` are merely calculated by dividing the image in 19 by 19 (`gsize * gsize`) zones without any analysis. As explained above, the default (most simple) approach places entire trust in the board finding feature.
+Note that by default, the values returned by `_getrect` are merely calculated by dividing the image in 19 by 19 (`gsize * gsize`) zones without any analysis. As explained above, the default (most simple) approach places entire trust in the board finding feature.
 
 ### 3. Other misc. goodies
 
@@ -166,8 +165,8 @@ from golib.config.golib_conf import gsize
 def _find(self, goban_img):
     canvas = zeros_like(goban_img)
     for r, c in self._empties_border(2):  # 2 is the line height as in go vocabulary (0-based)
-        zone, pt = self._getzone(goban_img, r, c)
-        canvas[pt[0]:pt[2], pt[1]:pt[3], :] = zone
+        x0, y0, x1, y1 = self._getrect(r, c)
+        canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
     self._show(canvas)
 ```
 
@@ -184,8 +183,8 @@ def _find(self, goban_img):
         self.canvas = zeros_like(goban_img)
     for r, c in self._empties_spiral():
         if count == self.total_f_processed % gsize**2:
-            zone, pt = self._getzone(goban_img, r, c)
-            self.canvas[pt[0]:pt[2], pt[1]:pt[3], :] = zone
+            x0, y0, x1, y1 = self._getrect(r, c)
+            self.canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
             break
         count += 1
     self.last_shown = 0  # force display of all images

@@ -203,17 +203,20 @@ class StonesFinder(VidProcessor):
         """
         return self.vmanager.controller.rules.copystones()
 
-    def _getzone(self, img, r, c, cursor=1.0):
+    def _getrect(self, r, c, cursor=1.0):
         """
-        Returns the (rectangle) pixel zone corresponding to the given goban intersection.
+        Return the rectangle of pixels around the provided goban intersection (r, c).
+        This method relies on self._posgrid.mtx to get the coordinates of the intersections (so they apply in an
+        image of the same size as the canonical frame).
 
-        img -- expected to contain the goban pixels only, in the canonical frame.
         r -- the intersection row index
         c -- the intersection column index
         cursor -- must be float, has sense in the interval ]0, 2[
                   0 -> the zone is restricted to the (r, c) point.
                   2 -> the zone is delimited by the rectangle (r-1, c-1), (r+1, c+1).
                   1 -> the zone is a rectangle of "intuitive" size, halfway between the '0' and '2' cases.
+
+        return -- x0, y0, x1, y1  the rectangle
 
         """
         assert isinstance(cursor, float)
@@ -223,21 +226,20 @@ class StonesFinder(VidProcessor):
         if r == 0:
             pbefore[0] = -p[0]
         elif r == gsize - 1:
-            pafter[0] = 2 * img.shape[0] - p[0] - 2
+            pafter[0] = 2 * self._posgrid.size - p[0] - 2
         if c == 0:
             pbefore[1] = -p[1]
         elif c == gsize - 1:
-            pafter[1] = 2 * img.shape[1] - p[1] - 2
+            pafter[1] = 2 * self._posgrid.size - p[1] - 2
 
         # determine start and end point of the rectangle
         w = cursor / 2
-        sx = max(0, int(w * pbefore[0] + (1 - w) * p[0]))
-        sy = max(0, int(w * pbefore[1] + (1 - w) * p[1]))
-        ex = min(img.shape[0], int((1 - w) * p[0] + w * pafter[0]))
-        ey = min(img.shape[1], int((1 - w) * p[1] + w * pafter[1]))
+        x0 = max(0, int(w * pbefore[0] + (1 - w) * p[0]))
+        y0 = max(0, int(w * pbefore[1] + (1 - w) * p[1]))
+        x1 = min(self._posgrid.size, int((1 - w) * p[0] + w * pafter[0]))
+        y1 = min(self._posgrid.size, int((1 - w) * p[1] + w * pafter[1]))
 
-        # todo remove this copy() and leave it to caller
-        return img[sx: ex, sy: ey].copy(), (sx, sy, ex, ey)
+        return x0, y0, x1, y1
 
     # todo see if still needed
     def getmask(self, shape):
@@ -256,13 +258,14 @@ class StonesFinder(VidProcessor):
             mask = empty(shape[0:2], dtype=uint8)
             for row in range(gsize):
                 for col in range(gsize):
-                    zone, (sx, sy, ex, ey) = self._getzone(mask, row, col)  # todo expose proportions ?
+                    x0, y0, x1, y1 = self._getrect(row, col)  # todo expose proportions ?
+                    zone = mask[x0:x1, y0:y1]
                     a = zone.shape[0] / 2
                     b = zone.shape[1] / 2
                     r = min(a, b)
                     y, x = ogrid[-a:zone.shape[0] - a, -b: zone.shape[1] - b]
                     zmask = x * x + y * y <= r * r
-                    mask[sx: ex, sy: ey] = zmask
+                    mask[x0:x1, y0:y1] = zmask
 
             # duplicate mask to match image depth
             if len(shape) == 3:
@@ -272,10 +275,9 @@ class StonesFinder(VidProcessor):
                 self.mask_cache[:] = mask
 
             # store the area of one zone for normalizing purposes
-            zone, _ = self._getzone(mask, 0, 0)
-            self.zone_area = npsum(zone)
+            x0, y0, x1, y1 = self._getrect(0, 0)
+            self.zone_area = npsum(mask[x0:x1, y0:y1])
             print("area={0}".format(self.zone_area))
-
         return self.mask_cache
 
     def _drawgrid(self, img):
@@ -325,13 +327,14 @@ class StonesFinder(VidProcessor):
         grid = self._posgrid.mtx.copy()
         for r in range(gsize):
             for c in range(gsize):
-                zone, points = self._getzone(canny, r, c)
+                x0, y0, x1, y1 = self._getrect(r, c)
+                zone = canny[x0:x1, y0:y1]
                 min_side = min(zone.shape[0], zone.shape[1])
                 thresh = int(min_side * 3 / 4)
                 min_len = int(min_side * 2 / 3)
                 lines = cv2.HoughLinesP(zone, 1, pi / 180, threshold=thresh, maxLineGap=0, minLineLength=min_len)
                 if lines is not None and 0 < len(lines):
-                    self.update_grid(lines, points, zone, grid[r][c])
+                    self.update_grid(lines, (x0, y0, x1, y1), zone, grid[r][c])
         return grid
 
     @staticmethod

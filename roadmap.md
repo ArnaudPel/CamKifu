@@ -10,17 +10,23 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 ## BEFORE PYTHON PUBLISH:
 
+- stones finder behavior:
+    * start by trying to take a kmeans picture (with pertinence check) in case we don't start from scratch
+    * in low stones density regions, look for stones with contours. as soon as possible, switch to kmeans (do it per subzone)
+    * much need for analysis of contours that are not closed. look for arc-of-circle detection ? or google the problem itself
+    * discard frames / wait for changes using background analysis
 - make more videos, in different conditions
-- add a "Next" button for developers to atomically control frame read, associated with a self.wait_next() in VidProcessor  AND use that occasion to record a tuto on how to add something to the GUI.
-- how about merging ControllerV and VManager to reduce serving hatches ? (passe-plat)
+- add left-click listener on goban (golib) and provide menu to invert stone color (plus repeat existing commands maybe)
 - have an automatic downsampling before processing(s) ? in boardfinder at least (since the canonical frame size is fixed already).
 - try to have some more fun w board detection and stones detection to show a nice face to the world
+    * Try a 2means board detector ? Maybe coupled with edges detection in a second stage.
     * Smart segmentation and edge-aware filters ?
     * Page 267 and on for background detection modeling
 - go through todos
-- fix in-code documentation  --> especially check existing doc
+- fix in-code documentation  --> especially check existing doc  --> add messages to assertions ! (assert cond() , "message")
 - shoot as many pycharm warnings as possible
 - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
+- fix author (replace any Kohistan with A.P.)
 - license
 
 
@@ -86,7 +92,7 @@ yet if this problem becomes a pain, try to display fewer images per second and i
 - display "ghost" stones, e.g. for intermediate positions when dragging. or on mouse hover.
 - auto resize of goban and stones according to window size.
 - API allowing the display of status lights (to be used by vision).
-- API allowing to mark stones with colors (to be used by vision).
+- API allowing to mark stones with custom colors (to be used by vision).
 --> implement above by extending the GUI from Camkifu in some clever way.
 
 ### GO

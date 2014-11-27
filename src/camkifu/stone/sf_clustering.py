@@ -24,38 +24,37 @@ class SfClustering(StonesFinder):
         else:
             cv2.accumulateWeighted(gframe, self.accu, 0.2)
         if self.accu is not None and not self.total_f_processed % 3:
-            ratios, centers = self.cluster_colors()
+            ratios, centers = self.cluster_colors(self.accu)
             self.check_pertinence(ratios, centers)
 
-    def cluster_colors(self):
+    def cluster_colors(self, img, nb_rows=gsize, nb_cols=gsize):
         """
         Objective : return for each intersection the percentage of B, W or E found based on pixel clustering
         according to their RGB (BGR) value.
         Computations based on the attribute self.accu
 
         """
-        pixels = reshape(self.accu, (self.accu.shape[0] * self.accu.shape[1], 3))
+        pixels = reshape(img, (img.shape[0] * img.shape[1], 3))
         crit = (cv2.TERM_CRITERIA_EPS, 30, 3)
         retval, labels, centers = cv2.kmeans(pixels, 3, None, crit, 3, cv2.KMEANS_PP_CENTERS)
         if retval:
             # dev code to map the labels on an image to visualize the exact clustering result
             # centers_val = list(map(lambda x: int(sum(x) / 3), centers))  # wish I could vectorize the colors but.. failed
             # pixels = vectorize(lambda x: centers_val[x])(labels)
-            # pixels = reshape(pixels.astype(uint8), (self.accu.shape[0], self.accu.shape[1]))
+            # pixels = reshape(pixels.astype(uint8), (img.shape[0], img.shape[1]))
             # pixels *= self.getmask(pixels.shape)
             # self._show(pixels)
             # return None, None
-            shape = self.accu.shape[0], self.accu.shape[1]
+            shape = img.shape[0], img.shape[1]
             labels = reshape(labels, shape)
             labels += 1  # don't leave any 0 before applying mask
             labels *= self.getmask(shape)
             # store each label percentage, over each intersection. Careful, they are not sorted, refer to "centers"
-            ratios = zeros((gsize, gsize, 3), dtype=uint8)
-            for x in range(gsize):
-                for y in range(gsize):
-                    # todo do +1 to the labels, and apply mask should help refining the percentages
-                    zone, points = self._getzone(labels, x, y)
-                    vals, counts = unique(zone, return_counts=True)
+            ratios = zeros((nb_rows, nb_cols, 3), dtype=uint8)
+            for x in range(nb_rows):
+                for y in range(nb_cols):
+                    x0, y0, x1, y1 = self._getrect(x, y)
+                    vals, counts = unique(labels[x0:x1, y0:y1], return_counts=True)
                     for i in range(len(vals)):
                         label = vals[i]
                         if 0 < label:
