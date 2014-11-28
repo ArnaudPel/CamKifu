@@ -1,14 +1,14 @@
 from math import pi, cos, sin
 from queue import Queue, Full
-import cv2
 from time import time
 
+import cv2
 from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid
 from numpy.core.multiarray import count_nonzero
-from numpy.ma import absolute, empty_like
+from numpy.ma import absolute
 
 from camkifu.config.cvconf import canonical_size, sf_loc
-from camkifu.core.imgutil import draw_circles, draw_str, Segment
+from camkifu.core.imgutil import draw_circles, draw_str, Segment, within_margin
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E, B, W
 from golib.model.move import Move
@@ -33,7 +33,6 @@ class StonesFinder(VidProcessor):
         self.mask_cache = None
         self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
         self.corrections = Queue(correc_size)
-        self.total_f_processed = 0  # total number of frames processed since init. Dev var essentially.
 
     def _doframe(self, frame):
         transform = None
@@ -43,7 +42,6 @@ class StonesFinder(VidProcessor):
             goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
             self._learn()
             self._find(goban_img)
-            self.total_f_processed += 1
         else:
             if 1 < time() - self.last_shown:
                 black = zeros((canonical_size, canonical_size), dtype=uint8)
@@ -417,17 +415,6 @@ def update_grid(lines, box, result_slot):
         if 0 < number:
             result_slot[0] = - x_sum / number
             result_slot[1] = - y_sum / number
-
-
-def within_margin(p, box, margin):
-    """
-    Retrun True if the point "p" is located inside the rectangle "box", with respect of the provided safety margin.
-    p  -- (x, y)
-    box -- (x0, y0, x1, y1)
-    margin -- an number
-
-    """
-    return box[0] + margin < p[0] < box[2] - margin and box[1] + margin < p[1] < box[3] - margin
 
 
 def evalz(zone, chan):

@@ -48,6 +48,7 @@ class VidProcessor(object):
         # the structure is a dict because some images may not be shown, so data may have to be aggregated / overwritten
         # usage : for k, v in self.metadata.items(): k.format(v)  --  one key per row
         self.metadata = defaultdict(list)
+        self.total_f_processed = 0  # total number of frames processed since init.
 
     def execute(self):
         """
@@ -68,6 +69,7 @@ class VidProcessor(object):
                 if ret:
                     self.last_read = time()
                     self._doframe(frame)
+                    self.total_f_processed += 1
                     self.checkkey()
                 else:
                     if frame != unsynced:
@@ -228,7 +230,7 @@ class VidProcessor(object):
         if name is None:
             name = self._window_name()
         if self.vmanager.imqueue is not None:
-            if 1 / max_frequ < time() - self.last_shown:
+            if 1 / max_frequ < time() - self.last_shown:  # todo use a dict to allow one VProc to show multiple windows
                 self._draw_metadata(img, latency, thread)
                 try:
                     self.vmanager.imqueue.put_nowait((name, img, self, loc))

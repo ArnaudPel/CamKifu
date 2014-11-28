@@ -3,7 +3,8 @@ from math import pi
 from numpy import zeros, uint8
 
 from camkifu.board.boardfinder import BoardFinder
-from camkifu.core.imgutil import sort_contours_box, norm, get_ordered_hull, connect_clusters, segment_from_hough
+from camkifu.core.imgutil import sort_contours_box, norm, get_ordered_hull, connect_clusters, segment_from_hough, \
+    draw_lines, within_margin
 
 
 __author__ = 'Arnaud Peloquin'
@@ -25,7 +26,6 @@ class BoardFinderAuto(BoardFinder):
         super(BoardFinderAuto, self).__init__(vmanager)
         self.lines_accu = []
         self.groups_accu = []  # groups of points in the same image region
-        self.passes = 0  # the number of frames processed since the beginning
 
     def _detect(self, frame):
         length_ref = min(frame.shape[0], frame.shape[1])  # a reference length linked to the image
@@ -40,11 +40,12 @@ class BoardFinderAuto(BoardFinder):
         frame_area = frame.shape[0] * frame.shape[1]
         found = False
         if frame_area / 3 < biggest.area:
-            segments = self.find_lines(biggest.pos, contours, length_ref, median.shape)
+            positions = [x.pos for x in sorted_boxes[-3:]]  # look for lines in the 3 "biggest" contours
+            segments = self.find_lines(positions, contours, length_ref, median.shape)
             self.lines_accu.extend(segments)
             # accumulate data of 4 images before running board detection
-            if not self.passes % 4:
-                self.group_intersections(length_ref)
+            if not self.total_f_processed % 4:
+                self.group_intersections(frame.shape)
                 while 4 < len(self.groups_accu):
                     prev_length = len(self.groups_accu)
                     connect_clusters(self.groups_accu, (length_ref / 50) ** 2)
@@ -52,15 +53,14 @@ class BoardFinderAuto(BoardFinder):
                         break  # seems it won't get any better
                 found = self.updt_corners(length_ref)
 
-        if not self.passes % 4:
+        if not self.total_f_processed % 4:
             self.corners.paint(median)
             self.metadata["Board  : {}"] = "found" if found else "searching"
             self._show(median)
-        self.passes += 1
         return found
 
-    @staticmethod
-    def find_lines(pos, contours, length_ref, shape):
+    # noinspection PyMethodMayBeStatic
+    def find_lines(self, posititons, contours, length_ref, shape):
         """
         Use houghlines to find the sides of the contour (the goban hopefully).
 
@@ -68,46 +68,60 @@ class BoardFinderAuto(BoardFinder):
         what is needed here is a nicely fitted "tangent" for each side: the intersection points (corners) are outside
         the contour most likely (round corners).
 
-        -- pos: the position to use in the list of contours
+        -- positions: the indexes of elements of interest in "contours"
         -- contours: the list of contours
         -- length_ref: a reference used to parametrize thresholds
         -- the shape of the image in which contours have been found
 
         """
         ghost = zeros((shape[0], shape[1]), dtype=uint8)
-        cv2.drawContours(ghost, contours, pos, (255, 255, 255), thickness=1)
+        # colors = ((0, 0, 255), (255, 0, 0), (0, 255, 0), (255, 255, 255))
+        # i = 0
+        for pos in posititons:
+            cv2.drawContours(ghost, contours, pos, 255, thickness=1)
+            # i += 1
+        # self._show(ghost)
         thresh = int(length_ref / 5)
         lines = cv2.HoughLines(ghost, 1, pi / 180, threshold=thresh)
-        # todo increase threshold in a loop if there are too many lines found (or change other parameters)
         segments = []
         for line in lines:
             segments.append(segment_from_hough(line, ghost.shape))
+        # canvas = zeros(ghost.shape, dtype=uint8)
+        # draw_lines(canvas, segments, color=255)
+        # self.metadata["Nb lines: {}"] = len(segments)
+        # self._show(canvas)
         return segments
 
-    def group_intersections(self, length_ref):
+    def group_intersections(self, shape):
         """
         Store tangent intersections into rough groups (connectivity-based clustering idea).
         The objective is to obtain 4 groups of intersections, providing estimators of the corners
         location.
 
         """
-        for s1 in self.lines_accu:
-            for s2 in self.lines_accu:
+        length_ref = min(shape[0], shape[1])  # a reference length linked to the image
+        sorted_lines = sorted(self.lines_accu, key=lambda x: x.theta)
+        for s1 in sorted_lines:
+            for s2 in reversed(sorted_lines):
                 if pi / 3 < s1.line_angle(s2):
                     assigned = False
                     p0 = s1.intersection(s2)
-                    for g in self.groups_accu:
-                        for p1 in g:
-                            # if the two points are close enough, group them
-                            if (p0[0] - p1[0]) ** 2 + (p0[0] - p1[0]) ** 2 < (length_ref / 80) ** 2:
-                                g.append(p0)
-                                assigned = True
+                    margin = -length_ref / 15  # allow intersections to be outside of the image a bit
+                    if within_margin(p0, (0, 0, shape[1], shape[0]), margin):
+                        for g in self.groups_accu:
+                            for p1 in g:
+                                # if the two points are close enough, group them
+                                if (p0[0] - p1[0]) ** 2 + (p0[0] - p1[0]) ** 2 < (length_ref / 80) ** 2:
+                                    g.append(p0)
+                                    assigned = True
+                                    break
+                            if assigned:
                                 break
-                        if assigned:
-                            break
-                    if not assigned:
-                        # create a new group for each lonely point, it may be joined with others later
-                        self.groups_accu.append([p0])
+                        if not assigned:
+                            # create a new group for each lonely point, it may be joined with others later
+                            self.groups_accu.append([p0])
+                else:
+                    break
 
     def updt_corners(self, length_ref):
         """
@@ -147,6 +161,7 @@ class BoardFinderAuto(BoardFinder):
                     for pt in centers:
                         self.corners.submit(pt)
         self.metadata["Clusters : {}"].append(len(self.groups_accu))
+        self.metadata["Line intersections: {}"] = sum([len(g) for g in self.groups_accu])
         # self.metadata.append("lines accum : %d" % len(self.lines_accu))
         self.lines_accu.clear()
         self.groups_accu.clear()

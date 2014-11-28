@@ -25,11 +25,12 @@ class BoardFinder(VidProcessor):
         super(BoardFinder, self).__init__(vmanager)
         self.corners = GobanCorners()
         self.mtx = None
+        self.auto_refresh = 10  # the number of seconds to wait after the last positive detection before searching again
         self.last_positive = -1.0  # last time the board was detected
 
     def _doframe(self, frame):
         last_positive = time() - self.last_positive
-        if 10 < last_positive:  # re-run board location search 10s after last positive detection
+        if self.auto_refresh < last_positive:
             if self._detect(frame):
                 source = array(self.corners.hull, dtype=float32)
                 dst = array([(0, 0), (csize, 0), (csize, csize), (0, csize)], dtype=float32)
@@ -42,7 +43,7 @@ class BoardFinder(VidProcessor):
         else:
             self.corners.paint(frame)
             self.metadata["Last detection {}s ago"] = int(last_positive)
-            self._show(frame)
+            # self._show(frame)
 
     def _detect(self, frame):
         """

@@ -337,6 +337,17 @@ def norm(p1, p2):
     return sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
 
 
+def within_margin(p, box, margin):
+    """
+    Retrun True if the point "p" is located inside the rectangle "box", with respect of the provided safety margin.
+    p  -- (x, y)
+    box -- (x0, y0, x1, y1)
+    margin -- an number
+
+    """
+    return box[0] + margin < p[0] < box[2] - margin and box[1] + margin < p[1] < box[3] - margin
+
+
 def draw_contours_multicolor(img, contours):
     for i, contour in enumerate(contours):
         b = int(255 * (7 - i % 7) / 7)
@@ -413,6 +424,9 @@ class Segment:
     """
     Helper class to store a segment (two 2d points), and offer util methods around it.
     Coordinates storage format: (x0, y0, x1, y1).
+
+    Note : in this project, the coordinates are usually defined in OpenCV coordinates system. Careful when using
+    with numpy.
 
     """
 
