@@ -241,14 +241,15 @@ class StonesFinder(VidProcessor):
 
         return x0, y0, x1, y1
 
-    # todo see if still needed
     def getmask(self, shape):
         """
         A boolean mask the size of "frame" that has a circle around each goban intersection.
         Multiply a frame by this mask to zero-out anything outside the circles.
 
         """
-        if self.mask_cache is None:
+        # todo remove parameter shape to give more sense to caching ? most likely this mask can only apply to the
+        # canonical frame.
+        if self.mask_cache is None or self.mask_cache.shape != shape:
             # todo : observation shows that stones of the front line are seen too high (due to cam angle most likely)
             # investigate more and see to adapt the repartition of the mask ? Some sort of vertical gradient of size or
             # location. The former will imply the introduction of a structure to store all zones areas, at least one
@@ -321,8 +322,9 @@ class StonesFinder(VidProcessor):
         intersection of lines inside a zone is found
 
         """
-        canny = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        canny = cv2.Canny(canny, 25, 75)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        thresh, _ = cv2.threshold(gray, 1, 1, cv2.THRESH_OTSU)
+        canny = cv2.Canny(gray, thresh/2, thresh)
         # noinspection PyNoneFunctionAssignment
         grid = self._posgrid.mtx.copy()
         for r in range(gsize):
@@ -334,55 +336,9 @@ class StonesFinder(VidProcessor):
                 min_len = int(min_side * 2 / 3)
                 lines = cv2.HoughLinesP(zone, 1, pi / 180, threshold=thresh, maxLineGap=0, minLineLength=min_len)
                 if lines is not None and 0 < len(lines):
-                    self.update_grid(lines, (x0, y0, x1, y1), zone, grid[r][c])
+                    # todo display lines again to see why adjusting grid seems to lower the number of "crosses" found
+                    update_grid(lines, (x0, y0, x1, y1), grid[r][c])
         return grid
-
-    @staticmethod
-    def update_grid(lines, points, zone, result_slot):
-        """
-        Analyse the lines, in the context of the zone:
-            - if there's only one valid line, or too many lines, mark the zone as empty (negate result_slot).
-            - if there is a decent (1 < x < 5) number of lines, compute the center of mass of their intersections
-              that are located inside the zone (including a safety margin). then update result_slot accordingly
-              with the new values, negated as well to indicate the zone is probably empty.
-
-        Short version : negative values indicate that the zone (probably) contains no stone. The negative values
-        may have been updated as well.
-
-        """
-        # step one: only retain lines that are either vertical or horizontal enough
-        segments = []
-        for line in lines:
-            seg = Segment(line[0])
-            if 0.995 < abs(cos(seg.theta)) or 0.995 < abs(sin(seg.theta)):  # horizontal / vertical check
-                seg.offset = points[1], points[0]  # swap "points" to opencv coord
-                segments.append(seg)
-        # step two, analyse filtered lines
-        if len(segments):
-            # if at least one line present, indicates that the intersection is occupied
-            # todo check that the line is inside the same borders as below to ignore tangents around stones
-            result_slot[:] *= -1
-            # pass
-        # then if there's a decent amount of lines, try to refine intersection location
-        if 1 < len(segments) < 5:
-            x_sum = 0
-            y_sum = 0
-            number = 0
-            margin = min(zone.shape[0], zone.shape[1]) / 7
-            for seg1 in segments:
-                for seg2 in segments:
-                    if seg1 is not seg2:
-                        i = seg1.intersection(seg2)
-                        if i is not None:
-                            i = i[0] + points[1], i[1] + points[0]  # add offset to match global image coordinates
-                            if points[1] + margin < i[0] < points[3] - margin \
-                                    and points[0] + margin < i[1] < points[2] - margin:
-                                x_sum += i[0]
-                                y_sum += i[1]
-                                number += 1
-            if 0 < number:
-                result_slot[0] = - y_sum / number
-                result_slot[1] = - x_sum / number
 
     def display_intersections(self, grid, img):
         """
@@ -398,7 +354,7 @@ class StonesFinder(VidProcessor):
                     # convert back to opencv coords frame
                     cv2.circle(img, (-inter[1], -inter[0]), 5, color=(0, 0, 0), thickness=6)
                 cv2.circle(img, (-inter[1], -inter[0]), 5, color=self.get_display_color(i, j), thickness=2)
-        self._show(img)
+        self._show(img, "{} - Intersections".format(self._window_name()))
 
     @staticmethod
     def get_display_color(i, j):
@@ -407,6 +363,71 @@ class StonesFinder(VidProcessor):
         green = (230 if j % 2 else 10) * factor
         red = (10 if j % 2 else 200) * factor
         return blue, green, red
+
+
+def update_grid(lines, box, result_slot):
+    """
+    Analyse the lines, in the context of the zone:
+        - if there's only one valid line, or too many lines, mark the zone as empty (negate result_slot).
+        - if there is a decent (1 < x < 5) number of lines, compute the center of mass of their intersections
+          that are located inside the zone (including a safety margin). then update result_slot accordingly
+          with the new values, negated as well to indicate the zone is probably empty.
+
+    Short version : negative values indicate that the zone (probably) contains no stone. The negative values
+    may have been updated as well.
+
+    """
+    margin = min(box[2] - box[0], box[3] - box[1]) / 7
+    # step one: only retain lines that are either vertical or horizontal enough, and centered
+    segments = []
+    for line in lines:
+        seg = Segment(line[0])
+        if 0.995 < abs(cos(seg.theta)):  # horizontal check + margin respect
+            p = (box[0] + box[2]) / 2, (seg.p1()[0] + seg.p2()[0]) / 2 + box[1]
+            if not within_margin(p, box, margin):
+                continue
+        elif 0.995 < abs(sin(seg.theta)):  # vertical check + margin respect
+            p = (seg.p1()[1] + seg.p2()[1]) / 2 + box[0], (box[3] + box[1]) / 2  # numpy coordinates
+            if not within_margin(p, box, margin):
+                continue
+        else:
+            continue
+        seg.offset = box[1], box[0]  # swap "points" to opencv coord
+        segments.append(seg)
+    # step two, analyse filtered lines
+    if len(segments):
+        # if at least one line present, indicates that the intersection is occupied
+        result_slot[:] *= -1
+        # pass
+    # then if there's a decent amount of lines, try to refine intersection location
+    if 1 < len(segments) < 5:
+        x_sum = 0
+        y_sum = 0
+        number = 0
+        for seg1 in segments:
+            for seg2 in segments:
+                if seg1 is not seg2:
+                    p = seg1.intersection(seg2)
+                    if p is not None:
+                        p = p[1] + box[0], p[0] + box[1]  # add offset to match global image coordinates
+                        if within_margin(p, box, margin):
+                            x_sum += p[0]
+                            y_sum += p[1]
+                            number += 1
+        if 0 < number:
+            result_slot[0] = - x_sum / number
+            result_slot[1] = - y_sum / number
+
+
+def within_margin(p, box, margin):
+    """
+    Retrun True if the point "p" is located inside the rectangle "box", with respect of the provided safety margin.
+    p  -- (x, y)
+    box -- (x0, y0, x1, y1)
+    margin -- an number
+
+    """
+    return box[0] + margin < p[0] < box[2] - margin and box[1] + margin < p[1] < box[3] - margin
 
 
 def evalz(zone, chan):
