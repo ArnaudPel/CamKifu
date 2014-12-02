@@ -3,7 +3,7 @@ from queue import Queue, Full
 from time import time
 
 import cv2
-from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid
+from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray
 from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute
 
@@ -79,7 +79,7 @@ class StonesFinder(VidProcessor):
     def _window_name(self):
         return "camkifu.stone.stonesfinder.StonesFinder"
 
-    def suggest(self, color, x, y, ctype='np'):
+    def suggest(self, color, x: int, y: int, ctype: str='np'):
         """
         Suggest the add of a new stone to the goban.
         -- color : in (E, B, W)
@@ -126,7 +126,7 @@ class StonesFinder(VidProcessor):
         if len(moves):
             self.vmanager.controller.pipe("bulk", [moves])
 
-    def corrected(self, err_move, exp_move):
+    def corrected(self, err_move, exp_move) -> None:
         """
         Entry point to provide corrections made by the user to stone(s) location(s) on the Goban. See _learn().
 
@@ -136,7 +136,7 @@ class StonesFinder(VidProcessor):
         except Full:
             print("Corrections queue full (%s), ignoring %s -> %s" % (correc_size, str(err_move), str(exp_move)))
 
-    def is_empty(self, x, y):
+    def is_empty(self, x, y) -> bool:
         """
         Return true if the (x, y) goban position is empty (color = E).
 
@@ -201,7 +201,7 @@ class StonesFinder(VidProcessor):
         """
         return self.vmanager.controller.rules.copystones()
 
-    def _getrect(self, r, c, cursor=1.0):
+    def _getrect(self, r: int, c: int, cursor: float=1.0) -> (int, int, int, int):
         """
         Return the rectangle of pixels around the provided goban intersection (r, c).
         This method relies on self._posgrid.mtx to get the coordinates of the intersections (so they apply in an
@@ -236,10 +236,9 @@ class StonesFinder(VidProcessor):
         y0 = max(0, int(w * pbefore[1] + (1 - w) * p[1]))
         x1 = min(self._posgrid.size, int((1 - w) * p[0] + w * pafter[0]))
         y1 = min(self._posgrid.size, int((1 - w) * p[1] + w * pafter[1]))
-
         return x0, y0, x1, y1
 
-    def getmask(self, shape):
+    def getmask(self, shape: tuple) -> ndarray:
         """
         A boolean mask the size of "frame" that has a circle around each goban intersection.
         Multiply a frame by this mask to zero-out anything outside the circles.
@@ -279,7 +278,7 @@ class StonesFinder(VidProcessor):
             print("area={0}".format(self.zone_area))
         return self.mask_cache
 
-    def _drawgrid(self, img):
+    def _drawgrid(self, img: ndarray):
         """
         Draw a circle around each intersection of the goban, as they are currently estimated.
 
@@ -309,7 +308,7 @@ class StonesFinder(VidProcessor):
         location = sf_loc if loc is None else loc
         super()._show(img, name, latency, thread, loc=location, max_frequ=max_frequ)
 
-    def search_intersections(self, img):
+    def search_intersections(self, img: ndarray) -> ndarray:
         """
         Return a matrix indicating which intersections are likely to be empty.
 
@@ -337,6 +336,27 @@ class StonesFinder(VidProcessor):
                     # todo display lines again to see why adjusting grid seems to lower the number of "crosses" found
                     update_grid(lines, (x0, y0, x1, y1), grid[r][c])
         return grid
+
+    def stone_radius(self) -> float:
+        """
+        The approximation of the radius (in pixels) of a stone in the canonical frame.
+        Simple implementation based on self._posgrid.size.
+
+        @rtype float
+        """
+        return self._posgrid.size / gsize / 2
+
+    def stone_boxarea_bounds(self) -> (float, float):
+        """
+        @return: minimum and maximum areas of a contour's bounding box, that may be candidate to be a stone.
+        These bounds are around the default estimated box area for a stone: (2 * self.stone_radius()) ** 2.
+
+        @rtype: (float, float)
+        """
+        radius = self.stone_radius()
+        min_area = (4 / 3 * radius) ** 2
+        max_area = (3 * radius) ** 2
+        return min_area, max_area
 
     def display_intersections(self, grid, img):
         """

@@ -64,7 +64,10 @@ class VUI(UI):
         Add the stones finder to the menu.
 
         """
-        label = sf_class.label
+        try:
+            label = sf_class.label
+        except AttributeError:
+            label = "None"
         self.m_stones.add_radiobutton(label=label, command=lambda: callback(sf_class),
                                       variable=self.radvar_sf, value=label)
 

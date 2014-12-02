@@ -43,7 +43,7 @@ class BoardFinder(VidProcessor):
         else:
             self.corners.paint(frame)
             self.metadata["Last detection {}s ago"] = int(last_positive)
-            # self._show(frame)
+            self._show(frame)
 
     def _detect(self, frame):
         """

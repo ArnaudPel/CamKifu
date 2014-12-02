@@ -3,7 +3,7 @@ from time import time
 
 import cv2
 from numpy import zeros, uint8, int32, float32, sum as npsum, array, max as npmax,\
-    min as npmin, mean as npmean
+    min as npmin, mean as npmean, ndarray
 from numpy.ma import absolute
 
 from camkifu.core.imgutil import draw_str, sort_contours_box
@@ -112,12 +112,11 @@ class BackgroundSub2(StonesFinder):
 
         """
         cv2.accumulateWeighted(img, self.background, 0.01)  # todo see to put the inverted foreground as mask ?
-        expected_radius = max(*img.shape) / gsize / 2  # the approximation of the radius of a stone, in pixels
 
         # todo read paper about MOG2, in order to know how to use it properly here
         learn = 0 if self.total_f_processed % 5 else 0.01
         fg = self._bg_model.apply(img, fgmask=self.fg_mask, learningRate=learn)
-        sorted_conts, contours = self.extract_contours(fg, expected_radius)
+        sorted_conts, contours = self.extract_contours(fg)
         # colors = zeros_like(img)
         # draw_contours_multicolor(colors, contours)
 
@@ -144,7 +143,7 @@ class BackgroundSub2(StonesFinder):
                     box_mask *= fg / 255
                     # the foreground pixels inside the bounding box must be at least 80% non-zero
                     if 0.8 < npsum(box_mask) / wrapper.area:
-                        cv2.circle(img, box_center, int(expected_radius), (0, 0, 255), thickness=2)
+                        cv2.circle(img, box_center, int(self.stone_radius()), (0, 0, 255), thickness=2)
                         box_mask3d = box_mask.astype(float32)[:, :, None]
                         diff = global_diff * box_mask3d
                         self.debug_check_diff(diff)
@@ -174,23 +173,21 @@ class BackgroundSub2(StonesFinder):
         #     cv2.circle(img, self.lastpos, int(expected_radius), (0, 0, 255))
         self._show(img, loc=(1200, 600))
 
-    @staticmethod
-    def extract_contours(fg, expected_radius):
+    def extract_contours(self, fg: ndarray):
         """
         Extracts contours from the foreground mask that could correspond to a stone.
         Contours are sorted by enclosing circle area ascending.
+
+        @type fg: ndarray
 
         """
         ret, fg_noshad = cv2.threshold(fg, 254, 255, cv2.THRESH_BINARY)  # discard the shadows (in grey)
         # try to remove some pollution to keep nice blobs
         smoothed = fg_noshad.copy()
-        passes = 3
-        for i in range(passes):
-            cv2.erode(smoothed, (5, 5), dst=smoothed)
+        cv2.erode(smoothed, (5, 5), dst=smoothed, iterations=3)
         prepared = cv2.Canny(smoothed, 25, 75)
         _, contours, hierarchy = cv2.findContours(prepared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        min_area = (4/3 * expected_radius) ** 2
-        max_area = (3 * expected_radius) ** 2
+        max_area, min_area = self.stone_boxarea_bounds()
         sorted_conts = sort_contours_box(contours, area_bounds=(min_area, max_area))
         return sorted_conts, contours
 
@@ -198,7 +195,7 @@ class BackgroundSub2(StonesFinder):
         return BackgroundSub2.label
 
 
-def get_meand(diff, norm):
+def get_meand(diff, norm) -> float:
     sign = - 1 if npsum(diff) < 0 else 1
     return sign * npsum(absolute(diff)) / norm
 
