@@ -45,7 +45,7 @@ class BoardFinderAuto(BoardFinder):
             self.lines_accu.extend(segments)
             # accumulate data of 4 images before running board detection
             if not self.total_f_processed % 4:
-                self.group_intersections(frame.shape)
+                self.group_intersections(frame.shape)  # fill self.groups_accu
                 while 4 < len(self.groups_accu):
                     prev_length = len(self.groups_accu)
                     connect_clusters(self.groups_accu, (length_ref / 50) ** 2)

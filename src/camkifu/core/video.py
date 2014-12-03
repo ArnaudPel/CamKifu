@@ -4,6 +4,7 @@ from threading import current_thread, Thread
 from time import sleep, time
 
 import cv2
+from numpy import ndarray
 
 from camkifu.config.cvconf import unsynced, frame_period
 from camkifu.core.imgutil import show, draw_str, destroy_win
@@ -80,7 +81,7 @@ class VidProcessor(object):
         self._destroy_windows()
         self.vmanager.confirm_stop(self)
 
-    def _interrupt_mainloop(self):
+    def _interrupt_mainloop(self) -> bool:
         """
         The condition evaluated by the main loop of self.execute(), True indicates interruption.
         Extension point.
@@ -89,7 +90,7 @@ class VidProcessor(object):
         return self._interruptflag or \
                     (self.vmanager.controller.bounds[1] <= self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
 
-    def ready_to_read(self):
+    def ready_to_read(self) -> bool:
         """
         Indicate if self is ready to consume frames from the VideoCapture. Extension point that can be used
         if a VidProcessor is waiting for something and will ignore frames passed down to it via self._doframe().
@@ -100,7 +101,7 @@ class VidProcessor(object):
         """
         return not self._interruptflag
 
-    def _doframe(self, frame):
+    def _doframe(self, frame: ndarray):
         """
         Image-processing algorithm may be implemented under that extension point.
 
@@ -114,7 +115,7 @@ class VidProcessor(object):
         """
         self._interruptflag = True
 
-    def pause(self, dopause=None):
+    def pause(self, dopause: bool=None):
         """
         Pause the video processing loop if "dopause" is True, resume loop if "dopause" is false.
         If "dopause" is not provided, toggle "paused" state.
@@ -247,7 +248,7 @@ class VidProcessor(object):
             show(img, name=name, loc=loc)  # assume we are on main thread
             self.own_images[name] = img
 
-    def _window_name(self):
+    def _window_name(self) -> str:
         """
         Provide the name of the default display window of this VidProcessor, if any.
         Meant to be extended.
