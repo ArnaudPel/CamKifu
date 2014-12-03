@@ -194,13 +194,6 @@ class StonesFinder(VidProcessor):
             if self.vmanager.controller.is_empty_blocking(x, y):
                 yield y, x
 
-    def getcolors(self):
-        """
-        Return a copy of the current goban state.
-
-        """
-        return self.vmanager.controller.rules.copystones()
-
     def _getrect(self, r: int, c: int, cursor: float=1.0) -> (int, int, int, int):
         """
         Return the rectangle of pixels around the provided goban intersection (r, c).
@@ -284,11 +277,10 @@ class StonesFinder(VidProcessor):
 
         """
         if self._posgrid is not None:
-            centers = []
             for i in range(19):
                 for j in range(19):
-                    centers.append(self._posgrid.mtx[i][j])
-            draw_circles(img, centers)
+                    p = self._posgrid.mtx[i][j]
+                    cv2.circle(img, (p[1], p[0]), 5, (255, 255, 0))
 
     def _drawvalues(self, img, values):
         """
@@ -482,14 +474,15 @@ class PosGrid(object):
                 yright = (hull[1][1] * (gsize - 1 - j) + hull[2][1] * j) / (gsize - 1)
                 self.mtx[i][j][1] = (yleft * (gsize - 1 - i) + yright * i) / (gsize - 1)
 
-    def get_intersection(self, point):
+    def closest_intersection(self, point):
         """
-        Return the closest intersection from the given (x,y) point of the canonical frame (goban frame).
-        Note : point coordinates are given in image coordinates frame (opencv, numpy), and this method will
-        return the converted numbers as (y, x), to be ready for the goban.
+        Find the closest intersection from the given (x,y) point of the canonical image (goban image).
+        Note : point coordinates are expected in numpy coordinates system.
+
+        Return the closest goban row and column, both in [0, gsize[  ([0, 18[), also in numpy coordinates system.
 
         """
-        # a simpler version would use the fact that self.learn() shifts the whole grid to store and apply the offset
+        # a smarter version would use the fact that self.learn() shifts the whole grid to store and apply the offset
         # over time, and then return the hook initialization as below. yet that's a more generic implementation.
         hook = None
         target = (int(point[0] / self.size * gsize), int(point[1] / self.size * gsize), self.size)
@@ -509,7 +502,7 @@ class PosGrid(object):
                         pass
         # at least one point must have been calculated successfully. better assert that since exceptions are silenced
         assert target[2] < self.size
-        return target[1], target[0]  # invert to match goban coordinates frame
+        return target[0], target[1]
 
     def learn(self, grid, rate=0.2):
         """

@@ -1,10 +1,11 @@
 from math import sin, cos, radians
 
-from numpy import uint8, zeros, ndarray, empty
+from numpy import uint8, zeros, ndarray, empty, mean as npmean
 import cv2
 
+from camkifu.core.imgutil import norm
 from camkifu.stone.stonesfinder import StonesFinder
-from golib.config.golib_conf import gsize
+from golib.config.golib_conf import gsize, B, W
 
 __author__ = 'Arnaud Peloquin'
 
@@ -22,21 +23,38 @@ class SfContours(StonesFinder):
         self.accu = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
 
     def _find(self, goban_img: ndarray):
+        stones = self.find_stones(goban_img)
+        canvas = zeros((self._posgrid.size, self._posgrid.size), dtype=uint8)
+        canvas[:] = 127
+        for x in range(gsize):
+            for y in range(gsize):
+                if stones[x][y] is B:
+                    color = 0
+                elif stones[x][y] is W:
+                    color = 255
+                else:
+                    continue
+                p = self._posgrid.mtx[x][y]
+                cv2.circle(canvas, (p[1], p[0]), 10, color, thickness=-1)
+        goban_img /= 2
+        self._drawgrid(canvas)
+        self._show(canvas)
+
+    def _learn(self):
+        pass
+
+    def find_stones(self, goban_img):
         median = cv2.medianBlur(goban_img, 13)
         median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
         grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
         otsu, _ = cv2.threshold(grey, 12, 255, cv2.THRESH_OTSU)
         canny = cv2.Canny(median, otsu / 2, otsu)
         # canny = cv2.Canny(goban_img, 25, 75)
-        stones = self.analyse_contours(canny)
-        canvas = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
-        for center in stones:
-            cv2.circle(canvas, center, 2, (0, 255, 0), thickness=-1)
-        cv2.bitwise_or(self.accu, canvas, dst=self.accu)
-        goban_img /= 2
-        self._show(cv2.bitwise_or(goban_img, self.accu))
+        centers = self._analyse_contours(canny)
+        stones = self.find_colors(goban_img, centers)
+        return stones
 
-    def analyse_contours(self, img: ndarray, row_start=0, row_end=gsize, col_start=0, col_end=gsize):
+    def _analyse_contours(self, img: ndarray, row_start=0, row_end=gsize, col_start=0, col_end=gsize):
         """
         Return a list of points indicating likely locations of stones. Based on contours analysis in "img".
         The search can be confined to a sub-region of the image using arguments row_start, row_end, col_start, col_end.
@@ -49,7 +67,7 @@ class SfContours(StonesFinder):
         # todo experiment with something else than retr_external ?
         _, contours, hierarchy = cv2.findContours(subregion, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         centers = []  # one maximum per zone, in opencv coordinates system
-        for cont in self.filter_contours(contours):
+        for cont in self._filter_contours(contours):
             # compute the distance matrix from contour: the higher the value, the further the point from the contour
             cv2.drawContours(ghost, [cont], 0, (255, 0, 255))
             ry0, rx0, dy, dx = cv2.boundingRect(cont)  # contour region (not rotated rectangle)
@@ -57,11 +75,11 @@ class SfContours(StonesFinder):
             negative[:] = 255
             negative -= ghost[rx0:rx0 + dx, ry0:ry0 + dy]
             distance_mtx = cv2.distanceTransform(negative, cv2.DIST_L2, cv2.DIST_MASK_5)
-            for a, b in self.find_centers(distance_mtx):
+            for a, b in self._find_centers(distance_mtx):
                 centers.append((a + y0 + ry0, b + x0 + rx0))  # put back all offsets to integrate into global img
         return centers
 
-    def filter_contours(self, contours):
+    def _filter_contours(self, contours):
         """
         Yield the subset of the provided contours that respect a bunch of constraints. The objective is to discard
         non-stone contours, even though some good contours may also be lost on the way.
@@ -85,7 +103,7 @@ class SfContours(StonesFinder):
                 continue
             yield cont
 
-    def find_centers(self, distance_mtx):
+    def _find_centers(self, distance_mtx):
         """
         Yield image points that are likely to represent the center of a stone, based on the following:
 
@@ -105,16 +123,48 @@ class SfContours(StonesFinder):
             for col in range(nb_cols):
                 cs, ce = col * col_width, (col + 1) * col_width  # col start, col end
                 _, _, _, maxloc = cv2.minMaxLoc(distance_mtx[rs:re + 1, cs:ce + 1])
-                # todo replace with euclidean distance check ?
-                if col_width / 4 < abs(maxloc[0] - (ce - cs) / 2) or row_width / 4 < abs(maxloc[1] - (re - rs) / 2):
+                if min(row_width, col_width) / 4 < norm(maxloc, ((ce - cs)/2, (re - rs)/2)):
                     continue
                 yield cs + maxloc[0], rs + maxloc[1]
 
+    def find_colors(self, img, centers) -> ndarray:
+        """
+        Get for each center the closest goban intersection. Compare this intersection with its neighbours to
+        determine the color of a potential stone there.
+
+        There is a 10% difference entry ticket : no color is set if the intersection is less than 10% different
+        from its empty neighbours.
+
+        """
+        # note : can't apply mask here, since we compare different intersections, which may not have the same number
+        # of masked pixels (zones may not be of the same size depending on grid adjustment implementations.
+        stones = zeros((gsize, gsize), dtype=object)
+        for a, b in centers:
+            x, y = self._posgrid.closest_intersection((b, a))
+            x0, y0, x1, y1 = self._getrect(x, y)
+            stone_mean = npmean(img[x0:x1, y0:y1])  # greyscale will be used in the comparison
+            neighbs, count = 0, 0  # neighbours means , count of neighbours
+            for i in range(-1, 2):
+                if not 0 <= x + i < gsize:
+                    continue
+                for j in range(-1, 2):
+                    if not 0 <= y + j < gsize:
+                        continue
+                    if not self.is_empty(x + i, y + j):
+                        continue
+                    x0, y0, x1, y1 = self._getrect(x + i, y + j)
+                    neighbs += npmean(img[x0:x1, y0:y1])
+                    count += 1
+                    if 2 < count:
+                        break  # just get a feeling, no need to accumulate the potential 8 neighbours
+            if 0 < count:  # todo implemement non-empty neighbours comparison
+                if stone_mean < neighbs / count * 0.9:
+                    stones[x][y] = B
+                elif neighbs / count * 1.1 < stone_mean:
+                    stones[x][y] = W
+        return stones
     # def _draw_metadata(self, img, latency, thread):
     # pass
-
-    def _learn(self):
-        pass
 
     def _window_name(self):
         return SfContours.label

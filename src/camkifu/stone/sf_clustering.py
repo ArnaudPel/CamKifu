@@ -1,4 +1,4 @@
-from numpy import uint8, float32, reshape, unique, zeros, argmax, vectorize
+from numpy import uint8, float32, reshape, unique, zeros, argmax, vectorize, ndarray
 from numpy.ma import absolute
 import cv2
 from camkifu.config.cvconf import canonical_size
@@ -24,14 +24,14 @@ class SfClustering(StonesFinder):
         else:
             cv2.accumulateWeighted(gframe, self.accu, 0.2)
         if self.accu is not None and not self.total_f_processed % 3:
-            # ratios, centers = self.cluster_colors(row_end=12, col_end=12)
-            ratios, centers = self.cluster_colors(row_start=7, row_end=12, col_start=7, col_end=12)
-            conflicts, detected, grid = self.check_pertinence(ratios, centers)
-            img = self.accu.astype(uint8)
-            self.display_intersections(grid, img)
+            rs, re = 0, 6
+            cs, ce = 6, 12
+            ratios, centers = self.cluster_colors(self.accu, r_start=rs, r_end=re, c_start=cs, c_end=ce)
+            grid = self.search_intersections(self.accu.astype(uint8))
+            lines, confirms, detected = self.check_line_conflicts(grid, ratios, centers, r_start=rs, r_end=re, c_start=cs, c_end=ce)
             # canvas = zeros((canonical_size, canonical_size), dtype=uint8)
             # canvas[:] = 127
-            if conflicts < 7:  # todo make that relative to the observed zone (eg. < 2%, with one conflict authorized
+            if 4 < lines and lines - confirms < 5:
                 moves = []
                 for i in range(gsize):
                     for j in range(gsize):
@@ -40,10 +40,14 @@ class SfClustering(StonesFinder):
                         #     y, x = self._posgrid.mtx[i][j]  # convert to opencv coords frame
                         #     cv2.circle(canvas, (x, y), 10, 0 if detected[i][j] is B else 255, thickness=-1)
                 self.bulk_update(moves)
+            else:
+                self.metadata["Too few confirms, skipped frame"] = None
+            img = self.accu.astype(uint8)
+            self.display_intersections(grid, img)
             # self._show(canvas)
-            self._posgrid.learn(absolute(grid))  # to that at the end only, not to invalidate already computed values
+            self._posgrid.learn(absolute(grid))  # do that at the end only, not to invalidate already computed values
 
-    def cluster_colors(self, row_start=0, row_end=gsize, col_start=0, col_end=gsize):
+    def cluster_colors(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize) -> (ndarray, list):
         """
         Return for each analysed intersection the percentage of B, W or E found by pixel color clustering (BGR value).
         Computations based on the attribute self.accu and cv2.kmeans (3-means).
@@ -52,9 +56,9 @@ class SfClustering(StonesFinder):
         global size (gsize * gsize), but the off-domain intersections are set to 1% goban and 0% other colors.
 
         """
-        x0, y0, _, _ = self._getrect(row_start, col_start)
-        _, _, x1, y1 = self._getrect(row_end-1, col_end-1)
-        subimg = self.accu[x0:x1, y0:y1]
+        x0, y0, _, _ = self._getrect(r_start, c_start)
+        _, _, x1, y1 = self._getrect(r_end-1, c_end-1)
+        subimg = img[x0:x1, y0:y1]
         pixels = reshape(subimg, (subimg.shape[0] * subimg.shape[1], 3))
         crit = (cv2.TERM_CRITERIA_EPS, 30, 3)
         retval, labels, centers = cv2.kmeans(pixels, 3, None, crit, 3, cv2.KMEANS_PP_CENTERS)
@@ -69,12 +73,12 @@ class SfClustering(StonesFinder):
             shape = subimg.shape[0], subimg.shape[1]
             labels = reshape(labels, shape)
             labels += 1  # don't leave any 0 before applying mask
-            labels *= self.getmask(self.accu.shape[0:2])[x0:x1, y0:y1]
+            labels *= self.getmask(img.shape[0:2])[x0:x1, y0:y1]
             # store each label percentage, over each intersection. Careful, they are not sorted, refer to "centers"
             ratios = zeros((gsize, gsize, 3), dtype=uint8)
             ratios[:, :, centers_val.index(sorted(centers_val)[1])] = 1  # initialize with goban
-            for x in range(row_start, row_end):
-                for y in range(col_start, col_end):
+            for x in range(r_start, r_end):
+                for y in range(c_start, c_end):
                     a0, b0, a1, b1 = self._getrect(x, y)
                     # noinspection PyTupleAssignmentBalance
                     vals, counts = unique(labels[a0-x0:a1-x0, b0-y0:b1-y0], return_counts=True)
@@ -84,16 +88,23 @@ class SfClustering(StonesFinder):
                             ratios[x][y][label - 1] = 100 * counts[i] / sum(counts)
             return ratios, centers
 
-    def check_pertinence(self, ratios, centers):
+    def check_line_conflicts(self, grid: ndarray, ratios, centers, r_start=0, r_end=gsize, c_start=0, c_end=gsize):
         """
-        Objective: check the result of a clustering method by using go-related logic. Eg having a filled mass of black
-        on one side and the same big continuous mass of white on the other is not a game of Go.
+        First retain a color for each intersection based on the provided "ratios". Then compare this result with the
+        detected lines in "grid". A conflict is counted if the ratios indicate B or W yet one line of has also been
+        detected at the same location: no line should be seen if a stone is sitting on it.
 
-        Also, more than 30 stones difference is a lot and should penalize the score.
+        grid -- a 3D (or 2D) array that has negative values at the locations where lines have been found.
+        ratios -- a 3D matrix storing for each location the percentage of each "center" found in that zone.
+        centers -- gives the order in which the percentages are stored in ratios. Should be a 1D array of size 3,
+                   for colors B, W and E.
+
+        Return the number of conflicts, and the retained color for each intersection, both as 2d arrays.
 
         """
-        if ratios is None:
+        if ratios is None:  # todo remove debug
             return
+        # 1. map colors
         c_vals = list(map(lambda x: int(sum(x) / 3), centers))  # grey level of centers
         c_colors = []
         for grey in c_vals:
@@ -103,20 +114,22 @@ class SfClustering(StonesFinder):
                 c_colors.append(W)
             else:
                 c_colors.append(E)
-        # if an intersection is more than say 70% B or W, retain color. Otherwise assume it is empty.
+        # 2. set each intersection's color
         detected = zeros((gsize, gsize), dtype=object)
-        for i in range(gsize):
-            for j in range(gsize):
+        for i in range(r_start, r_end):
+            for j in range(c_start, c_end):
                 max_k = argmax(ratios[i][j])
                 detected[i][j] = c_colors[max_k]
-        grid = self.search_intersections(self.accu.astype(uint8))
-        conflicts = 0
-        for i in range(gsize):
-            for j in range(gsize):
-                if sum(grid[i][j]) < 0 and detected[i][j] is not E:
-                    conflicts += 1
-        self.metadata["Conflict: {:.1f}%"] = 100 * conflicts / (gsize**2)
-        return conflicts, detected, grid
+        # 3. count lines and confirmations
+        lines = 0     # the number of intersections where lines have been detected
+        confirms = 0  # the number of empty intersections where lines have been detected
+        for i in range(r_start, r_end):
+            for j in range(c_start, c_end):
+                if sum(grid[i][j]) < 0:
+                    lines += 1
+                    if detected[i][j] is E:
+                        confirms += 1
+        return lines, confirms, detected
 
     def _learn(self):
         pass

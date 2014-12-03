@@ -291,3 +291,89 @@ class SegGridIter(object):
         else:
             assert self.idx == len(self.grid), "Should describe entire grid once and only once."
             raise StopIteration
+
+
+def split_sq(img, nbsplits=5, offset=False):
+    """
+    Split the image in nbsplits * nbsplits squares and yield each Chunk.
+
+    """
+    for hchunk in split_h(img, nbsplits, offset=offset):
+        for vchunk in split_v(hchunk.mat, nbsplits, offset=offset):
+            yield Chunk(hchunk.x + vchunk.x, hchunk.y + vchunk.y, vchunk.mat, img)
+
+
+def split_v(img, nbsplits=5, offset=False):
+    """
+    Split the image in "nbsplits" vertical strips, and yields the Chunks.
+    nbsplits -- the number of strips required.
+
+    """
+    for i in range(nbsplits):
+        strip_size = img.shape[1] / nbsplits
+        offs = strip_size / 2 if offset else 0
+        x0 = i * strip_size + offs
+
+        if (i + 1) < nbsplits:
+            x1 = (i + 1) * strip_size + offs
+        else:
+            if offset:
+                return
+            else:
+                x1 = img.shape[1]
+
+        y0 = 0
+        y1 = img.shape[0]
+        yield Chunk(x0, y0, img[y0:y1, x0:x1].copy(), img)
+
+
+def split_h(img, nbsplits=5, offset=False):
+    """
+    Split the image in "nbsplits" horizontal strips, and yields the Chunks.
+    nbsplits -- the number of strips required.
+
+    """
+
+    for i in range(nbsplits):
+        x0 = 0
+        x1 = img.shape[1]
+        strip_size = img.shape[0] / nbsplits
+        offs = strip_size / 2 if offset else 0
+        y0 = i * strip_size + offs
+
+        if (i + 1) < nbsplits:
+            y1 = (i + 1) * strip_size + offs
+        else:
+            if offset:
+                return  # skipp last block when offsetting
+            else:
+                y1 = img.shape[0]
+
+        yield Chunk(x0, y0, img[y0:y1, x0:x1].copy(), img)
+
+
+class Chunk:
+    """
+    A chunk (subpart) of an image.
+
+    x -- the x origin of the Chunk inside the source image.
+    y -- the y origin of the Chunk inside the source image.
+    mat -- the chunk itself, a matrix.
+    src -- the source image.
+    """
+
+    def __init__(self, x0, y0, mat, source):
+        self.x = x0
+        self.y = y0
+        self.mat = mat
+        self.src = source
+
+    def __setitem__(self, key, value):
+        pass
+
+    def paint(self, dest):
+        """
+        Copy values from this Chunk into the global (dest) image, at the right location.
+
+        """
+        dest[self.x:self.mat.shape[0] + self.x, self.y:self.mat.shape[1] + self.y] = self.mat

@@ -135,7 +135,8 @@ class BackgroundSub2(StonesFinder):
                 x_mass = int(sum([pt[0] for pt in box]) / len(box))
                 y_mass = int(sum([pt[1] for pt in box]) / len(box))
                 box_center = x_mass, y_mass
-                x, y = self._posgrid.get_intersection(box_center)  # the related intersection of the goban
+                # todo this is most likely inverted (invert xmass and ymass)
+                x, y = self._posgrid.closest_intersection(box_center)  # the related intersection of the goban
 
                 if self.is_empty(x, y):
                     box_mask = zeros((img.shape[0], img.shape[1]), dtype=uint8)  # todo optimize if it lives on
