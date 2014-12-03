@@ -24,6 +24,24 @@ class SfContours(StonesFinder):
 
     def _find(self, goban_img: ndarray):
         stones = self.find_stones(goban_img)
+        self.display_stones(stones)
+
+    def _learn(self):
+        pass
+
+    def find_stones(self, img: ndarray):
+        median = cv2.medianBlur(img, 13)
+        median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
+        grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
+        otsu, _ = cv2.threshold(grey, 12, 255, cv2.THRESH_OTSU)
+        canny = cv2.Canny(median, otsu / 2, otsu)
+        # canny = cv2.Canny(goban_img, 25, 75)
+        centers = self._analyse_contours(canny)
+        stones = self.find_colors(img, centers)
+        return stones
+
+    def display_stones(self, stones: ndarray):
+        # todo move that to stonesfinder maybe
         canvas = zeros((self._posgrid.size, self._posgrid.size), dtype=uint8)
         canvas[:] = 127
         for x in range(gsize):
@@ -36,23 +54,8 @@ class SfContours(StonesFinder):
                     continue
                 p = self._posgrid.mtx[x][y]
                 cv2.circle(canvas, (p[1], p[0]), 10, color, thickness=-1)
-        goban_img /= 2
         self._drawgrid(canvas)
         self._show(canvas)
-
-    def _learn(self):
-        pass
-
-    def find_stones(self, goban_img):
-        median = cv2.medianBlur(goban_img, 13)
-        median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
-        grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
-        otsu, _ = cv2.threshold(grey, 12, 255, cv2.THRESH_OTSU)
-        canny = cv2.Canny(median, otsu / 2, otsu)
-        # canny = cv2.Canny(goban_img, 25, 75)
-        centers = self._analyse_contours(canny)
-        stones = self.find_colors(goban_img, centers)
-        return stones
 
     def _analyse_contours(self, img: ndarray, row_start=0, row_end=gsize, col_start=0, col_end=gsize):
         """

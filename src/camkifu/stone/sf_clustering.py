@@ -88,18 +88,26 @@ class SfClustering(StonesFinder):
                             ratios[x][y][label - 1] = 100 * counts[i] / sum(counts)
             return ratios, centers
 
-    def check_line_conflicts(self, grid: ndarray, ratios, centers, r_start=0, r_end=gsize, c_start=0, c_end=gsize):
+    def check_line_conflicts(self, grid: ndarray, ratios, centers, stones=None,
+                             r_start=0, r_end=gsize, c_start=0, c_end=gsize):
         """
-        First retain a color for each intersection based on the provided "ratios". Then compare this result with the
-        detected lines in "grid". A conflict is counted if the ratios indicate B or W yet one line of has also been
-        detected at the same location: no line should be seen if a stone is sitting on it.
+        Check that the provided "ratios" array, which is a result of pixel clustering aggregated per goban zone, is
+        coherent with lines detection in the image: no line should be found in zones where a stone has been detected.
 
-        grid -- a 3D (or 2D) array that has negative values at the locations where lines have been found.
+        First retain a color for each zone based on the provided "ratios", and store it in "stones". Then compare
+        this result with the detected lines in "grid". A confirmation is counted for the zone if the ratios indicate
+        E and at least one line has also been detected in that zone.
+
+        grid -- a 3D (or 2D) array that has negative values where lines have been found.
         ratios -- a 3D matrix storing for each location the percentage of each "center" found in that zone.
         centers -- gives the order in which the percentages are stored in ratios. Should be a 1D array of size 3,
                    for colors B, W and E.
+        stones -- a 2D array that can store the objects, used to record the stones found. It is created if not provided.
 
-        Return the number of conflicts, and the retained color for each intersection, both as 2d arrays.
+        Return
+        lines -- the number of intersections where lines have been detected (based on the provided grid)
+        confirms -- the number of empty intersections where lines have been detected, meaning the
+        stones -- the retained color for each intersection (see argument).
 
         """
         if ratios is None:  # todo remove debug
@@ -115,11 +123,12 @@ class SfClustering(StonesFinder):
             else:
                 c_colors.append(E)
         # 2. set each intersection's color
-        detected = zeros((gsize, gsize), dtype=object)
+        if stones is None:
+            stones = zeros((gsize, gsize), dtype=object)
         for i in range(r_start, r_end):
             for j in range(c_start, c_end):
                 max_k = argmax(ratios[i][j])
-                detected[i][j] = c_colors[max_k]
+                stones[i][j] = c_colors[max_k]
         # 3. count lines and confirmations
         lines = 0     # the number of intersections where lines have been detected
         confirms = 0  # the number of empty intersections where lines have been detected
@@ -127,9 +136,9 @@ class SfClustering(StonesFinder):
             for j in range(c_start, c_end):
                 if sum(grid[i][j]) < 0:
                     lines += 1
-                    if detected[i][j] is E:
+                    if stones[i][j] is E:
                         confirms += 1
-        return lines, confirms, detected
+        return lines, confirms, stones
 
     def _learn(self):
         pass
