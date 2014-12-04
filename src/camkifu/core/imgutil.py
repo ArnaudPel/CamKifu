@@ -6,8 +6,6 @@ from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud
 from numpy.ma import minimum, around
 import cv2
 
-from camkifu.config.cvconf import screenw, screenh
-
 
 __author__ = 'Arnaud Peloquin'
 
@@ -108,8 +106,12 @@ def show(img, auto_down=True, name="Camkifu", loc=None):
         if loc is not None:
             cv2.moveWindow(name, *loc)
         else:
-            center = (screenw / 2, screenh / 2)
-            cv2.moveWindow(name, max(0, int(center[0] - toshow.shape[0] / 2)), int(toshow.shape[1] / 2))
+            try:
+                from test.devconf import screenw, screenh
+                center = (screenw / 2, screenh / 2)
+                cv2.moveWindow(name, max(0, int(center[0] - toshow.shape[0] / 2)), int(toshow.shape[1] / 2))
+            except ImportError:
+                pass
         windows.add(name)
     cv2.imshow(name, toshow)
 
@@ -130,12 +132,16 @@ def _factor(img):
 
     """
     f = 0
-    imwidth = img.shape[1]
-    imheight = img.shape[0]
-    while screenw < imwidth or screenh < imheight:
-        f += 1
-        imwidth /= 2
-        imheight /= 2
+    try:
+        from test.devconf import screenw, screenh
+        imwidth = img.shape[1]
+        imheight = img.shape[0]
+        while screenw < imwidth or screenh < imheight:
+            f += 1
+            imwidth /= 2
+            imheight /= 2
+    except ImportError:
+        pass
     return f
 
 

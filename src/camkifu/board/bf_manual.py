@@ -1,10 +1,9 @@
-import os
+from ntpath import basename
 
 import cv2
 import numpy as np
 
 from camkifu.board.boardfinder import BoardFinder
-from test.devconf import gobanloc_npz
 
 
 __author__ = 'Arnaud Peloquin'
@@ -28,10 +27,12 @@ class BoardFinderManual(BoardFinder):
         self.manual_found = False
         self.capture_pos = None
         try:
-            np_file = np.load(gobanloc_npz)
-            for p in np_file["location"]:
-                self.corners.submit(p)
-            self.manual_found = True
+            path = self.get_save_file_path()
+            if path is not None:
+                np_file = np.load(path)
+                for p in np_file["location"]:
+                    self.corners.submit(p)
+                self.manual_found = True
         except IOError or TypeError:
             pass
 
@@ -71,8 +72,18 @@ class BoardFinderManual(BoardFinder):
             if self.corners.is_ready():
                 self.last_positive = 0  # update transform matrix as soon as possible
                 self.manual_found = True
-                # noinspection PyUnusedLocal, PyProtectedMember
-                np.savez(gobanloc_npz, location=self.corners._points)
+                # noinspection PyProtectedMember
+                path = self.get_save_file_path()
+                if path is not None:
+                    np.savez(path, location=self.corners._points)
+
+    def get_save_file_path(self):
+        try:
+            from test.devconf import gobanloc_npz
+            fname = basename(self.vmanager.current_video)
+            return gobanloc_npz + fname + ".npz"
+        except ImportError:
+            return None
 
     def _window_name(self):
         return "Manual Grid Detection"

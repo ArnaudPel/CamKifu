@@ -4,7 +4,7 @@ import sys
 
 from numpy import float32, array
 
-from camkifu.config.cvconf import canonical_size as csize, bf_loc
+from camkifu.config.cvconf import canonical_size as csize
 from camkifu.core.imgutil import draw_circles, draw_lines, get_ordered_hull, norm
 from camkifu.core.video import VidProcessor
 
@@ -58,7 +58,13 @@ class BoardFinder(VidProcessor):
         Override to take control of the location of the window of this boardfinder
 
         """
-        super()._show(img, name, latency, thread, loc=bf_loc, max_frequ=max_freq)
+        if loc is None:
+            try:
+                from test.devconf import bf_loc
+                loc = bf_loc
+            except ImportError:
+                pass
+        super()._show(img, name, latency, thread, loc=loc, max_frequ=max_freq)
 
 
 class GobanCorners():
@@ -84,6 +90,8 @@ class GobanCorners():
 
         """
         if len(self._points) < 4:
+            # todo check that the new point is not too close to the others (accidental double-click), otherwise
+            # it can become annoying to understand and fix by the user
             self._points.append(point)
         else:
             closest = (sys.maxsize, None)  # (distance, index_in_list)

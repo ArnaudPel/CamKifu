@@ -7,7 +7,7 @@ from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndar
 from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute
 
-from camkifu.config.cvconf import canonical_size, sf_loc
+from camkifu.config.cvconf import canonical_size
 from camkifu.core.imgutil import draw_circles, draw_str, Segment, within_margin
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E, B, W
@@ -271,6 +271,13 @@ class StonesFinder(VidProcessor):
             print("area={0}".format(self.zone_area))
         return self.mask_cache
 
+    def get_stones(self):
+        """
+        Return a copy of the current goban state.
+
+        """
+        return self.vmanager.controller.rules.copystones()
+
     def _drawgrid(self, img: ndarray):
         """
         Draw a circle around each intersection of the goban, as they are currently estimated.
@@ -297,10 +304,15 @@ class StonesFinder(VidProcessor):
         Override to take control of the location of the window of this stonesfinder
 
         """
-        location = sf_loc if loc is None else loc
-        super()._show(img, name, latency, thread, loc=location, max_frequ=max_frequ)
+        if loc is None:
+            try:
+                from test.devconf import sf_loc
+                loc = sf_loc
+            except ImportError:
+                pass
+        super()._show(img, name, latency, thread, loc=loc, max_frequ=max_frequ)
 
-    def search_intersections(self, img: ndarray) -> ndarray:
+    def find_intersections(self, img: ndarray) -> ndarray:
         """
         Return a matrix indicating which intersections are likely to be empty.
 
@@ -349,6 +361,27 @@ class StonesFinder(VidProcessor):
         min_area = (4 / 3 * radius) ** 2
         max_area = (3 * radius) ** 2
         return min_area, max_area
+
+    def display_stones(self, stones: ndarray):
+        """
+        Dev method to see an array of stones in an image. It is a simpler alternative than suggesting them to the goban,
+        since there's no game logic involved (easier to update on the flight).
+
+        """
+        canvas = zeros((self._posgrid.size, self._posgrid.size), dtype=uint8)
+        canvas[:] = 127
+        for x in range(gsize):
+            for y in range(gsize):
+                if stones[x][y] is B:
+                    color = 0
+                elif stones[x][y] is W:
+                    color = 255
+                else:
+                    continue
+                p = self._posgrid.mtx[x][y]
+                cv2.circle(canvas, (p[1], p[0]), 10, color, thickness=-1)
+        self._drawgrid(canvas)
+        self._show(canvas)
 
     def display_intersections(self, grid, img):
         """

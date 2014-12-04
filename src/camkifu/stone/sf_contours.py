@@ -5,7 +5,7 @@ import cv2
 
 from camkifu.core.imgutil import norm
 from camkifu.stone.stonesfinder import StonesFinder
-from golib.config.golib_conf import gsize, B, W
+from golib.config.golib_conf import gsize, B, W, E
 
 __author__ = 'Arnaud Peloquin'
 
@@ -39,23 +39,6 @@ class SfContours(StonesFinder):
         centers = self._analyse_contours(canny)
         stones = self.find_colors(img, centers)
         return stones
-
-    def display_stones(self, stones: ndarray):
-        # todo move that to stonesfinder maybe
-        canvas = zeros((self._posgrid.size, self._posgrid.size), dtype=uint8)
-        canvas[:] = 127
-        for x in range(gsize):
-            for y in range(gsize):
-                if stones[x][y] is B:
-                    color = 0
-                elif stones[x][y] is W:
-                    color = 255
-                else:
-                    continue
-                p = self._posgrid.mtx[x][y]
-                cv2.circle(canvas, (p[1], p[0]), 10, color, thickness=-1)
-        self._drawgrid(canvas)
-        self._show(canvas)
 
     def _analyse_contours(self, img: ndarray, row_start=0, row_end=gsize, col_start=0, col_end=gsize):
         """
@@ -142,6 +125,7 @@ class SfContours(StonesFinder):
         # note : can't apply mask here, since we compare different intersections, which may not have the same number
         # of masked pixels (zones may not be of the same size depending on grid adjustment implementations.
         stones = zeros((gsize, gsize), dtype=object)
+        stones[:] = E
         for a, b in centers:
             x, y = self._posgrid.closest_intersection((b, a))
             x0, y0, x1, y1 = self._getrect(x, y)
