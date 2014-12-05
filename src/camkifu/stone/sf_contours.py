@@ -23,21 +23,26 @@ class SfContours(StonesFinder):
         self.accu = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
 
     def _find(self, goban_img: ndarray):
-        stones = self.find_stones(goban_img)
+        rs, re = 0, 19
+        cs, ce = 6, 13
+        stones = self.find_stones(goban_img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
         self.display_stones(stones)
 
     def _learn(self):
         pass
 
-    def find_stones(self, img: ndarray):
-        median = cv2.medianBlur(img, 13)
+    def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize):
+        x0, y0, _, _ = self._getrect(r_start, c_start)
+        _, _, x1, y1 = self._getrect(r_end - 1, c_end - 1)
+        median = img[x0:x1, y0:y1].copy()
+        median = cv2.medianBlur(median, 13)
         median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
         grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
         otsu, _ = cv2.threshold(grey, 12, 255, cv2.THRESH_OTSU)
         canny = cv2.Canny(median, otsu / 2, otsu)
         # canny = cv2.Canny(goban_img, 25, 75)
         centers = self._analyse_contours(canny)
-        stones = self.find_colors(img, centers)
+        stones = self.find_colors(img, [(x + y0, y + x0) for x, y in centers])  # in opencv coordinates system
         return stones
 
     def _analyse_contours(self, img: ndarray, row_start=0, row_end=gsize, col_start=0, col_end=gsize):

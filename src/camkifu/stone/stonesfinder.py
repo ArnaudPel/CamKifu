@@ -3,12 +3,12 @@ from queue import Queue, Full
 from time import time
 
 import cv2
-from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray
+from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray, array
 from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute
 
 from camkifu.config.cvconf import canonical_size
-from camkifu.core.imgutil import draw_circles, draw_str, Segment, within_margin
+from camkifu.core.imgutil import draw_str, Segment, within_margin
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E, B, W
 from golib.model.move import Move
@@ -276,7 +276,8 @@ class StonesFinder(VidProcessor):
         Return a copy of the current goban state.
 
         """
-        return self.vmanager.controller.rules.copystones()
+        with self.vmanager.controller.rules.rlock:
+            return array(self.vmanager.controller.rules.stones, dtype=object).T
 
     def _drawgrid(self, img: ndarray):
         """

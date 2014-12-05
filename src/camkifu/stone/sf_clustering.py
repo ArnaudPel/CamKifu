@@ -24,32 +24,27 @@ class SfClustering(StonesFinder):
         else:
             cv2.accumulateWeighted(gframe, self.accu, 0.2)
         if self.accu is not None and not self.total_f_processed % 3:
-            rs, re = 12, 19
-            cs, ce = 6, 12
-            ratios, centers = self.cluster_colors(self.accu)
-            stones = self.interpret_ratios(ratios, centers)
-            # ratios, centers = self.cluster_colors(self.accu, r_start=rs, r_end=re, c_start=cs, c_end=ce)
-            # stones = self.interpret_ratios(ratios, centers, r_start=rs, r_end=re, c_start=cs, c_end=ce)
-            grid = self.find_intersections(self.accu.astype(uint8))
-            # lines, confirms = self.check_lines(stones, grid, r_start=rs, r_end=re, c_start=cs, c_end=ce)
-            lines, confirms = self.check_lines(stones, grid)
+            rs, re = 0, 19  # row start, row end
+            cs, ce = 6, 13   # column start, column end
+            stones = self.find_stones(self.accu, rs, re, cs, ce)
             # canvas = zeros((canonical_size, canonical_size), dtype=uint8)
             # canvas[:] = 127
-            if 4 < lines and lines - confirms < 5:
-                moves = []
-                for i in range(gsize):
-                    for j in range(gsize):
-                        moves.append((stones[i][j], i, j))
-                        # if detected[i][j] in (B, W):
-                        #     y, x = self._posgrid.mtx[i][j]  # convert to opencv coords frame
-                        #     cv2.circle(canvas, (x, y), 10, 0 if detected[i][j] is B else 255, thickness=-1)
-                self.bulk_update(moves)
-            else:
-                self.metadata["Too few confirms, skipped frame"] = None
-            img = self.accu.astype(uint8)
-            self.display_intersections(grid, img)
+            moves = []
+            for i in range(gsize):
+                for j in range(gsize):
+                    moves.append((stones[i][j], i, j))
+                    # if detected[i][j] in (B, W):
+                    #     y, x = self._posgrid.mtx[i][j]  # convert to opencv coords frame
+                    #     cv2.circle(canvas, (x, y), 10, 0 if detected[i][j] is B else 255, thickness=-1)
+            self.bulk_update(moves)
             # self._show(canvas)
-            self._posgrid.learn(absolute(grid))  # do that at the end only, not to invalidate already computed values
+
+    def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize):
+        if img.dtype is not float32:
+            img = img.astype(float32)
+        ratios, centers = self.cluster_colors(img, r_start=r_start, r_end=r_end, c_start=c_start, c_end=c_end)
+        stones = self.interpret_ratios(ratios, centers, r_start=r_start, r_end=r_end, c_start=c_start, c_end=c_end)
+        return stones
 
     def cluster_colors(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize) -> (ndarray, list):
         """
@@ -68,8 +63,8 @@ class SfClustering(StonesFinder):
         retval, labels, centers = cv2.kmeans(pixels, 3, None, crit, 3, cv2.KMEANS_PP_CENTERS)  # "attempts" a bit low ?
         if retval:
             # dev code to map the labels on an image to visualize the exact clustering result
-            centers_val = list(map(lambda x: int(sum(x) / 3), centers))  # wish I could vectorize the colors but.. failed
-            # pixels = vectorize(lambda x: centers_val[x])(labels)
+            centers_val = list(map(lambda x: int(sum(x) / 3), centers))
+            # pixels = vectorize(lambda x: centers_val[x])(labels)  # wish I could vectorize the colors but.. failed
             # pixels = reshape(pixels.astype(uint8), (subimg.shape[0], subimg.shape[1]))
             # pixels *= self.getmask(self.accu.shape[0:2])[x0:x1, y0:y1]
             # self._show(pixels)
@@ -120,32 +115,6 @@ class SfClustering(StonesFinder):
                 max_k = argmax(ratios[i][j])
                 stones[i][j] = c_colors[max_k]
         return stones
-
-    def check_lines(self, stones: ndarray, grid: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize):
-        """
-        Check that the provided "stones" 2D array is coherent with lines detection in the image: no line should
-        be found in zones where a stone has been detected.
-
-        A confirmation is counted for the zone if it is empty (E) and at least one line has also been detected
-        in that zone.
-
-        stones -- a 2D array that can store the objects, used to record the stones found. It is created if not provided.
-        grid -- a 3D (or 2D) array that has negative values where lines have been found.
-
-        Return
-        lines -- the number of intersections where lines have been detected (based on the provided grid)
-        confirms -- the number of empty intersections where lines have been detected, meaning the
-
-        """
-        lines = 0     # the number of intersections where lines have been detected
-        confirms = 0  # the number of empty intersections where lines have been detected
-        for i in range(r_start, r_end):
-            for j in range(c_start, c_end):
-                if sum(grid[i][j]) < 0:
-                    lines += 1
-                    if stones[i][j] is E:
-                        confirms += 1
-        return lines, confirms
 
     def _learn(self):
         pass
