@@ -1,5 +1,6 @@
+from collections import defaultdict
 import cv2
-from numpy import zeros, ndarray, unique, uint8, vectorize, max as npmax
+from numpy import zeros, ndarray, unique, uint8, vectorize, max as npmax, sum as npsum
 from numpy.ma import absolute
 
 from camkifu.core.imgutil import draw_str
@@ -13,6 +14,10 @@ from golib.model.rules import RuleUnsafe
 
 
 __author__ = 'Arnaud Peloquin'
+
+# possible states of a region. watch indicate no active search need to be performed
+Search = "search"
+Watch = "watch"
 
 
 class SfMeta(StonesFinder):
@@ -30,18 +35,32 @@ class SfMeta(StonesFinder):
         super().__init__(vmanager)
         self.cluster = SfClustering(None)    # set to None for safety, put vmanager when needed
         self.contour = SfContours(vmanager)  # this one needs a vmanager already
+        self.split = 3
 
-        self.finders = zeros((3, 3), dtype=object)  # which finder should be used on each goban region
+        self.finders = zeros((self.split, self.split), dtype=object)  # which finder should be used on each goban region
         self.finders[:] = self.contour  # contour analysis is more suitable for initial phase
-        self.histo_len = 7  # todo integrating a background detector should help lowering that (less false positives)
+
+        self.histo_len = 5  # the max number of frames over which data should be accumulated (history, memory)
+        self.states = zeros((self.split, self.split, self.histo_len), dtype=object)
+        self.states[:] = Search
 
         # contours-related attributes
         self.contour_accu = zeros((gsize, gsize, self.histo_len), dtype=object)
         self.contour_accu[:] = E
+        self.contour._show = self._show  # hack
 
         # cluster-related attributes
         self.cluster_accu = zeros((gsize, gsize, self.histo_len), dtype=object)
         self.cluster_accu[:] = E
+        self.cluster_totry = zeros((self.split, self.split), dtype=bool)  # regions where clustering must be assessed
+        self.cluster_totry[:] = True
+
+        # background-related attributes
+        self.bg_model = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
+        self.bg_init_frames = 50
+
+        # dev attributes
+        self.region_data = defaultdict(list)  # one list of data per region. acces with str key: "row-index"
 
     def _find(self, goban_img: ndarray):
         """
@@ -52,88 +71,103 @@ class SfMeta(StonesFinder):
 
         """
         self.metadata["Frame nr: {}"] = self.total_f_processed + 1
-        if 0 < self.init_frames_left():
-            self.warmup(goban_img)
+        learning = 0.01 if self.total_f_processed < self.bg_init_frames else 0.005
+        fg = self.bg_model.apply(goban_img, learningRate=learning)  # learn background and get foreground
+        # 0. if startup phase: initialize background model
+        if self.total_f_processed < self.bg_init_frames:
+            black = zeros((goban_img.shape[0], goban_img.shape[1]), dtype=uint8)
+            message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
+            draw_str(black, message, int(black.shape[0] / 2 - 70), int(black.shape[1] / 2))
+            self._show(black)
+            return
+        # 1. if warmup phase: accumulate a few passes of contours analysis
+        if 0 < self.warmup_frames_left():
+            cont_stones = self.contour.find_stones(goban_img, show=True)
+            self.contour_accu[:, :, self.total_f_processed % self.histo_len] = cont_stones
+            self.commit(self.contour_accu)
+        # 2. if routine phase, record changes (which should not exceed 2-3 moves at a time, if players are really fast)
         else:
-            self.routine(goban_img)
-            self.draw_finders(goban_img)
+            self.routine(goban_img, fg)
+            self.draw_regdata(goban_img)
             self._show(goban_img)
 
-    def init_frames_left(self):
-        return self.histo_len - self.total_f_processed
+    def warmup_frames_left(self):
+        return self.bg_init_frames + self.histo_len - self.total_f_processed
 
-    def warmup(self, img):
-        # 1. accumulate a few passes of contours analysis results
-        cont_stones = self.contour.find_stones(img)
-        self.contour_accu[:, :, self.total_f_processed % self.histo_len] = cont_stones
-        self.commit(self.contour_accu)
-
-        # 2. When about to exit warmup, decide which regions are dense enough for clustering finder
-        if self.init_frames_left() == 1:
-            grid = self.find_intersections(img)
-            self.display_intersections(grid, img)
-            self.assess_clustering(img, grid)  # todo analyse several frames before making the decisions
-            self.commit(self.cluster_accu)
-            self._posgrid.learn(absolute(grid))  # do that at the end only, not to invalidate already computed values
-
-    def routine(self, img: ndarray) -> None:
-        split = 3
+    def routine(self, img: ndarray, foreground: ndarray) -> None:
         i = 0
-        for rs, re, cs, ce in self.subregions(split=split):
-            finder = self.finders[int(i / split)][i % split]
-            stones = finder.find_stones(img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
-            k = self.total_f_processed % self.histo_len
-            self.get_accu(finder)[rs:re, cs:ce, k] = stones[rs:re, cs:ce]
+        worked = False
+        grid = None  # the intersections detected in current image.
+        for rs, re, cs, ce in self.subregions(split=self.split):
+            row = int(i / self.split)
+            col = i % self.split
+            k = self.total_f_processed % self.histo_len  # "time permutation" index
+            calm = self.check_foreground(foreground, i, rs, re, cs, ce)  # todo handle that "i" better, or document it
+            state = self.states[row, col, k]
+            self.region_data["{}-{}".format(row, col)].append(state[0])
+            if calm:
+                self.region_data["{}-{}".format(row, col)].append("Q")  # quiet (calm)
+                if state is Search:
+                    stones = None  # result of analysis for this region
+                    if self.cluster_totry[row, col]:
+                        if grid is None:
+                            grid = self.find_intersections(img)
+                        stones = self.assess_clustering(img, grid, i, rs, re, cs, ce)
+                    if stones is not None:
+                        # todo accumulate several passes before making the decision to assign clustering
+                        self.finders[row, col] = self.cluster
+                        self.cluster_totry[row, col] = False  # clustering has now been assigned to be the default
+                    else:
+                        # default routine code
+                        stones = self.finders[row, col].find_stones(img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
+                    # save results
+                    self.get_accu(self.finders[row, col])[rs:re, cs:ce, k] = stones[rs:re, cs:ce]
+                    worked = True
+                    self.states[row, col, k] = Watch
+            else:
+                self.region_data["{}-{}".format(row, col)].append("A")  # agitated
             i += 1
-        self.commit(self.contour_accu)
-        self.commit(self.cluster_accu)
+        if worked:
+            self.commit(self.contour_accu)
+            self.commit(self.cluster_accu)
 
-    def assess_clustering(self, goban_img: ndarray, grid) -> None:
+    def assess_clustering(self, goban_img: ndarray, grid: ndarray, i, rs=0, re=gsize, cs=0, ce=gsize) -> ndarray:
         """
         Try and evaluate "clustering finder" in regions where it is not the default finder.
+        Basically once a region is dense enough, the clustering seems much more trustworthy than contours analysis.
 
         """
-        # todo switch to global clustering when 4 - 5 regions out of the 9 are clustering ? + at least one per row / col
-        split = 3
+        # Run clustering-based stones detection
+        stones = self.cluster.find_stones(goban_img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
+
+        # Assess clustering results validity
         ref_stones = self.get_stones()
-        i = 0
-        # Objective : determine for each region if clustering detection can be applied
-        # Basically once a region is dense enough, the clustering seems much more trustworthy than contours analysis
-        wild_guess = 0
-        for rs, re, cs, ce in self.subregions(split=split):
-            # 1. Skipp regions already assigned to clustering
-            if self.finders[int(i / split)][i % split] is self.cluster:
-                continue
+        passed = 0
+        for constraint in (self.check_against, self.check_lines, self.check_logic):
+            check = constraint(stones, reference=ref_stones, grid=grid, r_start=rs, r_end=re, c_start=cs, c_end=ce)
+            if check < 0:
+                return None  # veto from that constraint check
+            passed += check
+        row, col = int(i / self.split), i % self.split
+        if not passed:
+            print("Wild clustering assignment to region {}".format((row, col)))
+        return stones
 
-            # 2. Run clustering-based stones detection
-            result = self.cluster.find_stones(goban_img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
+    def check_foreground(self, fg: ndarray, i, rs=0, re=gsize, cs=0, ce=gsize):
+        """
+        Watch for foreground disturbances to "wake up" the regions of interest only.
+        Return True if the region is "calm" (not much foreground), else False.
 
-            # 3. Assess clustering results validity
-            passed = 0
-            veto = False  # set to True if at least one check was refused
-            for constraint in (self.check_logic, self.check_against, self.check_lines):  # todo remove logic from there
-                check = constraint(result, reference=ref_stones, grid=grid, r_start=rs, r_end=re, c_start=cs, c_end=ce)
-                if 0 <= check:
-                    passed += check
-                    if check: print("{} passed".format(constraint.__name__))
-                    else: print("{} undetermined".format(constraint.__name__))
-                else:
-                    veto = True
-                    print("{} refused".format(constraint.__name__))
-                    break
-
-            # 3.2 If at least one test could be run (and passed), assign clustering to that region, and store result
-            if not veto and 0 < passed:
-                self.cluster_accu[rs:re, cs:ce, self.total_f_processed % self.histo_len] = result[rs:re, cs:ce]
-                self.finders[int(i / split)][i % split] = self.cluster
-            else:
-                # last resort check. separated form others since it's not a real test as it can be undetermined at best
-                check = self.check_logic(result, r_start=rs, r_end=re, c_start=cs, c_end=ce)
-                if 0 <= check:
-                    self.finders[int(i / split)][i % split] = self.cluster
-                    wild_guess += 1
-            i += 1
-        print("Wild guessed regions (warmup): {}/9".format(wild_guess))
+        """
+        x0, y0, _, _ = self._getrect(rs, cs)
+        _, _, x1, y1 = self._getrect(re - 1, ce - 1)
+        threshold = (x1 - x0) * (y1 - y0) / (re - rs) / (ce - cs)
+        agitated = npsum(fg[x0:x1, y0:y1]) / 255  # fg array expected to contain 0 or 255 values only
+        if threshold * 0.9 < agitated:
+            # equivalent of one intersection moved 90%. trigger search state and mark as agitated
+            self.states[int(i / self.split), i % self.split, :] = Search
+            return False
+        return True
 
     def subregions(self, split=3):
         """
@@ -169,7 +203,7 @@ class SfMeta(StonesFinder):
             for j in range(gsize):
                 if self.is_empty(i, j):
                     # noinspection PyTupleAssignmentBalance
-                    vals, counts = unique(stones[i][j], return_counts=True)
+                    vals, counts = unique(stones[i, j], return_counts=True)
                     if len(vals) < 3 and E in vals:  # don't commit if the two colors have been triggered
                         k = 0 if vals[0] is E else 1
                         if counts[k] / stones.shape[2] < 0.4:  # commit if less than 40% empty
@@ -184,9 +218,9 @@ class SfMeta(StonesFinder):
         matches = 0   # number of matches with the references (non-empty only)
         for r in range(r_start, r_end):
             for c in range(c_start, c_end):
-                if reference[r][c] in (B, W):
+                if reference[r, c] in (B, W):
                     refs += 1
-                    if stones[r][c] is reference[r][c]:
+                    if stones[r, c] is reference[r, c]:
                         matches += 1
         if 3 < refs:  # check against at least 4 stones
             if 0.9 < matches / refs:
@@ -215,9 +249,9 @@ class SfMeta(StonesFinder):
         matches = 0  # the number of empty intersections where lines have been detected
         for i in range(r_start, r_end):
             for j in range(c_start, c_end):
-                if sum(grid[i][j]) < 0:
+                if sum(grid[i, j]) < 0:
                     lines += 1
-                    if stones[i][j] is E:
+                    if stones[i, j] is E:
                         matches += 1
         if 4 < lines:
             if 0.9 < matches / lines:
@@ -238,8 +272,8 @@ class SfMeta(StonesFinder):
             move_nr = 1
             for r in range(r_start, r_end):
                 for c in range(c_start, c_end):
-                    if stones[r][c] in (B, W):
-                        rule.put(Move('np', (stones[r][c], r, c), number=move_nr), reset=False)
+                    if stones[r, c] in (B, W):
+                        rule.put(Move('np', (stones[r, c], r, c), number=move_nr), reset=False)
                         move_nr += 1
             rule.confirm()
             # todo check that no kill has happened if we are in warmup phase
@@ -255,6 +289,7 @@ class SfMeta(StonesFinder):
                 # a stone surrounded by a 3-stones-thick wall of its own color is most likely not Go
                 print("{} thick chunk refused".format(color))
                 return -1
+        # todo check that there is no lonely stone on first line (no neighbour say 3 lines around it)
         # 3. if survived up to here, can't really confirm, but at least nothing seems wrong
         return 0
 
@@ -264,17 +299,21 @@ class SfMeta(StonesFinder):
         elif isinstance(finder, SfContours):
             return self.contour_accu
 
-    def draw_finders(self, img):
-        split = 3
+    def draw_regdata(self, img):
         i = 0
-        for rs, re, cs, ce in self.subregions(split=split):
+        for rs, re, cs, ce in self.subregions(split=self.split):
             x0, y0, _, _ = self._getrect(rs, cs)
             _, _, x1, y1 = self._getrect(re - 1, ce - 1)
-            finder = self.finders[int(i / split)][i % split]
+            row = int(i / self.split)
+            col = i % self.split
+            finder = self.finders[row, col]
+            data_list = self.region_data["{}-{}".format(row, col)]
             if isinstance(finder, SfClustering):
-                draw_str(img[x0:x1, y0:y1], "K")
+                data_list.append("K")
             elif isinstance(finder, SfContours):
-                draw_str(img[x0:x1, y0:y1], "C")
+                data_list.append("C")
+            draw_str(img[x0:x1, y0:y1], str(data_list))
+            data_list.clear()
             i += 1
 
     def _learn(self):

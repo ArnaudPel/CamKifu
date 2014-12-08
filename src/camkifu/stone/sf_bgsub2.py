@@ -41,7 +41,6 @@ class BackgroundSub2(StonesFinder):
         self._bg_model = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self._bg_initialization = 0
         self.background = None
-        self.fg_mask = None
         self.candidates = []  # candidates for the next added stone
         self.candid_acc = 0  # the number of frames since last candidate list clear
 
@@ -79,9 +78,7 @@ class BackgroundSub2(StonesFinder):
         if self.background is None:
             self.background = array(img, dtype=float32)
         cv2.accumulateWeighted(img, self.background, 0.01)
-        if self.fg_mask is None:
-            self.fg_mask = zeros((img.shape[0], img.shape[1]), dtype=uint8)
-        self._bg_model.apply(img, fgmask=self.fg_mask, learningRate=0.01)
+        self._bg_model.apply(img, learningRate=0.01)
         self._bg_initialization += 1
         if self._bg_initialization < bg_learning_frames:
             black = zeros((img.shape[0], img.shape[1]), dtype=uint8)
@@ -115,7 +112,7 @@ class BackgroundSub2(StonesFinder):
 
         # todo read paper about MOG2, in order to know how to use it properly here
         learn = 0 if self.total_f_processed % 5 else 0.01
-        fg = self._bg_model.apply(img, fgmask=self.fg_mask, learningRate=learn)
+        fg = self._bg_model.apply(img, learningRate=learn)
         sorted_conts, contours = self.extract_contours(fg)
         # colors = zeros_like(img)
         # draw_contours_multicolor(colors, contours)
@@ -134,8 +131,7 @@ class BackgroundSub2(StonesFinder):
                 # get the center of the box to determine which intersection of the goban has been triggered
                 x_mass = int(sum([pt[0] for pt in box]) / len(box))
                 y_mass = int(sum([pt[1] for pt in box]) / len(box))
-                box_center = x_mass, y_mass
-                # todo this is most likely inverted (invert xmass and ymass)
+                box_center = y_mass, x_mass
                 x, y = self._posgrid.closest_intersection(box_center)  # the related intersection of the goban
 
                 if self.is_empty(x, y):
@@ -188,7 +184,7 @@ class BackgroundSub2(StonesFinder):
         cv2.erode(smoothed, (5, 5), dst=smoothed, iterations=3)
         prepared = cv2.Canny(smoothed, 25, 75)
         _, contours, hierarchy = cv2.findContours(prepared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        max_area, min_area = self.stone_boxarea_bounds()
+        min_area, max_area = self.stone_boxarea_bounds()
         sorted_conts = sort_contours_box(contours, area_bounds=(min_area, max_area))
         return sorted_conts, contours
 

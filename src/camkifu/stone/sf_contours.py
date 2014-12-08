@@ -3,7 +3,7 @@ from math import sin, cos, radians
 from numpy import uint8, zeros, ndarray, empty, mean as npmean
 import cv2
 
-from camkifu.core.imgutil import norm
+from camkifu.core.imgutil import norm, draw_contours_multicolor
 from camkifu.stone.stonesfinder import StonesFinder
 from golib.config.golib_conf import gsize, B, W, E
 
@@ -25,13 +25,13 @@ class SfContours(StonesFinder):
     def _find(self, goban_img: ndarray):
         rs, re = 0, 19
         cs, ce = 6, 13
-        stones = self.find_stones(goban_img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
+        stones = self.find_stones(goban_img, r_start=rs, r_end=re, c_start=cs, c_end=ce, show=False)
         self.display_stones(stones)
 
     def _learn(self):
         pass
 
-    def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize):
+    def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize, show=False):
         x0, y0, _, _ = self._getrect(r_start, c_start)
         _, _, x1, y1 = self._getrect(r_end - 1, c_end - 1)
         median = img[x0:x1, y0:y1].copy()
@@ -41,8 +41,12 @@ class SfContours(StonesFinder):
         otsu, _ = cv2.threshold(grey, 12, 255, cv2.THRESH_OTSU)
         canny = cv2.Canny(median, otsu / 2, otsu)
         # canny = cv2.Canny(goban_img, 25, 75)
-        centers = self._analyse_contours(canny)
+        centers, contours = self._analyse_contours(canny)
         stones = self.find_colors(img, [(x + y0, y + x0) for x, y in centers])  # in opencv coordinates system
+        if show:
+            black = zeros(img.shape, dtype=uint8)
+            draw_contours_multicolor(black[x0:x1, y0:y1], contours)
+            self._show(black)
         return stones
 
     def _analyse_contours(self, img: ndarray, row_start=0, row_end=gsize, col_start=0, col_end=gsize):
@@ -58,6 +62,8 @@ class SfContours(StonesFinder):
         # todo experiment with something else than retr_external ?
         _, contours, hierarchy = cv2.findContours(subregion, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         centers = []  # one maximum per zone, in opencv coordinates system
+        # todo seeing that contours are often shattered into pieces, filtering may be counter-productive when
+        # used with distance transform -> experiment without.
         for cont in self._filter_contours(contours):
             # compute the distance matrix from contour: the higher the value, the further the point from the contour
             cv2.drawContours(ghost, [cont], 0, (255, 0, 255))
@@ -68,7 +74,7 @@ class SfContours(StonesFinder):
             distance_mtx = cv2.distanceTransform(negative, cv2.DIST_L2, cv2.DIST_MASK_5)
             for a, b in self._find_centers(distance_mtx):
                 centers.append((a + y0 + ry0, b + x0 + rx0))  # put back all offsets to integrate into global img
-        return centers
+        return centers, contours
 
     def _filter_contours(self, contours):
         """
