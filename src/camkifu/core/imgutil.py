@@ -2,7 +2,7 @@ from bisect import insort
 from math import sqrt, acos, pi, cos, sin
 from sys import float_info, maxsize
 
-from numpy import zeros, int32, ndarray, ones_like, arange, column_stack, flipud, vstack
+from numpy import zeros, uint8, int32, ndarray, ones_like, arange, column_stack, flipud, vstack
 from numpy.ma import minimum, around
 import cv2
 
@@ -409,3 +409,86 @@ class Segment:
 
     def __str__(self):
         return "Seg({} + {}, {:.2f}rad)".format(self.coords, self.offset, self.theta)
+
+
+class CyclicBuffer():
+    """
+    Convenience class to handle buffering of multi-dimensional arrays. Each buffered array will be overwritten
+    if the buffer index completes a cycle and new updates are submitted.
+
+    The underlying structure is a numpy array with one more dimension than the buffered arrays. The implementation of
+    __getitem__ and __setitem__ magic methods aims at hiding that last dimension, since it is used as the buffer cycle
+    index. However the self.buffer attribute is of course available, when an operation over different cycles must be
+    performed.
+
+    See doctest for some usage examples.
+
+    Probably not optimal (and intuitive) in its design, but does the job for now.
+
+    To get / set values in the current cycle index, access the instance as a numpy array:
+
+    >>> cb = CyclicBuffer((2, 2), 2, uint8, init=1)
+    >>> print(cb[:])  # convenient access to currently buffered array
+    [[1 1]
+     [1 1]]
+    >>> print(cb.buffer[:])  # underlying structure (contains 'size' buffered arrays)
+    [[[1 1]
+      [1 1]]
+    <BLANKLINE>
+     [[1 1]
+      [1 1]]]
+    >>> cb[0, 0] = 42  # update current array
+    >>> cb[1, 1] = 42  # update current array (same array as above)
+    >>> print(cb[:])
+    [[42  1]
+     [ 1 42]]
+    >>> cb.increment()  # increment cycle index : point to the next buffered array
+    >>> cb[0, 1] = 19  # update current array (now different from above)
+    >>> print(cb[:])
+    [[ 1 19]
+     [ 1  1]]
+    >>> print(cb.buffer[:])  # underlying structure : both updated arrays appear
+    [[[42  1]
+      [ 1 19]]
+    <BLANKLINE>
+     [[ 1  1]
+      [42  1]]]
+    >>> cb.increment()  # increment cycle index : a cycle has completed, so the buffer points on the first array again
+    >>> cb[:] = 99
+    >>> print(cb.buffer[:])
+    [[[99  1]
+      [99 19]]
+    <BLANKLINE>
+     [[99  1]
+      [99  1]]]
+
+    """
+
+    def __init__(self, shape, size, dtype, init=None):
+        self.size = size
+        self.buffer = zeros(shape + (size,), dtype=dtype)
+        self.index = 0
+        if init is not None:
+            self.buffer[:] = init
+
+    def __getitem__(self, item):
+        if isinstance(item, tuple):
+            assert len(item) < len(self.buffer.shape), \
+                "Last dimension is used as implicit cycle marker, don't refer to it"
+        return self.buffer.__getitem__(self.get_index(item))
+
+    def __setitem__(self, item, value):
+        if isinstance(item, tuple):
+            assert len(item) < len(self.buffer.shape),\
+                "Last dimension is used as implicit cycle marker, don't refer to it"
+        self.buffer.__setitem__(self.get_index(item), value)
+
+    def get_index(self, item):
+        buff_item = item if isinstance(item, tuple) else (item, )
+        while len(buff_item) < len(self.buffer.shape) - 1:
+            buff_item += (slice(None), )
+        buff_item += (self.index % self.size, )
+        return buff_item
+
+    def increment(self):
+        self.index += 1

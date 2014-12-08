@@ -1,9 +1,9 @@
 from collections import defaultdict
+
 import cv2
 from numpy import zeros, ndarray, unique, uint8, vectorize, max as npmax, sum as npsum
-from numpy.ma import absolute
 
-from camkifu.core.imgutil import draw_str
+from camkifu.core.imgutil import draw_str, CyclicBuffer
 from camkifu.stone.sf_clustering import SfClustering
 from camkifu.stone.sf_contours import SfContours
 from camkifu.stone.stonesfinder import StonesFinder
@@ -41,19 +41,17 @@ class SfMeta(StonesFinder):
         self.finders[:] = self.contour  # contour analysis is more suitable for initial phase
 
         self.histo_len = 5  # the max number of frames over which data should be accumulated (history, memory)
-        self.states = zeros((self.split, self.split, self.histo_len), dtype=object)
-        self.states[:] = Search
+        self.states = CyclicBuffer((self.split, self.split), self.histo_len, dtype=object, init=Search)
 
         # contours-related attributes
-        self.contour_accu = zeros((gsize, gsize, self.histo_len), dtype=object)
-        self.contour_accu[:] = E
+        self.contour_accu = CyclicBuffer((gsize, gsize), self.histo_len, dtype=object, init=E)
         self.contour._show = self._show  # hack
 
         # cluster-related attributes
-        self.cluster_accu = zeros((gsize, gsize, self.histo_len), dtype=object)
-        self.cluster_accu[:] = E
+        self.cluster_accu = CyclicBuffer((gsize, gsize), self.histo_len, dtype=object, init=E)
         self.cluster_totry = zeros((self.split, self.split), dtype=bool)  # regions where clustering must be assessed
         self.cluster_totry[:] = True
+        self.cluster_score = CyclicBuffer((self.split, self.split), self.histo_len, dtype=uint8)  # assessment score
 
         # background-related attributes
         self.bg_model = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
@@ -83,53 +81,63 @@ class SfMeta(StonesFinder):
         # 1. if warmup phase: accumulate a few passes of contours analysis
         if 0 < self.warmup_frames_left():
             cont_stones = self.contour.find_stones(goban_img, show=True)
-            self.contour_accu[:, :, self.total_f_processed % self.histo_len] = cont_stones
+            self.contour_accu[:] = cont_stones
             self.commit(self.contour_accu)
         # 2. if routine phase, record changes (which should not exceed 2-3 moves at a time, if players are really fast)
-        else:
+        elif not self.total_f_processed % 4:  # process 1 frame out of 4 - todo make that VidProc-wide, if reading files
             self.routine(goban_img, fg)
             self.draw_regdata(goban_img)
             self._show(goban_img)
+            self.states.increment()
 
     def warmup_frames_left(self):
         return self.bg_init_frames + self.histo_len - self.total_f_processed
 
     def routine(self, img: ndarray, foreground: ndarray) -> None:
         i = 0
-        worked = False
         grid = None  # the intersections detected in current image.
+        to_commit = set()
+        updated_score = False
         for rs, re, cs, ce in self.subregions(split=self.split):
             row = int(i / self.split)
             col = i % self.split
-            k = self.total_f_processed % self.histo_len  # "time permutation" index
             calm = self.check_foreground(foreground, i, rs, re, cs, ce)  # todo handle that "i" better, or document it
-            state = self.states[row, col, k]
+            state = self.states[row, col]
             self.region_data["{}-{}".format(row, col)].append(state[0])
             if calm:
                 self.region_data["{}-{}".format(row, col)].append("Q")  # quiet (calm)
                 if state is Search:
-                    stones = None  # result of analysis for this region
-                    if self.cluster_totry[row, col]:
+                    if self.cluster_totry[row, col] and self.finders[row, col] is not self.cluster:
                         if grid is None:
                             grid = self.find_intersections(img)
-                        stones = self.assess_clustering(img, grid, i, rs, re, cs, ce)
-                    if stones is not None:
-                        # todo accumulate several passes before making the decision to assign clustering
-                        self.finders[row, col] = self.cluster
-                        self.cluster_totry[row, col] = False  # clustering has now been assigned to be the default
+                        passed, stones = self.assess_clustering(img, grid, i, rs, re, cs, ce)
+                        if 0 <= passed:
+                            self.cluster_score[row, col] = passed
+                            updated_score = True
+                            if self.cluster_score.index % self.histo_len == self.histo_len - 1:  # todo implement correctly
+                                if 0 < npsum(self.cluster_score.buffer[row, col, :]):
+                                    # at least one test could be run and passed
+                                    self.finders[row, col] = self.cluster
+                                    self.cluster_accu[rs:re, cs:ce] = stones[rs:re, cs:ce]
+                                    to_commit.add(self.cluster_accu)
+                                    self.states.buffer[row, col, :] = Search  # new finder, need to run a full cycle
+                                self.cluster_totry[row, col] = False
+                        else:  # one veto, cancel this "clustering try" cycle, it is too early (not enough stones)
+                            self.cluster_totry[row, col] = False
                     else:
                         # default routine code
                         stones = self.finders[row, col].find_stones(img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
-                    # save results
-                    self.get_accu(self.finders[row, col])[rs:re, cs:ce, k] = stones[rs:re, cs:ce]
-                    worked = True
-                    self.states[row, col, k] = Watch
+                        cbuff = self.get_accu(self.finders[row, col])
+                        cbuff[rs:re, cs:ce] = stones[rs:re, cs:ce]
+                        to_commit.add(cbuff)
+                    self.states[row, col] = Watch
             else:
                 self.region_data["{}-{}".format(row, col)].append("A")  # agitated
             i += 1
-        if worked:
-            self.commit(self.contour_accu)
-            self.commit(self.cluster_accu)
+        for cb in to_commit:
+            self.commit(cb)
+        if updated_score:
+            self.cluster_score.increment()
 
     def assess_clustering(self, goban_img: ndarray, grid: ndarray, i, rs=0, re=gsize, cs=0, ce=gsize) -> ndarray:
         """
@@ -146,12 +154,12 @@ class SfMeta(StonesFinder):
         for constraint in (self.check_against, self.check_lines, self.check_logic):
             check = constraint(stones, reference=ref_stones, grid=grid, r_start=rs, r_end=re, c_start=cs, c_end=ce)
             if check < 0:
-                return None  # veto from that constraint check
+                return -1, None  # veto from that constraint check
             passed += check
         row, col = int(i / self.split), i % self.split
         if not passed:
             print("Wild clustering assignment to region {}".format((row, col)))
-        return stones
+        return passed, stones
 
     def check_foreground(self, fg: ndarray, i, rs=0, re=gsize, cs=0, ce=gsize):
         """
@@ -165,7 +173,7 @@ class SfMeta(StonesFinder):
         agitated = npsum(fg[x0:x1, y0:y1]) / 255  # fg array expected to contain 0 or 255 values only
         if threshold * 0.9 < agitated:
             # equivalent of one intersection moved 90%. trigger search state and mark as agitated
-            self.states[int(i / self.split), i % self.split, :] = Search
+            self.states.buffer[int(i / self.split), i % self.split, :] = Search
             return False
         return True
 
@@ -197,17 +205,18 @@ class SfMeta(StonesFinder):
             if 0 < gsize - re < step:
                 re = gsize
 
-    def commit(self, stones):
-        assert len(stones.shape) == 3
+    def commit(self, cb: CyclicBuffer):
+        assert len(cb.buffer.shape) == 3
         for i in range(gsize):
             for j in range(gsize):
                 if self.is_empty(i, j):
                     # noinspection PyTupleAssignmentBalance
-                    vals, counts = unique(stones[i, j], return_counts=True)
+                    vals, counts = unique(cb.buffer[i, j], return_counts=True)
                     if len(vals) < 3 and E in vals:  # don't commit if the two colors have been triggered
                         k = 0 if vals[0] is E else 1
-                        if counts[k] / stones.shape[2] < 0.4:  # commit if less than 40% empty
+                        if counts[k] / cb.size < 0.4:  # commit if less than 40% empty
                             self.suggest(vals[1 - k], i, j)
+        cb.increment()
 
     def check_against(self, stones, reference=None, r_start=0, r_end=gsize, c_start=0, c_end=gsize, **kwargs):
         """
@@ -294,6 +303,7 @@ class SfMeta(StonesFinder):
         return 0
 
     def get_accu(self, finder):
+        # todo replace w a dict ?
         if isinstance(finder, SfClustering):
             return self.cluster_accu
         elif isinstance(finder, SfContours):
