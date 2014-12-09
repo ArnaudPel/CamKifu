@@ -105,26 +105,6 @@ class ControllerV(Controller):
         except Empty:
             pass
 
-    def is_empty_blocking(self, x, y, seconds=0.1):
-        """
-        Return True if the position is empty, false otherwise.
-
-        @warning This method makes the thread sleep as long as current move is not the last move. This limitation
-        is based on the fact that variations are not allowed, and the rules object is modified by browsing moves.
-        The caveat is that calling this method from the GUI thread while not being at the last move would most likely
-        freeze the GUI.
-
-        Incidentally, this method implicitly provides a way to pause vision algorithms in the middle of a computation,
-        which makes for a more responsive behavior.
-
-        x, y -- interpreted in the opencv (=tk) coordinates frame.
-        seconds -- the duration of one sleep iteration.
-
-        """
-        while not self.at_last_move():
-            sleep(seconds)
-        return self.rules[x][y] is E
-
     def locate(self, x, y):
         """
         Look for a Move object having (x, y) location in the kifu.

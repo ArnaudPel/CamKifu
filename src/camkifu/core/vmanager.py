@@ -1,9 +1,10 @@
 from time import sleep
 from threading import Thread, Lock
-import cv2
 from os.path import isfile
 
-from camkifu.config.cvconf import bfinders, sfinders, unsynced
+import cv2
+
+from camkifu.config.cvconf import bfinders, sfinders, unsynced, file_fps
 from camkifu.core.video import VisionThread
 
 
@@ -56,18 +57,18 @@ class VManagerBase(Thread):
         Return the proper video capture object for this vmanager. Extension point.
 
         """
-        #noinspection PyArgumentList
-        return cv2.VideoCapture(self.controller.video)
+        # noinspection PyArgumentList
+        return CaptureReaderBase(cv2.VideoCapture(self.controller.video), self)
 
     def run(self):
         raise NotImplementedError("Abstract method meant to be extended")
 
-    def read(self, _):
+    def read(self, caller):
         """
-        Proxy to ignore the vidprocessor passing itself.
+        Proxy method to hide the wrapping of the "capture" attribute.
 
         """
-        return self.capt.read()
+        return self.capt.read(caller)
 
     def next(self):
         """
@@ -129,10 +130,8 @@ class VManager(VManagerBase):
         self.controller._off = self._off
 
     def _get_capture(self):
-        return CaptureReader(super()._get_capture(), self)
-
-    def read(self, vidprocessor):
-        return self.capt.read(vidprocessor)
+        # noinspection PyArgumentList
+        return CaptureReader(cv2.VideoCapture(self.controller.video), self)
 
     def next(self):
         for proc in self.processes:
@@ -286,7 +285,58 @@ class VManager(VManagerBase):
             self.board_finder = None
 
 
-class CaptureReader():
+class CaptureReaderBase:
+    """
+    Wrapper of cv2.VideoCapture to ease the tuning of its usage. This base class has an ability to periodically skip
+    frames when reading from a file, aiming at lowering the frame rate.
+
+    For example there's no need to read 30 frames per second when analysing a game of Go, and lowering that figure to
+    5 frames per second still results in a fast sampling for this use case. This parameter can be set in cvconf.py.
+
+    """
+
+    def __init__(self, capture, vmanager: VManagerBase, fps=file_fps):
+        """
+        -- capture : the object from which actual read() calls will be consumed.
+        -- vmanager : the owner of the VidProcessors to synchronize.
+        -- fps : number of frames per second that should be read from video files (i.e. potentially skip some frames)
+
+        """
+        self.capture = capture
+        self.vmanager = vmanager
+        self.frame_rate = fps
+
+    def __getattr__(self, item):
+        """
+        Hijack the "read()" method, delegate all others.
+
+        """
+        if item == "read":
+            if isfile(self.vmanager.controller.video):
+                return self.read_file
+            else:
+                # no meddling if the input is not a file, yet the argument has to be ignored
+                return lambda _: self.capture.read()
+        else:
+            return self.capture.__getattribute__(item)
+
+    def read_file(self, caller):
+        self.skip()
+        return self.capture.read()
+
+    def skip(self) -> None:
+        """
+        Set the next frame number for self.capture, in such a way that self.frame_rate is respected.
+        In other word, skip as many frames as needed to match the desired file read frame rate.
+
+        """
+        idx = self.capture.get(cv2.CAP_PROP_POS_FRAMES)
+        idx += max(1, self.capture.get(cv2.CAP_PROP_FPS) / self.frame_rate)
+        idx = min(idx, self.capture.get(cv2.CAP_PROP_FRAME_COUNT))  # don't point after the last frame
+        self.capture.set(cv2.CAP_PROP_POS_FRAMES, idx)
+
+
+class CaptureReader(CaptureReaderBase):
     """
     Wrapper to synchronize image consumption from a file : all VidProcessors that are active must have received the
     current image before the next image is consumed from VideoCapture.
@@ -296,14 +346,13 @@ class CaptureReader():
 
     """
 
-    def __init__(self, capture, vmanager):
+    def __init__(self, capture, vmanager: VManager):
         """
         -- capture : the object from which actual read() calls will be consumed.
         -- vmanager : the owner of the VidProcessors to synchronize.
 
         """
-        self.capture = capture
-        self.vmanager = vmanager
+        super().__init__(capture, vmanager)
         self.buffer = None   # the current result from videocapture.read()
         self.served = set()  # the threads that have received the currently buffered image
         self.lock_init = Lock()     # synchronization on videocapture.read() calls the first time
@@ -311,21 +360,7 @@ class CaptureReader():
         self.sleep_time = 0.05  # 50 ms
         self.unsync = False     # True means that the reading is stopped, and no thread should be kept sleeping
 
-    def __getattr__(self, item):
-        """
-        Hijack the "read()" method, delegate all others.
-
-        """
-        if item == "read":
-            if isfile(self.vmanager.controller.video):
-                return self.read_multi
-            else:
-                # no meddling if the input is not a file, yet the argument has to be ignored
-                return lambda _: self.capture.read()
-        else:
-            return self.capture.__getattribute__(item)
-
-    def read_multi(self, caller):
+    def read_file(self, caller):
         """
         Implements a custom read() method that provides the same image to all VidProcessor threads.
         Wait until all have been served before consuming the next frame.
@@ -368,6 +403,7 @@ class CaptureReader():
                         served_all = False
                         break
                 if served_all:
+                    self.skip()
                     self.buffer = self.capture.read()
                     self.served.clear()
 
@@ -377,6 +413,7 @@ class CaptureReader():
 
         """
         active = []
+        # noinspection PyUnresolvedReferences
         for vidproc in self.vmanager.processes:
             try:
                 if vidproc.ready_to_read():

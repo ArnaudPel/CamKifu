@@ -197,10 +197,12 @@ class VidProcessor(object):
         """
         # step 1 : draw default metadata, from the top of image
         try:
-            percent_progress = int(100 * self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
+            frame_idx = int(round(self.vmanager.capt.get(cv2.CAP_PROP_POS_FRAMES)))
+            total = int(round(self.vmanager.capt.get(cv2.CAP_PROP_FRAME_COUNT)))
+            progress = int(round(100 * frame_idx / total))  # %
             x_offset = 40
             line_spacing = 20
-            draw_str(img, "video progress {0} %".format(percent_progress), x_offset, line_spacing)
+            draw_str(img, "Frame {}/{} ({} %)".format(frame_idx, total, progress), x_offset, line_spacing)
             draw_str(img, "images not shown:  %d" % self.ignored_show, x_offset, 2 * line_spacing)
             if latency:
                 draw_str(img, "latency:  %.1f ms" % ((time() - self.last_read) * 1000), x_offset, 3 * line_spacing)

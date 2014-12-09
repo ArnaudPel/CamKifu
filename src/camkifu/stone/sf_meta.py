@@ -40,7 +40,7 @@ class SfMeta(StonesFinder):
         self.finders = zeros((self.split, self.split), dtype=object)  # which finder should be used on each goban region
         self.finders[:] = self.contour  # contour analysis is more suitable for initial phase
 
-        self.histo_len = 5  # the max number of frames over which data should be accumulated (history, memory)
+        self.histo_len = 3  # the max number of frames over which data should be accumulated (history, memory)
         self.states = CyclicBuffer((self.split, self.split), self.histo_len, dtype=object, init=Search)
 
         # contours-related attributes
@@ -84,7 +84,7 @@ class SfMeta(StonesFinder):
             self.contour_accu[:] = cont_stones
             self.commit(self.contour_accu)
         # 2. if routine phase, record changes (which should not exceed 2-3 moves at a time, if players are really fast)
-        elif not self.total_f_processed % 4:  # process 1 frame out of 4 - todo make that VidProc-wide, if reading files
+        else:
             self.routine(goban_img, fg)
             self.draw_regdata(goban_img)
             self._show(goban_img)
