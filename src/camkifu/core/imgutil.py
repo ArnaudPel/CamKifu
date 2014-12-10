@@ -466,6 +466,8 @@ class CyclicBuffer():
 
     def __init__(self, shape, size, dtype, init=None):
         self.size = size
+        if type(shape) is int:
+            shape = (shape, )
         self.buffer = zeros(shape + (size,), dtype=dtype)
         self.index = 0
         if init is not None:
@@ -492,3 +494,17 @@ class CyclicBuffer():
 
     def increment(self):
         self.index += 1
+
+    def at_start(self) -> bool:
+        """
+        Return true if self.index is pointing at the first position of the cycle.
+
+        """
+        return self.index % self.size == 0
+
+    def at_end(self) -> bool:
+        """
+        Return true if self.index is pointing at the last position of the cycle.
+
+        """
+        return (self.index + 1) % self.size == 0

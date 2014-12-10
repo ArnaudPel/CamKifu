@@ -93,7 +93,7 @@ class BackgroundSub(StonesFinder):
 
         """
         for x, y in self._empties():
-            x0, y0, x1, y1 = self._getrect(x, y)
+            x0, y0, x1, y1 = self.getrect(x, y)
             zone = img[x0:x1, y0:y1]
             # copy = img.copy()
             for chan in range(3):
@@ -113,7 +113,7 @@ class BackgroundSub(StonesFinder):
         x, y  -- the indexes of the zone (i.e. the coordinate of the goban intersection).
 
         """
-        x0, y0, x1, y1 = self._getrect(x, y)
+        x0, y0, x1, y1 = self.getrect(x, y)
         zone = img[x0:x1, y0:y1]
         # noinspection PyNoneFunctionAssignment
         mean_eval = empty(3, dtype=self._background.dtype)

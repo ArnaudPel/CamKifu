@@ -130,7 +130,7 @@ This example also makes for a good reminder of the kind of confusion that can oc
 
 #### Intersections: zone
 
-The base method `_getrect` returns, for a goban's lines intersection, the corresponding pixel zone. Let's get a feeling by displaying the 37 zones representing the diagonals of the goban:
+The base method `getrect` returns, for a goban's lines intersection, the corresponding pixel zone. Let's get a feeling by displaying the 37 zones representing the diagonals of the goban:
  
 ```python
 from numpy import zeros_like
@@ -141,14 +141,14 @@ def _find(self, goban_img):
     for r in range(gsize):      # row index
         for c in range(gsize):  # column index
             if r == c or r == gsize - c - 1:
-                x0, y0, x1, y1 = self._getrect(r, c)
+                x0, y0, x1, y1 = self.getrect(r, c)
                 canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
     self._show(canvas)
 ```
 
 `zone` is a numpy array containing the pixels of the required subregion of the image. `pt`, for "point", gives the coordinates of that (rectangle) zone inside the image: `pt = [x_start, y_start, x_end, y_end]` 
 
-Note that by default, the values returned by `_getrect` are merely calculated by dividing the image in 19 by 19 (`gsize * gsize`) zones without any analysis. As explained above, the default (most simple) approach places entire trust in the board finding feature.
+Note that by default, the values returned by `getrect` are merely calculated by dividing the image in 19 by 19 (`gsize * gsize`) zones without any analysis. As explained above, the default (most simple) approach places entire trust in the board finding feature.
 
 ### 3. Other misc. goodies
 
@@ -165,7 +165,7 @@ from golib.config.golib_conf import gsize
 def _find(self, goban_img):
     canvas = zeros_like(goban_img)
     for r, c in self._empties_border(2):  # 2 is the line height as in go vocabulary (0-based)
-        x0, y0, x1, y1 = self._getrect(r, c)
+        x0, y0, x1, y1 = self.getrect(r, c)
         canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
     self._show(canvas)
 ```
@@ -183,7 +183,7 @@ def _find(self, goban_img):
         self.canvas = zeros_like(goban_img)
     for r, c in self._empties_spiral():
         if count == self.total_f_processed % gsize**2:
-            x0, y0, x1, y1 = self._getrect(r, c)
+            x0, y0, x1, y1 = self.getrect(r, c)
             self.canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
             break
         count += 1

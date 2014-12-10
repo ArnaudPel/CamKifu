@@ -79,7 +79,7 @@ class StonesFinder(VidProcessor):
     def _window_name(self):
         return "camkifu.stone.stonesfinder.StonesFinder"
 
-    def suggest(self, color, x: int, y: int, ctype: str='np'):
+    def suggest(self, color, x: int, y: int, ctype: str='np', doprint=True):
         """
         Suggest the add of a new stone to the goban.
         -- color : in (E, B, W)
@@ -88,7 +88,8 @@ class StonesFinder(VidProcessor):
 
         """
         move = Move(ctype, ctuple=(color, x, y))
-        print(move)
+        if doprint:
+            print(move)
         self.vmanager.controller.pipe("append", [move])
 
     def remove(self, x, y, ctype='np'):
@@ -194,7 +195,7 @@ class StonesFinder(VidProcessor):
             if self.vmanager.controller.is_empty_blocking(x, y):
                 yield y, x
 
-    def _getrect(self, r: int, c: int, cursor: float=1.0) -> (int, int, int, int):
+    def getrect(self, r: int, c: int, cursor: float=1.0) -> (int, int, int, int):
         """
         Return the rectangle of pixels around the provided goban intersection (r, c).
         This method relies on self._posgrid.mtx to get the coordinates of the intersections (so they apply in an
@@ -231,25 +232,23 @@ class StonesFinder(VidProcessor):
         y1 = min(self._posgrid.size, int((1 - w) * p[1] + w * pafter[1]))
         return x0, y0, x1, y1
 
-    def getmask(self, shape: tuple) -> ndarray:
+    def getmask(self, depth=1) -> ndarray:
         """
-        A boolean mask the size of "frame" that has a circle around each goban intersection.
+        A boolean mask shaped in "cvconf.canonical_size" that has a circle around each goban intersection.
         Multiply a frame by this mask to zero-out anything outside the circles.
 
         """
-        # todo remove parameter shape to give more sense to caching ? most likely this mask can only apply to the
-        # canonical frame.
-        if self.mask_cache is None or self.mask_cache.shape != shape:
-            # todo : observation shows that stones of the front line are seen too high (due to cam angle most likely)
+        if self.mask_cache is None or depth != (1 if len(self.mask_cache.shape) == 2 else self.mask_cache.shape[2]):
+            # todo : observation shows that stones of the front line are seen too high (due to camera angle most likely)
             # investigate more and see to adapt the repartition of the mask ? Some sort of vertical gradient of size or
             # location. The former will imply the introduction of a structure to store all zones areas, at least one
-            #  per line.
-            print("initializing mask")
-            self.mask_cache = empty(shape)
-            mask = empty(shape[0:2], dtype=uint8)
+            # per line.
+            print("initializing stones mask")
+            shape = (canonical_size, canonical_size)
+            mask = empty(shape, dtype=uint8)  # without depth
             for row in range(gsize):
                 for col in range(gsize):
-                    x0, y0, x1, y1 = self._getrect(row, col)  # todo expose proportions ?
+                    x0, y0, x1, y1 = self.getrect(row, col)  # todo expose proportions ?
                     zone = mask[x0:x1, y0:y1]
                     a = zone.shape[0] / 2
                     b = zone.shape[1] / 2
@@ -257,6 +256,9 @@ class StonesFinder(VidProcessor):
                     y, x = ogrid[-a:zone.shape[0] - a, -b: zone.shape[1] - b]
                     zmask = x * x + y * y <= r * r
                     mask[x0:x1, y0:y1] = zmask
+            if 1 < depth:
+                shape += (depth, )
+            self.mask_cache = empty(shape)
 
             # duplicate mask to match image depth
             if len(shape) == 3:
@@ -266,9 +268,8 @@ class StonesFinder(VidProcessor):
                 self.mask_cache[:] = mask
 
             # store the area of one zone for normalizing purposes
-            x0, y0, x1, y1 = self._getrect(0, 0)
+            x0, y0, x1, y1 = self.getrect(0, 0)
             self.zone_area = npsum(mask[x0:x1, y0:y1])
-            print("area={0}".format(self.zone_area))
         return self.mask_cache
 
     def get_stones(self):
@@ -331,7 +332,7 @@ class StonesFinder(VidProcessor):
         grid = self._posgrid.mtx.copy()
         for r in range(gsize):
             for c in range(gsize):
-                x0, y0, x1, y1 = self._getrect(r, c)
+                x0, y0, x1, y1 = self.getrect(r, c)
                 zone = canny[x0:x1, y0:y1]
                 min_side = min(zone.shape[0], zone.shape[1])
                 thresh = int(min_side * 3 / 4)

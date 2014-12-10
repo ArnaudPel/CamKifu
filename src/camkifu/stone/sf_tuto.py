@@ -65,7 +65,7 @@ class StonesFinderTuto(StonesFinder):
         for r in range(gsize):      # row index
             for c in range(gsize):  # column index
                 if r == c or r == gsize - c - 1:
-                    x0, y0, x1, y1 = self._getrect(r, c)
+                    x0, y0, x1, y1 = self.getrect(r, c)
                     canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
         self._show(canvas)
 
@@ -76,7 +76,7 @@ class StonesFinderTuto(StonesFinder):
         """
         canvas = zeros_like(goban_img)
         for r, c in self._empties_border(2):  # 2 is the line height as in go vocabulary (0-based)
-            x0, y0, x1, y1 = self._getrect(r, c)
+            x0, y0, x1, y1 = self.getrect(r, c)
             canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
         self._show(canvas)
 
@@ -90,7 +90,7 @@ class StonesFinderTuto(StonesFinder):
             self.canvas = zeros_like(goban_img)
         for r, c in self._empties_spiral():
             if count == self.total_f_processed % gsize ** 2:
-                x0, y0, x1, y1 = self._getrect(r, c)
+                x0, y0, x1, y1 = self.getrect(r, c)
                 self.canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
                 break
             count += 1

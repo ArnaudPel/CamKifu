@@ -55,8 +55,8 @@ class SfClustering(StonesFinder):
         global size (gsize * gsize), but the off-domain intersections are set to 1% goban and 0% other colors.
 
         """
-        x0, y0, _, _ = self._getrect(r_start, c_start)
-        _, _, x1, y1 = self._getrect(r_end-1, c_end-1)
+        x0, y0, _, _ = self.getrect(r_start, c_start)
+        _, _, x1, y1 = self.getrect(r_end-1, c_end-1)
         subimg = img[x0:x1, y0:y1]
         pixels = reshape(subimg, (subimg.shape[0] * subimg.shape[1], 3))
         crit = (cv2.TERM_CRITERIA_EPS, 15, 3)
@@ -72,13 +72,13 @@ class SfClustering(StonesFinder):
             shape = subimg.shape[0], subimg.shape[1]
             labels = reshape(labels, shape)
             labels += 1  # don't leave any 0 before applying mask
-            labels *= self.getmask(img.shape[0:2])[x0:x1, y0:y1]
+            labels *= self.getmask()[x0:x1, y0:y1]
             # store each label percentage, over each intersection. Careful, they are not sorted, refer to "centers"
             ratios = zeros((gsize, gsize, 3), dtype=uint8)
             ratios[:, :, centers_val.index(sorted(centers_val)[1])] = 1  # initialize with goban
             for x in range(r_start, r_end):
                 for y in range(c_start, c_end):
-                    a0, b0, a1, b1 = self._getrect(x, y)
+                    a0, b0, a1, b1 = self.getrect(x, y)
                     # noinspection PyTupleAssignmentBalance
                     vals, counts = unique(labels[a0-x0:a1-x0, b0-y0:b1-y0], return_counts=True)
                     for i in range(len(vals)):
