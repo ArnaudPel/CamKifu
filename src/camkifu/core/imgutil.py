@@ -2,7 +2,7 @@ from bisect import insort
 from math import sqrt, acos, pi, cos, sin
 from sys import float_info, maxsize
 
-from numpy import zeros, uint8, int32, ndarray, ones_like, arange, column_stack, flipud, vstack
+from numpy import zeros, uint8, int32, ndarray, ones_like, arange, column_stack, flipud, vstack, array_equal, array
 from numpy.ma import minimum, around
 import cv2
 
@@ -477,20 +477,33 @@ class CyclicBuffer():
         if isinstance(item, tuple):
             assert len(item) < len(self.buffer.shape), \
                 "Last dimension is used as implicit cycle marker, don't refer to it"
-        return self.buffer.__getitem__(self.get_index(item))
+        return self.buffer.__getitem__(self._get_index(item))
 
     def __setitem__(self, item, value):
         if isinstance(item, tuple):
             assert len(item) < len(self.buffer.shape),\
                 "Last dimension is used as implicit cycle marker, don't refer to it"
-        self.buffer.__setitem__(self.get_index(item), value)
+        self.buffer.__setitem__(self._get_index(item), value)
 
-    def get_index(self, item):
+    def _get_index(self, item):
         buff_item = item if isinstance(item, tuple) else (item, )
         while len(buff_item) < len(self.buffer.shape) - 1:
             buff_item += (slice(None), )
         buff_item += (self.index % self.size, )
         return buff_item
+
+    def replace(self, old, new):
+        """
+        Find the next occurrence of "old", and replace it with "new" (start search at current index and exclude it).
+
+        """
+        toreplace = old if isinstance(old, ndarray) else array([old])
+        i = self.index
+        for _ in range(self.size):
+            i += 1
+            if array_equal(self.buffer[..., i % self.size], toreplace):
+                self.buffer[..., i % self.size] = new
+                break
 
     def increment(self):
         self.index += 1

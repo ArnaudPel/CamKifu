@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 import cv2
-from numpy import zeros, ndarray, unique, uint8, vectorize, max as npmax, sum as npsum
+from numpy import zeros, ndarray, unique, int8, uint8, vectorize, max as npmax, sum as npsum
 
 from camkifu.core.imgutil import draw_str, CyclicBuffer
 from camkifu.stone.sf_clustering import SfClustering
@@ -136,7 +136,7 @@ class Region():
 
         self.canvas = None
         self.population = -1  # populations of regions as they  where the last time clustering was assessed
-        self.cluster_score = CyclicBuffer(1, self.histo, dtype=uint8)  # assessment score
+        self.cluster_score = CyclicBuffer(1, self.histo, dtype=int8)  # assessment score
 
         self.data = []
 
@@ -167,18 +167,19 @@ class Region():
                     if self.clustering_to_try(subrefs):
                         passed, stones = self.assess_clustering(img, subrefs)
                         self.cluster_score[0] = passed
-                        if self.cluster_score.at_end():  # pass a cycle before making the decision
+                        if 0 < passed:  # store successfully tested scores
+                            self.cluster_accu[:] = stones
+                            self.commit(self.cluster_accu)
+                        if self.cluster_score.at_end():  # wait the end of the cycle before making the decision
                             total_score = npsum(self.cluster_score.buffer)
-                            if 0 < total_score:
-                                # at least one test could be run and passed
+                            if 0 <= total_score:
+                                # accept if at least one more success than failures
                                 self.finder = self.sf.cluster
-                                self.cluster_accu[:] = stones
-                                self.commit(self.cluster_accu)
-                                self.states.buffer[0, :] = Search  # new finder, need to run a full cycle
-                            elif 0 == total_score:
-                                print("Unable to assess clustering in region {}".format((self.re, self.ce)))
-                            else:
-                                print("Clustering vetoed {} in region {}".format(passed, (self.re, self.ce)))
+                                self.states.buffer[:] = Search  # new finder, run a full cycle
+                                if total_score == 0 and npmax(self.cluster_score.buffer) == 0:
+                                    print("Wild assignment of clustering to region {}".format((self.re, self.ce)))
+                            # else:
+                            #     print("Clustering vetoed {} in region {}".format(passed, (self.re, self.ce)))
                         self.cluster_score.increment()
                         self.population = self.get_population(subrefs)
                     # branch (b): default routine sequence
@@ -208,7 +209,7 @@ class Region():
         for constraint in (self.check_density, self.check_logic, self.check_against, self.check_lines):
             check = constraint(substones, img=img, reference=ref_stones)
             if check < 0:
-                print("{} vetoed region {}".format(constraint.__name__, (self.re, self.ce)))
+                # print("{} vetoed region {}".format(constraint.__name__, (self.re, self.ce)))
                 return -1, None  # veto from that constraint check
             passed += check
         return passed, substones
@@ -240,7 +241,12 @@ class Region():
         agitated = npsum(subfg) / 255
         if threshold * 0.9 < agitated:
             # equivalent of one intersection moved 90%. trigger search state and mark as agitated
-            self.states.buffer[:] = self.states[0]  # todo could loop in endless warmup if agitation never stops
+            if self.states[0] is Warmup:
+                # increase the duration of warmup a bit
+                self.states.replace(Idle, Warmup)
+            else:
+                # trigger full search
+                self.states.buffer[:] = Search
             return False
         return True
 
