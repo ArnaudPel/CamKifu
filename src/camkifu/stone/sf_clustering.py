@@ -1,7 +1,5 @@
 from numpy import uint8, float32, reshape, unique, zeros, argmax, vectorize, ndarray
-from numpy.ma import absolute
 import cv2
-from camkifu.config.cvconf import canonical_size
 
 from camkifu.stone.stonesfinder import StonesFinder
 from golib.config.golib_conf import gsize, W, B, E
@@ -27,23 +25,26 @@ class SfClustering(StonesFinder):
             rs, re = 0, 19  # row start, row end
             cs, ce = 6, 13   # column start, column end
             stones = self.find_stones(self.accu, rs, re, cs, ce)
-            # canvas = zeros((canonical_size, canonical_size), dtype=uint8)
-            # canvas[:] = 127
             moves = []
             for i in range(gsize):
                 for j in range(gsize):
                     moves.append((stones[i][j], i, j))
-                    # if detected[i][j] in (B, W):
-                    #     y, x = self._posgrid.mtx[i][j]  # convert to opencv coords frame
-                    #     cv2.circle(canvas, (x, y), 10, 0 if detected[i][j] is B else 255, thickness=-1)
             self.bulk_update(moves)
-            # self._show(canvas)
 
     def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize):
+        """
+        Return a matrix containing the detected stones in the desired subregion of the image.
+
+        The three colors (E, B, W) must be present in the image for this statistical method to work.
+        In case of failure, return None to indicate the stones' density was too low (or something failed).
+
+        """
         if img.dtype is not float32:
             img = img.astype(float32)
         ratios, centers = self.cluster_colors(img, r_start=r_start, r_end=r_end, c_start=c_start, c_end=c_end)
         stones = self.interpret_ratios(ratios, centers, r_start=r_start, r_end=r_end, c_start=c_start, c_end=c_end)
+        if not self.check_density(stones):
+            return None  # don't detect anything
         return stones
 
     def cluster_colors(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize) -> (ndarray, list):
@@ -110,11 +111,25 @@ class SfClustering(StonesFinder):
                 c_colors.append(E)
         # 2. set each intersection's color
         stones = zeros((gsize, gsize), dtype=object)
+        stones[:] = E
         for i in range(r_start, r_end):
             for j in range(c_start, c_end):
                 max_k = argmax(ratios[i][j])
                 stones[i][j] = c_colors[max_k]
         return stones
+
+    def check_density(self, stones):
+        """
+        Return True if the density of the provided stones is deemed enough for a k-means (3-means) to make any sense,
+        else False.
+
+        """
+        # noinspection PyTupleAssignmentBalance
+        vals, counts = unique(stones, return_counts=True)
+        # require at least two hits for each color
+        if len(vals) < 3 or min(counts) < 2:
+            return False
+        return True
 
     def _learn(self):
         pass

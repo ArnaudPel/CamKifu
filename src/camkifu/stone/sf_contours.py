@@ -1,9 +1,9 @@
-from math import sin, cos, radians
 
-from numpy import uint8, zeros, ndarray, empty, mean as npmean
+from numpy import uint8, zeros, ndarray, zeros_like, sum as npsum, mean as npmean
+from numpy.ma import maximum
 import cv2
 
-from camkifu.core.imgutil import norm, draw_contours_multicolor
+from camkifu.core.imgutil import draw_contours_multicolor
 from camkifu.stone.stonesfinder import StonesFinder
 from golib.config.golib_conf import gsize, B, W, E
 
@@ -23,62 +23,107 @@ class SfContours(StonesFinder):
         self.accu = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
 
     def _find(self, goban_img: ndarray):
-        rs, re = 0, 19
-        cs, ce = 6, 13
-        stones = self.find_stones(goban_img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
-        self.display_stones(stones)
+        canvas = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
+        # stones = self.find_stones(goban_img, c_start=6, c_end=13, canvas=canvas)
+        stones = self.find_stones(goban_img, canvas=canvas)
+        if stones is not None:
+            temp = self.draw_stones(stones)
+            self._show(maximum(canvas, temp))
 
     def _learn(self):
         pass
 
-    def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize, canvas: ndarray=None):
+    def find_stones(self, img:  ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize, canvas: ndarray=None):
         x0, y0, _, _ = self.getrect(r_start, c_start)
         _, _, x1, y1 = self.getrect(r_end - 1, c_end - 1)
-        median = img[x0:x1, y0:y1].copy()
-        median = cv2.medianBlur(median, 13)
-        median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
-        grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
-        otsu, _ = cv2.threshold(grey, 12, 255, cv2.THRESH_OTSU)
-        canny = cv2.Canny(median, otsu / 2, otsu)
-        # canny = cv2.Canny(goban_img, 25, 75)
-        centers, contours = self._analyse_contours(canny)
-        stones = self.find_colors(img, [(x + y0, y + x0) for x, y in centers])  # in opencv coordinates system
+        subimg = img[x0:x1, y0:y1]
+        canny = self.get_canny(subimg)
+        _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # todo the whole first part could be done on a larger zone than the desired subregion (to have more comp data)
+        mask = zeros_like(canny)
+        for cont in self._filter_contours(contours):
+            # todo if solution retained, mark nearby intersections for later analysis (so that others can be ignored)
+            cv2.drawContours(mask, [cv2.convexHull(cont)], 0, 1, thickness=-1)
+        subgray = cv2.cvtColor(subimg, cv2.COLOR_BGR2GRAY)  # todo diff per color ?
+        masked_gray = subgray * mask
+
+        # zones:
+        #       ¤ first channel (zone[:,:,0]    indicate whether or not each zone is masked
+        #       ¤ second channel (zone[:,:,1]   store the mean pixel value of each zone
+        zones = zeros((r_end - r_start, c_end - c_start, 2), dtype=uint8)
+        for r in range(zones.shape[0]):
+            for c in range(zones.shape[1]):
+                a0, b0, a1, b1 = self.getrect(r + r_start, c + c_start)
+                area = (a1 - a0) * (b1 - b0)
+                visible_area = npsum(mask[a0 - x0:a1 - x0, b0 - y0:b1 - y0])  # count the positive (=1) mask pixels
+                # a zone is masked if more than 60% of its pixels are masked.
+                if 0.4 * area < visible_area:
+                    zones[r, c, 0] = 1  # not masked
+                    stone_mean = npsum(masked_gray[a0 - x0:a1 - x0, b0 - y0:b1 - y0]) / visible_area
+                    zones[r, c, 1] = stone_mean
+                else:
+                    zones[r, c, 0] = 0  # masked
+                    # todo optimize: compute only when in need of comparison (and not at every location)
+                    zones[r, c, 1] = npmean(subgray[a0 - x0:a1 - x0, b0 - y0:b1 - y0])
+        stones = zeros((gsize, gsize), dtype=object)
+        stones[:] = E
+        for r in range(zones.shape[0]):
+            for c in range(zones.shape[1]):
+                if zones[r, c, 0]:
+                    self.find_color(r, c, zones, stones[r_start:r_end, c_start:c_end])
         if canvas is not None:
-            canvas[x0:x1, y0:y1] /= 4
-            draw_contours_multicolor(canvas[x0:x1, y0:y1], contours)
+            draw_contours_multicolor(canvas[x0:x1, y0:y1], list(self._filter_contours(contours)))
         return stones
 
-    def _analyse_contours(self, img: ndarray, row_start=0, row_end=gsize, col_start=0, col_end=gsize):
+    def find_color(self, r, c, zones: ndarray, stones: ndarray):
         """
-        Return a list of points indicating likely locations of stones. Based on contours analysis in "img".
-        The search can be confined to a sub-region of the image using arguments row_start, row_end, col_start, col_end.
+        Compare the (r, c) intersection's zone with its neighbours to determine whether it's a stone or not,
+        and of which color.
+
+        The results are aggregated in the 'stones' 2D array (supposed to be a sub-array only of the whole goban).
 
         """
-        x0, y0, _, _ = self.getrect(row_start, col_start)
-        _, _, x1, y1 = self.getrect(row_end - 1, col_end - 1)
-        subregion = img[x0:x1, y0:y1]
-        ghost = zeros((x1 - x0, y1 - y0), dtype=uint8)
-        # todo experiment with something else than retr_external ?
-        _, contours, hierarchy = cv2.findContours(subregion, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        centers = []  # one maximum per zone, in opencv coordinates system
-        # todo seeing that contours are often shattered into pieces, filtering may be counter-productive when
-        # used with distance transform -> experiment without.
-        for cont in self._filter_contours(contours):
-            # compute the distance matrix from contour: the higher the value, the further the point from the contour
-            cv2.drawContours(ghost, [cont], 0, (255, 0, 255))
-            ry0, rx0, dy, dx = cv2.boundingRect(cont)  # contour region (not rotated rectangle)
-            negative = empty((dx, dy), dtype=uint8)
-            negative[:] = 255
-            negative -= ghost[rx0:rx0 + dx, ry0:ry0 + dy]
-            distance_mtx = cv2.distanceTransform(negative, cv2.DIST_L2, cv2.DIST_MASK_5)
-            for a, b in self._find_centers(distance_mtx):
-                centers.append((a + y0 + ry0, b + x0 + rx0))  # put back all offsets to integrate into global img
-        return centers, contours
+        colors = set()
+        added = 0
+        for i in range(-1, 2):
+            if 0 <= r + i < zones.shape[0]:
+                for j in range(-1, 2):
+                    if 0 == i and 0 == j:
+                        continue
+                    if 0 <= c + j < zones.shape[1]:
+                        neigh = zones[r + i, c + j]
+                        diff = int(zones[r, c, 1]) - int(neigh[1])  # convert to int to allow negative values
+                        min_val = min(zones[r, c, 1], neigh[1])
+                        # comparison with (supposedly) empty neighbour
+                        if not neigh[0]:
+                            # at least 40 points difference (in greyscale intensity for now)
+                            if 40 < abs(diff):  # todo make that more dynamic
+                                colors.add(B if diff < 0 else W)
+                                added += 1
+                        # comparison with (supposedly) stone neighbour
+                        else:
+                            # can only compare to already found stones, unless a more elaborated structure is created
+                            if i < 1 and j < 1:
+                                neigh_stone = stones[r + i, c + j]
+                                if neigh_stone not in (B, W):
+                                    continue
+                                # less than 10% difference relatively to smallest val : ally stone
+                                if abs(diff) < min_val * 0.1:
+                                    colors.add(neigh_stone)
+                                    added += 1
+                                # at least 100% difference relatively to smallest val : enemy stone
+                                elif min_val < abs(diff):
+                                    colors.add(B if neigh_stone is W else (W if neigh_stone is B else E))
+                                    added += 1
+                        if added == 3: break
+            if added == 3:
+                if len(colors) == 1:
+                    stones[r, c] = colors.pop()
+                break
 
     def _filter_contours(self, contours):
         """
-        Yield the subset of the provided contours that respect a bunch of constraints. The objective is to discard
-        non-stone contours, even though some good contours may also be lost on the way.
+        Yield the subset of the provided contours that respect a bunch of constraints.
 
         """
         radius = self.stone_radius()
@@ -87,81 +132,17 @@ class SfContours(StonesFinder):
             if cont.shape[0] < 10:
                 continue
             box = cv2.minAreaRect(cont)
-            # ignore contours that have at least one side too small
-            if min(box[1]) < 3 / 2 * radius:
-                continue
             # ignore contours that are too big, since in that case a good kmeans would probably do a more robust job.
-            if 8 * radius < box[1][0] or 8 * radius < box[1][1]:
-                continue
-            # ignore badly orientated bounding rect, for big contours only
-            angle = radians(box[2])
-            if 2.5 * radius < max(box[1]) and max(abs(cos(angle)), abs(sin(angle))) < 0.998:
+            if 10 * radius < box[1][0] or 10 * radius < box[1][1]:
                 continue
             yield cont
 
-    def _find_centers(self, distance_mtx):
-        """
-        Yield image points that are likely to represent the center of a stone, based on the following:
-
-        Locate the most "distant" point in each (estimated) stone's zone. From these candidates, only keep
-        those located in the zone's center (ignore candidates hitting the wall). The objective is to retain
-        points that are best surrounded by contour curves, and are thus likely to indicate a stone's center.
-
-        """
-        radius = self.stone_radius()
-        dx, dy = distance_mtx.shape[0], distance_mtx.shape[1]
-        nb_rows = int(round(dx / 2 / radius))
-        row_width = int(dx / nb_rows)
-        nb_cols = int(round(dy / 2 / radius))
-        col_width = int(dy / nb_cols)
-        for row in range(nb_rows):
-            rs, re = row * row_width, (row + 1) * row_width  # row start, row end
-            for col in range(nb_cols):
-                cs, ce = col * col_width, (col + 1) * col_width  # col start, col end
-                _, _, _, maxloc = cv2.minMaxLoc(distance_mtx[rs:re + 1, cs:ce + 1])
-                if min(row_width, col_width) / 4 < norm(maxloc, ((ce - cs)/2, (re - rs)/2)):
-                    continue
-                yield cs + maxloc[0], rs + maxloc[1]
-
-    def find_colors(self, img, centers) -> ndarray:
-        """
-        Get for each center the closest goban intersection. Compare this intersection with its neighbours to
-        determine the color of a potential stone there.
-
-        There is a 10% difference entry ticket : no color is set if the intersection is less than 10% different
-        from its empty neighbours.
-
-        """
-        # note : can't apply mask here, since we compare different intersections, which may not have the same number
-        # of masked pixels (zones may not be of the same size depending on grid adjustment implementations.
-        stones = zeros((gsize, gsize), dtype=object)
-        stones[:] = E
-        for a, b in centers:
-            x, y = self._posgrid.closest_intersection((b, a))
-            x0, y0, x1, y1 = self.getrect(x, y)
-            stone_mean = npmean(img[x0:x1, y0:y1])  # greyscale will be used in the comparison
-            neighbs, count = 0, 0  # neighbours means , count of neighbours
-            for i in range(-1, 2):
-                if not 0 <= x + i < gsize:
-                    continue
-                for j in range(-1, 2):
-                    if not 0 <= y + j < gsize:
-                        continue
-                    if not self.is_empty(x + i, y + j):
-                        continue
-                    x0, y0, x1, y1 = self.getrect(x + i, y + j)
-                    neighbs += npmean(img[x0:x1, y0:y1])
-                    count += 1
-                    if 2 < count:
-                        break  # just get a feeling, no need to accumulate the potential 8 neighbours
-            if 0 < count:  # todo implemement non-empty neighbours comparison
-                if stone_mean < neighbs / count * 0.9:
-                    stones[x][y] = B
-                elif neighbs / count * 1.1 < stone_mean:
-                    stones[x][y] = W
-        return stones
-    # def _draw_metadata(self, img, latency, thread):
-    # pass
+    def get_canny(self, img):
+        median = cv2.medianBlur(img, 13)
+        median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
+        grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
+        otsu, _ = cv2.threshold(grey, 12, 255, cv2.THRESH_OTSU)
+        return cv2.Canny(median, otsu / 2, otsu)
 
     def _window_name(self):
         return SfContours.label

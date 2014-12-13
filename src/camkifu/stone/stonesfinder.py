@@ -364,26 +364,27 @@ class StonesFinder(VidProcessor):
         max_area = (3 * radius) ** 2
         return min_area, max_area
 
-    def display_stones(self, stones: ndarray):
+    def draw_stones(self, stones: ndarray, canvas: ndarray=None):
         """
         Dev method to see an array of stones in an image. It is a simpler alternative than suggesting them to the goban,
         since there's no game logic involved (easier to update on the flight).
 
         """
-        canvas = zeros((self._posgrid.size, self._posgrid.size), dtype=uint8)
-        canvas[:] = 127
+        if canvas is None:
+            canvas = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
+        canvas[:] = (65, 100, 128)
         for x in range(gsize):
             for y in range(gsize):
                 if stones[x][y] is B:
-                    color = 0
+                    color = (0, 0, 0)
                 elif stones[x][y] is W:
-                    color = 255
+                    color = (255, 255, 255)
                 else:
                     continue
                 p = self._posgrid.mtx[x][y]
                 cv2.circle(canvas, (p[1], p[0]), 10, color, thickness=-1)
         self._drawgrid(canvas)
-        self._show(canvas)
+        return canvas
 
     def display_intersections(self, grid, img):
         """

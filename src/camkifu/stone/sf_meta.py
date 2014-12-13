@@ -1,4 +1,3 @@
-from collections import defaultdict
 
 import cv2
 from numpy import zeros, ndarray, unique, int8, uint8, vectorize, max as npmax, sum as npsum
@@ -202,11 +201,13 @@ class Region():
         """
         # Run clustering-based stones detection
         stones = self.sf.cluster.find_stones(img, r_start=self.rs, r_end=self.re, c_start=self.cs, c_end=self.ce)
+        if stones is None:
+            return -1, None  # the finder vetoed itself
         substones = stones[self.rs:self.re, self.cs:self.ce]
 
         # Assess clustering results validity
         passed = 0
-        for constraint in (self.check_density, self.check_logic, self.check_against, self.check_lines):
+        for constraint in (self.check_logic, self.check_against, self.check_lines):
             check = constraint(substones, img=img, reference=ref_stones)
             if check < 0:
                 # print("{} vetoed region {}".format(constraint.__name__, (self.re, self.ce)))
@@ -346,19 +347,6 @@ class Region():
                 return -1
         # todo check that there is no lonely stone on first line (no neighbour say 3 lines around it)
         # 3. if survived up to here, can't really confirm, but at least nothing seems wrong
-        return 0
-
-    def check_density(self, stones, **kwargs):
-        """
-        Return 0 if the density of the provided stones is deemed enough for a k-means (3-means) to make any sense,
-        else -1.
-
-        """
-        # noinspection PyTupleAssignmentBalance
-        vals, counts = unique(stones, return_counts=True)
-        # require at least two hits for each color
-        if len(vals) < 3 or min(counts) < 2:
-            return -1
         return 0
 
     def get_population(self, stones):
