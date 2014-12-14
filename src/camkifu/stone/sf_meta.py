@@ -31,6 +31,8 @@ class SfMeta(StonesFinder):
 
     label = "SF-Meta"
 
+    # todo provide a reset() that can be used if video input is changed for example.
+
     def __init__(self, vmanager):
         super().__init__(vmanager)
         self.cluster = SfClustering(None)    # set to None for safety, put vmanager when needed
@@ -148,7 +150,6 @@ class Region():
 
         """
         self.canvas = canvas
-        subrefs = ref_stones[self.rs:self.re, self.cs:self.ce]
         self.data.append(self.states[0][0])  # append first letter of current state
         calm = self.check_foreground(foreground)
         if calm:
@@ -162,27 +163,14 @@ class Region():
             else:
                 self.data.append("Q")  # quiet (calm)
                 if self.states[0] is Search:
-                    # branch (a): try clustering if needs be
-                    if self.clustering_to_try(subrefs):
-                        passed, stones = self.assess_clustering(img, subrefs)
-                        self.cluster_score[0] = passed
-                        if 0 < passed:  # store successfully tested scores
-                            self.cluster_accu[:] = stones
-                            self.commit(self.cluster_accu)
-                        if self.cluster_score.at_end():  # wait the end of the cycle before making the decision
-                            total_score = npsum(self.cluster_score.buffer)
-                            if 0 <= total_score:
-                                # accept if at least one more success than failures
-                                self.finder = self.sf.cluster
-                                self.states.buffer[:] = Search  # new finder, run a full cycle
-                                if total_score == 0 and npmax(self.cluster_score.buffer) == 0:
-                                    print("Wild assignment of clustering to region {}".format((self.re, self.ce)))
-                            # else:
-                            #     print("Clustering vetoed {} in region {}".format(passed, (self.re, self.ce)))
-                        self.cluster_score.increment()
-                        self.population = self.get_population(subrefs)
-                    # branch (b): default routine sequence
-                    else:
+                    # try clustering if needs be
+                    subrefs = ref_stones[self.rs:self.re, self.cs:self.ce]
+                    tried = False
+                    if self.clustering_needs_try(subrefs):
+                        self.try_clustering(img, subrefs)
+                        tried = True
+                    # default routine sequence
+                    if (not tried) or (self.finder is not self.sf.cluster):
                         stones = self.finder.find_stones(img, r_start=self.rs, r_end=self.re, c_start=self.cs, c_end=self.ce)
                         accu = self.accus[self.finder]
                         accu[:] = stones[self.rs:self.re, self.cs:self.ce]
@@ -193,30 +181,47 @@ class Region():
             self.data.append("A")  # agitated
         self.draw_data()
 
-    def assess_clustering(self, img: ndarray, ref_stones: ndarray) -> ndarray:
+    def try_clustering(self, img, subrefs):
         """
-        Try and evaluate "clustering finder" in regions where it is not the default finder.
-        Basically once a region is dense enough, the clustering seems much more trustworthy than contours analysis.
+        Run and evaluate "clustering finder" in this region. Basically once a region is dense enough,
+        the clustering seems much more trustworthy than contours analysis, so it should be used as soon as possible.
 
         """
         # Run clustering-based stones detection
         stones = self.sf.cluster.find_stones(img, r_start=self.rs, r_end=self.re, c_start=self.cs, c_end=self.ce)
-        if stones is None:
-            return -1, None  # the finder vetoed itself
-        substones = stones[self.rs:self.re, self.cs:self.ce]
-
-        # Assess clustering results validity
-        passed = 0
-        for constraint in (self.check_logic, self.check_against, self.check_lines):
-            check = constraint(substones, img=img, reference=ref_stones)
-            if check < 0:
-                # print("{} vetoed region {}".format(constraint.__name__, (self.re, self.ce)))
-                return -1, None  # veto from that constraint check
-            passed += check
-        return passed, substones
+        passed = -1
+        if stones is not None:
+            substones = stones[self.rs:self.re, self.cs:self.ce]
+            # Check some validity constraints
+            for constraint in (self.check_logic, self.check_against, self.check_lines):
+                check = constraint(substones, img=img, reference=subrefs)
+                if check < 0:
+                    print("{} vetoed region {}".format(constraint.__name__, (self.re, self.ce)))
+                    passed = -1  # veto from that constraint
+                    substones = None
+                    break
+                passed += check
+        # accumulate results
+        self.cluster_score[0] = passed
+        if 0 < passed:  # store successfully tested scores
+            self.cluster_accu[:] = substones
+            self.commit(self.cluster_accu)
+        if self.cluster_score.at_end():  # wait the end of the cycle before making the decision
+            total_score = npsum(self.cluster_score.buffer)
+            if 0 <= total_score:
+                # accept if at least one more success than failures
+                self.finder = self.sf.cluster
+                self.states.buffer[:] = Search  # new finder, run a full cycle
+                if total_score == 0 and npmax(self.cluster_score.buffer) == 0:
+                    print("Wild assignment of clustering to region {}".format((self.re, self.ce)))
+                    # else:
+                    # print("Clustering vetoed {} in region {}".format(passed, (self.re, self.ce)))
+        self.cluster_score.increment()
+        self.population = self.get_population(subrefs)
 
     def commit(self, cb: CyclicBuffer) -> None:
         assert len(cb.buffer.shape) == 3
+        moves = []
         for i in range(self.re - self.rs):
             for j in range(self.ce - self.cs):
                 if self.sf.is_empty(i + self.rs, j + self.cs):
@@ -225,7 +230,11 @@ class Region():
                     if len(vals) < 3 and E in vals:  # don't commit if the two colors have been triggered
                         k = 0 if vals[0] is E else 1
                         if counts[k] / cb.size < 0.4:  # commit if less than 40% empty
-                            self.sf.suggest(vals[1 - k], i + self.rs, j + self.cs, doprint=False)
+                            moves.append((vals[1 - k], i + self.rs, j + self.cs))
+        if 1 < len(moves):
+            self.sf.bulk_update(moves)
+        elif len(moves):
+            self.sf.suggest(*moves[0], doprint=False)
         cb.increment()
 
     def check_foreground(self, fg: ndarray):
@@ -251,17 +260,15 @@ class Region():
             return False
         return True
 
-    def clustering_to_try(self, ref_stones) -> bool:
+    def clustering_needs_try(self, ref_stones) -> bool:
         """
         Indicate whether clustering finder should be tried in that region.
-
-        row, col -- the index of the region.
         stones -- the stones of the region (and NOT the whole goban), used to determine a reference population.
 
         """
         current_pop = self.get_population(ref_stones)
         return (not self.cluster_score.at_start()) or \
-            self.finder is not self.sf.cluster and self.population < current_pop
+            self.finder is not self.sf.cluster and self.population + 1 < current_pop  # try again every 2 new stones
 
     def check_against(self, stones: ndarray, reference: ndarray=None, **kwargs):
         """
@@ -276,8 +283,8 @@ class Region():
                     refs += 1
                     if stones[r, c] is reference[r, c]:
                         matches += 1
-        if 3 < refs:  # check against at least 4 stones
-            if 0.9 < matches / refs:
+        if 4 < refs:  # check against at least 4 stones
+            if 0.81 < matches / refs:  # start allowing errors if more than 5 stones have been put
                 return 1  # passed
             else:
                 return -1  # refused

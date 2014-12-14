@@ -100,6 +100,9 @@ class SfContours(StonesFinder):
                             if 40 < abs(diff):  # todo make that more dynamic
                                 colors.add(B if diff < 0 else W)
                                 added += 1
+                            elif abs(diff) < 10:
+                                colors.add(E)
+                                added = 3  # break whole search
                         # comparison with (supposedly) stone neighbour
                         else:
                             # can only compare to already found stones, unless a more elaborated structure is created
