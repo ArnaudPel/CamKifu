@@ -31,7 +31,7 @@ class SfClustering(StonesFinder):
                     moves.append((stones[i][j], i, j))
             self.bulk_update(moves)
 
-    def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize):
+    def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize, **kwargs):
         """
         Return a matrix containing the detected stones in the desired subregion of the image.
 

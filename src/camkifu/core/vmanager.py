@@ -313,10 +313,10 @@ class CaptureReaderBase:
         """
         if item == "read":
             if isfile(self.vmanager.controller.video):
-                return self.read_file
+                return lambda caller: self.downsample(*self.read_file(caller))
             else:
                 # no meddling if the input is not a file, yet the argument has to be ignored
-                return lambda _: self.capture.read()
+                return lambda _: self.downsample(*self.capture.read())
         else:
             return self.capture.__getattribute__(item)
 
@@ -332,8 +332,16 @@ class CaptureReaderBase:
         """
         idx = self.capture.get(cv2.CAP_PROP_POS_FRAMES)
         idx += max(1, self.capture.get(cv2.CAP_PROP_FPS) / self.frame_rate)
-        idx = min(idx, self.capture.get(cv2.CAP_PROP_FRAME_COUNT))  # don't point after the last frame
+        idx = min(idx, self.capture.get(cv2.CAP_PROP_FRAME_COUNT))  # don't point after the last frame
         self.capture.set(cv2.CAP_PROP_POS_FRAMES, idx)
+
+    def downsample(self, ret, img):
+        """
+        Extension point that can be implemented to downsample images before returning them to readers.
+
+        """
+        # return ret, cv2.pyrDown(img)  # example of reducing each side by a factor of 2
+        return ret, img
 
 
 class CaptureReader(CaptureReaderBase):

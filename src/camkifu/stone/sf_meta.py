@@ -1,6 +1,7 @@
 
 import cv2
 from numpy import zeros, ndarray, unique, int8, uint8, vectorize, max as npmax, sum as npsum
+from camkifu.core.exceptions import DeletedError, CorrectionWarning
 
 from camkifu.core.imgutil import draw_str, CyclicBuffer
 from camkifu.stone.sf_clustering import SfClustering
@@ -40,10 +41,6 @@ class SfMeta(StonesFinder):
         self.contour._show = self._show  # hack
         self.intersections = None  # used to perform search of intersections on demand only
 
-        # background-related attributes
-        self.bg_model = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
-        self.bg_init_frames = 50
-
         # the whole processing is divided into subregions
         self.split = 3
         self.histo = 3
@@ -62,13 +59,11 @@ class SfMeta(StonesFinder):
         """
         self.intersections = None  # reset cache
         self.metadata["Frame nr: {}"] = self.total_f_processed + 1
-        learning = 0.01 if self.total_f_processed < self.bg_init_frames else 0.005
-        fg = self.bg_model.apply(goban_img, learningRate=learning)  # learn background and get foreground
         # 0. if startup phase: initialize background model
         if self.total_f_processed < self.bg_init_frames:
             black = zeros((goban_img.shape[0], goban_img.shape[1]), dtype=uint8)
             message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
-            draw_str(black, message, int(black.shape[0] / 2 - 70), int(black.shape[1] / 2))
+            draw_str(black, message)
             self._show(black)
             return
         else:
@@ -76,8 +71,15 @@ class SfMeta(StonesFinder):
             canvas = goban_img.copy()
             for r in range(self.split):
                 for c in range(self.split):
-                    self.regions[r, c].process(goban_img, fg, ref_stones, canvas=canvas)
+                    self.regions[r, c].process(goban_img, ref_stones, canvas=canvas)
             self._show(canvas)
+
+    def _learn(self):
+        try:
+            return super()._learn()
+        except CorrectionWarning as cw:
+            # would be nice to use that information someday
+            print(str(cw))
 
     def subregion(self, row, col):
         """
@@ -109,9 +111,6 @@ class SfMeta(StonesFinder):
             self.intersections = self.find_intersections(img)
         return self.intersections
 
-    def _learn(self):
-        pass
-
     def _window_name(self):
         return SfMeta.label
 
@@ -141,7 +140,7 @@ class Region():
 
         self.data = []
 
-    def process(self, img: ndarray, foreground: ndarray, ref_stones: ndarray, canvas: ndarray=None) -> None:
+    def process(self, img: ndarray, ref_stones: ndarray, canvas: ndarray=None) -> None:
         """
         img -- the global goban img. it will be sliced automatically down below
         foreground -- the global foreground mask. it will be sliced automatically down below
@@ -151,11 +150,11 @@ class Region():
         """
         self.canvas = canvas
         self.data.append(self.states[0][0])  # append first letter of current state
-        calm = self.check_foreground(foreground)
+        calm = self.check_foreground()
         if calm:
+            kwargs = {'r_start': self.rs, 'r_end': self.re, 'c_start': self.cs, 'c_end': self.ce, 'canvas': canvas}
             # 1. if warmup phase: accumulate a few passes of contours analysis
             if self.states[0] is Warmup:
-                kwargs = {'r_start': self.rs, 'r_end': self.re, 'c_start': self.cs, 'c_end': self.ce, 'canvas': canvas}
                 self.contour_accu[:] = self.sf.contour.find_stones(img, **kwargs)[self.rs:self.re, self.cs:self.ce]
                 self.commit(self.contour_accu)
                 self.states[0] = Search
@@ -171,10 +170,13 @@ class Region():
                         tried = True
                     # default routine sequence
                     if (not tried) or (self.finder is not self.sf.cluster):
-                        stones = self.finder.find_stones(img, r_start=self.rs, r_end=self.re, c_start=self.cs, c_end=self.ce)
-                        accu = self.accus[self.finder]
-                        accu[:] = stones[self.rs:self.re, self.cs:self.ce]
-                        self.commit(accu)
+                        stones = self.finder.find_stones(img, **kwargs)
+                        if stones is not None:
+                            # todo check that no more than 2-3 stones have been added
+                            # todo if multiple new stones, check both colors are equally present
+                            accu = self.accus[self.finder]
+                            accu[:] = stones[self.rs:self.re, self.cs:self.ce]
+                            self.commit(accu)
                     self.states[0] = Idle
             self.states.increment()
         else:
@@ -227,17 +229,23 @@ class Region():
                 if self.sf.is_empty(i + self.rs, j + self.cs):
                     # noinspection PyTupleAssignmentBalance
                     vals, counts = unique(cb.buffer[i, j], return_counts=True)
-                    if len(vals) < 3 and E in vals:  # don't commit if the two colors have been triggered
+                    if len(vals) == 2 and E in vals:  # don't commit if the two colors have been triggered
                         k = 0 if vals[0] is E else 1
                         if counts[k] / cb.size < 0.4:  # commit if less than 40% empty
                             moves.append((vals[1 - k], i + self.rs, j + self.cs))
-        if 1 < len(moves):
-            self.sf.bulk_update(moves)
-        elif len(moves):
-            self.sf.suggest(*moves[0], doprint=False)
+                    elif len(vals) == 1 and E not in vals:
+                        moves.append((vals[0], i + self.rs, j + self.cs))
+        try:
+            if 1 < len(moves):
+                self.sf.bulk_update(moves)
+            elif len(moves):
+                self.sf.suggest(*moves[0], doprint=False)
+        except DeletedError as de:
+            print(str(de))
+            pass  # would be nice to learn from it someday..
         cb.increment()
 
-    def check_foreground(self, fg: ndarray):
+    def check_foreground(self):
         """
         Watch for foreground disturbances to "wake up" the regions of interest only.
         Return True if the region is "calm" (not much foreground), else False.
@@ -245,6 +253,10 @@ class Region():
         fg -- the global foreground image. expected to contain values equal to 0 or 255 only.
 
         """
+        try:
+            fg = self.sf.get_foreground()
+        except ValueError:
+            return True  # background analysis seems to be disabled, allow all frames.
         x0, y0, x1, y1 = self.get_subimg_bounds()
         subfg = fg[x0:x1, y0:y1]
         threshold = subfg.shape[0] * subfg.shape[1] / (self.re - self.rs) / (self.ce - self.cs)

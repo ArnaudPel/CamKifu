@@ -22,9 +22,6 @@ class StonesFinderTuto(StonesFinder):
         if self.is_empty(2, 12):
             # using "numpy" coordinates frame for x and y
             self.suggest(B, 2, 12)
-        if self.is_empty(12, 2):
-            # using "opencv" coordinates frame for x and y
-            self.suggest(B, 2, 12, 'tk')
 
     def _learn(self):
         pass
@@ -52,9 +49,6 @@ class StonesFinderTuto(StonesFinder):
         if self.is_empty(2, 12):
             # using "numpy" coordinates frame for x and y
             self.suggest(B, 2, 12)
-        if self.is_empty(12, 2):
-            # using "opencv" coordinates frame for x and y
-            self.suggest(B, 2, 12, 'tk')
 
     def _find_getrect(self, goban_img):
         """

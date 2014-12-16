@@ -80,8 +80,9 @@ class BoardFinderManual(BoardFinder):
     def get_save_file_path(self):
         try:
             from test.devconf import gobanloc_npz
-            fname = basename(self.vmanager.current_video)
-            return gobanloc_npz + fname + ".npz"
+            if type(self.vmanager.current_video) is str:
+                fname = basename(self.vmanager.current_video)
+                return gobanloc_npz + fname + ".npz"
         except ImportError:
             return None
 

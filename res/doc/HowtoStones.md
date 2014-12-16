@@ -121,12 +121,8 @@ def _find(self, goban_img):
     if self.is_empty(2, 12):
         # using "numpy" coordinates frame for x and y
         self.suggest(B, 2, 12)
-    if self.is_empty(12, 2):
-        # using "opencv" coordinates frame for x and y
-        self.suggest(B, 2, 12, 'tk')
 ```
 
-This example also makes for a good reminder of the kind of confusion that can occur between numpy and opencv coordinates frames.
 
 #### Intersections: zone
 

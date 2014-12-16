@@ -81,8 +81,10 @@ def draw_str(dst, s, x=None, y=None):
 
     """
     if x is None:
-        x = int(dst.shape[0] / 2 - len(s) * 3.5)  # try to center horizontally depending on the string length
-        y = int(dst.shape[1] / 2)
+        # try to center horizontally depending on the string length. quite approximate since the font isn't monospaced
+        x = int(dst.shape[1] / 2 - len(s) * 3.5)
+    if y is None:
+        y = int(dst.shape[0] / 2 - 3)
     # the shadow
     cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.LINE_AA)
     # the white text
@@ -92,16 +94,7 @@ def draw_str(dst, s, x=None, y=None):
 windows = set()  # dev workaround to center windows the first time they are displayed only
 
 
-def show(img, auto_down=True, name="Camkifu", loc=None):
-    toshow = img
-    if auto_down:
-        f = _factor(img)
-        if f:
-            toshow = img.copy()
-            name += " (downsized)"
-            for i in range(f):
-                toshow = cv2.pyrDown(toshow)
-
+def show(img, name="Camkifu", loc=None):
     if name not in windows:
         cv2.namedWindow(name, cv2.WINDOW_NORMAL)
         if loc is not None:
@@ -110,11 +103,11 @@ def show(img, auto_down=True, name="Camkifu", loc=None):
             try:
                 from test.devconf import screenw, screenh
                 center = (screenw / 2, screenh / 2)
-                cv2.moveWindow(name, max(0, int(center[0] - toshow.shape[0] / 2)), int(toshow.shape[1] / 2))
+                cv2.moveWindow(name, max(0, int(center[0] - img.shape[0] / 2)), int(img.shape[1] / 2))
             except ImportError:
                 pass
         windows.add(name)
-    cv2.imshow(name, toshow)
+    cv2.imshow(name, img)
 
 
 def destroy_win(name):

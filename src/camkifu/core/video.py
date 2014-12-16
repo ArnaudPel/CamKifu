@@ -36,7 +36,7 @@ class VidProcessor(object):
         self.pausedflag = False
         self.next_flag = False  # see self.next()
 
-        self.bindings = {'p': self.pause, 'q': self.interrupt}
+        self.bindings = {'p': self.pause, 'q': self.interrupt, 'f': self.next}
         self.key = None
 
         # Tkinter and openCV must cohabit on the main thread to display things.
@@ -87,8 +87,10 @@ class VidProcessor(object):
         Extension point.
 
         """
-        return self._interruptflag or \
-                    (self.vmanager.controller.bounds[1] <= self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO))
+        if self.vmanager.controller.bounds[1] <= self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO):
+            print("Video end reached. {} terminating main loop.".format(self.__class__.__name__))
+            return True
+        return self._interruptflag
 
     def ready_to_read(self) -> bool:
         """
@@ -199,7 +201,7 @@ class VidProcessor(object):
         try:
             frame_idx = int(round(self.vmanager.capt.get(cv2.CAP_PROP_POS_FRAMES)))
             total = int(round(self.vmanager.capt.get(cv2.CAP_PROP_FRAME_COUNT)))
-            progress = int(round(100 * frame_idx / total))  # %
+            progress = int(round(100 * frame_idx / max(1, total)))  # %
             x_offset = 40
             line_spacing = 20
             draw_str(img, "Frame {}/{} ({} %)".format(frame_idx, total, progress), x_offset, line_spacing)

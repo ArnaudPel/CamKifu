@@ -1,5 +1,5 @@
 from math import pi, cos, sin
-from queue import Queue, Full
+from queue import Queue, Full, Empty
 from time import time
 
 import cv2
@@ -8,6 +8,7 @@ from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute
 
 from camkifu.config.cvconf import canonical_size
+from camkifu.core.exceptions import CorrectionWarning, DeletedError
 from camkifu.core.imgutil import draw_str, Segment, within_margin
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E, B, W
@@ -27,21 +28,37 @@ class StonesFinder(VidProcessor):
 
     """
 
-    def __init__(self, vmanager):
+    def __init__(self, vmanager, learn_bg=True):
+        """
+        learn_bg -- set to True to create and maintain a background model, which enables self.get_foreground().
+
+        """
         super(StonesFinder, self).__init__(vmanager)
         self._posgrid = PosGrid(canonical_size)
         self.mask_cache = None
         self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
+
+        # background-related attributes
+        if learn_bg:
+            self.bg_model = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
+            self.bg_init_frames = 50
+
+        # (quite primal) "learning" attributes. see self._learn()
         self.corrections = Queue(correc_size)
+        self.saved_bg = zeros((canonical_size, canonical_size, 3), dtype=float32)
+        self.deleted = {}  # locations under "deletion watch". keys: the locations, values: the number of samples to do
+        self.nb_del_samples = 5
+        self.goban_img = None  # the current goban image
 
     def _doframe(self, frame):
         transform = None
         if self.vmanager.board_finder is not None:
             transform = self.vmanager.board_finder.mtx
         if transform is not None:
-            goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
+            self.goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
+            self._learn_bg()
             self._learn()
-            self._find(goban_img)
+            self._find(self.goban_img)  # todo refactor method ? img argument can be omitted now
         else:
             if 1 < time() - self.last_shown:
                 black = zeros((canonical_size, canonical_size), dtype=uint8)
@@ -65,21 +82,84 @@ class StonesFinder(VidProcessor):
         """
         raise NotImplementedError("Abstract method meant to be extended")
 
+    def _learn_bg(self):
+        """
+        Apply img to the background learning structure, and save the resulting foreground.
+
+        """
+        if hasattr(self, "bg_model"):
+            learning = 0.01 if self.total_f_processed < self.bg_init_frames else 0.005
+            self._fg = self.bg_model.apply(self.goban_img, learningRate=learning)
+
     def _learn(self):
         """
-        Process corrections queue, and perform algorithm adjustments if necessary.
+        Process user corrections queue (partial implementation).
 
-        This choice to "force" implementation using an abstract method is based on the fact that stones
-        deleted by the user MUST be acknowledged and dealt with, in order not to be re-suggested straight away.
-        Added stones are not so important, because their presence is automatically reflected in self.empties().
+        This partial implementation only supports a basic reaction to deletion. The idea is to try to "remember"
+        what each False positive (wrongly detected stone) zone look like when the user makes the correction (delete),
+        so that new suggestions by algorithms at this location rise an error as long as the pixels haven't changed
+        much in this zone.
+
+        Other cases will raise an Exception for now, to show they exist but not reaction has been implemented.
 
         """
-        raise NotImplementedError("Abstract method meant to be extended")
+        # step one: process new user inputs
+        unprocessed = []
+        try:
+            while True:
+                err, exp = self.corrections.get_nowait()
+                if exp is None:
+                    # a deletion has occurred, need to secure the "emptied" location
+                    self.deleted[(err.y, err.x)] = self.nb_del_samples  # Move.x and Move.y are in openCV coord system
+                elif err is not None and (err.x, err.y) != (exp.x, exp.y):
+                    # a stone has been moved, need to secure the "emptied" location
+                    self.deleted[(err.y, err.x)] = self.nb_del_samples
+                else:
+                    # missed a stone (not that bad), leave it to subclasses to figure if they want to use this info.
+                    unprocessed.append((err, exp))
+        except Empty:
+            pass
+
+        # step 2: sample all locations that still need it
+        for (r, c), nb_left in self.deleted.items():
+            if nb_left:
+                # only sample "calm" frames
+                try:
+                    fg = self.get_foreground()
+                except ValueError:
+                    fg = None
+                x0, y0, x1, y1 = self.getrect(r, c)
+                if fg is None or npsum(fg[x0:x1, y0:y1] < 0.1 * (x1-x0) * (y1-y0)):
+                    # noinspection PyTypeChecker
+                    self.saved_bg[x0:x1, y0:y1] += self.goban_img[x0:x1, y0:y1] / self.nb_del_samples
+                    self.deleted[(r, c)] = nb_left - 1
+
+        # bonus step: forcibly indicate any ignored input (the user added stones, or changed the color of stones)
+        if 0 < len(unprocessed):
+            raise CorrectionWarning(unprocessed, message="Unhandled corrections")
+
+    def _check_dels(self, r: int, c: int):
+        try:
+            nb_samples_left = self.deleted[(r, c)]
+        except KeyError:
+            return  # this location is not under deletion watch
+        if 0 == nb_samples_left:  # only check when sampling has completed
+            x0, y0, x1, y1 = self.getrect(r, c)
+            diff = self.saved_bg[x0:x1, y0:y1] - self.goban_img[x0:x1, y0:y1]
+            if npsum(absolute(diff)) / (diff.shape[0] * diff.shape[1]) < 40:
+                raise DeletedError("The zone has not changed enough since last deletion")
+            else:
+                # the area has changed, alleviate ban.
+                # todo check all that
+                print("previously user-deleted location: {} now unlocked".format((r, c)))
+                del self.deleted[(r, c)]
+        else:
+            raise DeletedError("The zone has been marked as deleted only a few frames ago")
 
     def _window_name(self):
         return "camkifu.stone.stonesfinder.StonesFinder"
 
-    def suggest(self, color, x: int, y: int, ctype: str='np', doprint=True):
+    def suggest(self, color, x: int, y: int, doprint=True):
         """
         Suggest the add of a new stone to the goban.
         -- color : in (E, B, W)
@@ -87,12 +167,13 @@ class StonesFinder(VidProcessor):
         -- ctype : the type of coordinates frame (see Move._interpret()), defaults to 'np' (numpy)
 
         """
-        move = Move(ctype, ctuple=(color, x, y))
+        self._check_dels(x, y)
+        move = Move('np', ctuple=(color, x, y))
         if doprint:
             print(move)
         self.vmanager.controller.pipe("append", [move])
 
-    def remove(self, x, y, ctype='np'):
+    def remove(self, x, y):
         """
         Although allowing automated removal of stones doesn't seem to be a very safe idea given the current
         robustness of stones finders, here's an implementation.
@@ -102,32 +183,39 @@ class StonesFinder(VidProcessor):
 
         """
         assert not self.is_empty(x, y), "Can't remove stone from empty intersection."
-        move = Move(ctype, ("", x, y))
+        move = Move('np', ("", x, y))
         print("delete {}".format(move))
         self.vmanager.controller.pipe("delete", (move.x, move.y))
 
-    def bulk_update(self, tuples, ctype='np'):
+    def bulk_update(self, tuples):
         """
         tuples  -- [ (color1, x1, y1), (color2, x2, y2), ... ]  a list of moves. set color to E to remove stone
 
         """
         moves = []
+        del_errors = []
         for color, x, y in tuples:
             if color is E and not self.is_empty(x, y):
-                    moves.append(Move(ctype, (color, x, y)))
+                    moves.append(Move('np', (color, x, y)))
             elif color in (B, W):
                 if not self.is_empty(x, y):
                     existing_mv = self.vmanager.controller.locate(y, x)
                     if color is not existing_mv.color:  # if existing_mv is None, better to crash now, so no None check
                         # delete current stone to be able to put the other color
-                        moves.append(Move(ctype, (E, x, y)))
+                        moves.append(Move('np', (E, x, y)))
                     else:
                         continue  # already up to date, go to next iteration
-                moves.append(Move(ctype, (color, x, y)))
+                try:
+                    self._check_dels(x, y)
+                    moves.append(Move('np', (color, x, y)))
+                except DeletedError as de:
+                    del_errors.append(de)
         if len(moves):
             self.vmanager.controller.pipe("bulk", [moves])
+        if len(del_errors):
+            raise DeletedError(del_errors, message="All non-conflicting locations have been sent, this is a warning.")
 
-    def corrected(self, err_move, exp_move) -> None:
+    def corrected(self, err_move: Move, exp_move: Move) -> None:
         """
         Entry point to provide corrections made by the user to stone(s) location(s) on the Goban. See _learn().
 
@@ -137,14 +225,14 @@ class StonesFinder(VidProcessor):
         except Full:
             print("Corrections queue full (%s), ignoring %s -> %s" % (correc_size, str(err_move), str(exp_move)))
 
-    def is_empty(self, x, y) -> bool:
+    def is_empty(self, x: int, y: int) -> bool:
         """
         Return true if the (x, y) goban position is empty (color = E).
 
         """
         return self.vmanager.controller.is_empty_blocking(y, x)
 
-    def _empties(self):
+    def _empties(self) -> (int, int):
         """
         Yields the unoccupied positions of the goban in naive order.
         Note: this implementation allows for the positions to be updated by another thread during yielding.
@@ -155,7 +243,7 @@ class StonesFinder(VidProcessor):
                 if self.vmanager.controller.is_empty_blocking(x, y):
                     yield y, x
 
-    def _empties_spiral(self):
+    def _empties_spiral(self) -> (int, int):
         """
         Yields the unoccupied positions of the goban along an inward spiral.
         Aims to help detect hand / arm appearance faster by analysing outer border(s) first.
@@ -279,6 +367,15 @@ class StonesFinder(VidProcessor):
         """
         with self.vmanager.controller.rules.rlock:
             return array(self.vmanager.controller.rules.stones, dtype=object).T
+
+    def get_foreground(self):
+        if hasattr(self, "_fg"):
+            current, target = self.total_f_processed, self.bg_init_frames
+            if current < target:
+                print("Warning : background model still initializing ({} / {}})".format(current,  target))
+            return self._fg
+        else:
+            raise ValueError("This StonesFinder doesn't seem to be segmenting background. See self.__init__()")
 
     def _drawgrid(self, img: ndarray):
         """
@@ -466,11 +563,13 @@ def update_grid(lines, box, result_slot):
 
 
 def evalz(zone, chan):
+    # todo only used in old BgSub. Probably obsolete.
     """ Return an integer evaluation for the zone. """
     return int(npsum(zone[:, :, chan]))
 
 
 def compare(reference, current):
+    # todo only used in old BgSub. Probably obsolete.
     """
     Return a distance between the two colors. The value is positive if current is
     brighter than the reference, and negative otherwise.
