@@ -1,5 +1,4 @@
 from queue import Full, Empty, Queue
-from time import sleep
 
 from camkifu.core.exceptions import PipeWarning
 from golib.config.golib_conf import B, W, E
@@ -9,6 +8,25 @@ from golib.gui.controller import Controller
 __author__ = 'Arnaud Peloquin'
 
 commands_size = 10
+
+
+def promptdiscard(meth):
+    """
+    ControllerV Method decorator. Prompt the user with a "discard changes / cancel" dialog when doing an operation
+    that may compromise unsaved changes in the current game record (eg. changing video input).
+
+    """
+    def wrapper(*args, **kwargs):
+        self = args[0]
+        self._pause(True)
+        if self.kifu.modified and self.display.promptdiscard(title="Discard current changes ?"):
+            # the "modified" flag may have to be checked by other methods in the call stack,
+            # so remember that choice in order not to prompt the user multiple times.
+            self.kifu.modified = False
+        if not self.kifu.modified:
+            meth(*args, **kwargs)
+        self._pause(False)
+    return wrapper
 
 
 # noinspection PyMethodMayBeStatic
@@ -281,6 +299,13 @@ class ControllerV(Controller):
         self._pause(False)
         return opened
 
+    def _save(self):
+        """ Method override to pause vision threads during long GUI operations. """
+        self._pause(True)
+        super(ControllerV, self)._save()
+        self._pause(False)
+
+    @promptdiscard
     def _openvideo(self):
         """
         Change the video source to a file selected by user, that should be processed by detection algorithms.
@@ -288,14 +313,12 @@ class ControllerV(Controller):
         change into account).
 
         """
-        self._pause(True)
-        if not self.kifu.modified or self.display.promptdiscard(title="Discard current changes ?"):
-            vidfile = self.display.promptopen()
-            if len(vidfile):
-                self.video = vidfile
-                self.bounds = (0, 1)  # reset to default bounds (read entire file)
-        self._pause(False)
+        vidfile = self.display.promptopen()
+        if len(vidfile):
+            self.video = vidfile
+            self.bounds = (0, 1)  # reset to default bounds (read entire file)
 
+    @promptdiscard
     def _openlive(self):
         """
         Open the live camera, that should be processed by detection algorithms.
@@ -303,12 +326,6 @@ class ControllerV(Controller):
 
         """
         self.video = 0
-
-    def _save(self):
-        """ Method override to pause vision threads during long GUI operations. """
-        self._pause(True)
-        super(ControllerV, self)._save()
-        self._pause(False)
 
     def __setattr__(self, name, value):
         """ Method override to pause vision threads when browsing previous moves. """

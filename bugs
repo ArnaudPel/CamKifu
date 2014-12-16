@@ -11,8 +11,6 @@ the save changes dialog doesn't show up when hitting CMD+Q  -- won't fix : this
 the manual board finder doesn't listen to "correction" click on the first image. It seems to be related to startup, because
 it works fine if no location has been saved (only bugs when the 4 points are shown at startup).
 
-after a stone had been played, and the "Video/open file" clicked, got 3 confirm dialogs to discard changes at different steps of the process. to reproduce.
-
 image hidding (image not shown) doesn't seem to work as expected when one vidprocessor owns 2 images.
 
 stones finder bulk update may suggest moves impossible in the game of Go. So the rules object will refuse and crash. things don't seem to go back to normal aftewards, so check that the game's state is not corrupted.

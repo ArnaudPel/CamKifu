@@ -32,8 +32,6 @@ class SfMeta(StonesFinder):
 
     label = "SF-Meta"
 
-    # todo provide a reset() that can be used if video input is changed for example.
-
     def __init__(self, vmanager):
         super().__init__(vmanager)
         self.cluster = SfClustering(None)    # set to None for safety, put vmanager when needed
