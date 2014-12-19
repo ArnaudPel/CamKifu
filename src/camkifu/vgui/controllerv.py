@@ -1,7 +1,6 @@
 from queue import Full, Empty, Queue
 
 from camkifu.core.exceptions import PipeWarning
-from golib.config.golib_conf import B, W, E
 from golib.gui.controller import Controller
 
 
@@ -60,8 +59,8 @@ class ControllerV(Controller):
 
         self.api = {
             "append": self._cvappend,
-            "delete": self._cvdelete,
-            "bulk": self._cv_bulk,
+            "delete": lambda x, y: self._delete(y, x, learn=False),  # NB: (x,y) inversion ! Call with numpy coordinates
+            "bulk": self._bulk_append,
             "register_bf": self._add_bfinder,
             "register_sf": self._add_sfinder,
             "select_bf": self._select_bfinder,
@@ -214,77 +213,23 @@ class ControllerV(Controller):
         self.rules.put(move)
         self._append(move)
 
-    def _cvdelete(self, x, y):
-        """
-        Remove the move at the given position from the current game. Implementation dedicated to automated
-        detection.
-
-        Raises exception if there is no move present at that location.
-
-        """
-        with self.rlock:
-            self.selected = x, y
-            self._delete(learn=False)  # don't send info back to algorithm since it (supposedly) comes from it already
-
-    def _cv_bulk(self, moves):
-        """
-        Bulk update of the goban with multiple moves, allowing for better performance (up to 2 updates only of GUI and
-        structures for the whole bulk).
-
-        moves -- the list of moves to apply. those may be of color 'E', then meaning the removal of the
-        stone already present (the thread applying the update will most likely complain if no stone is present).
-
-        """
-        order = {E: 0, B: 1, W: 1}  # keep B/W order, but removals must be performed and confirmed before appending
-        moves = sorted(moves, key=lambda m: order[m.color])
-        # todo this is currently being run on main thread. see to use a worker thread instead ?
-        with self.rlock:
-            if self.at_last_move():
-                self.rules.reset()
-                i = 0
-                mv = moves[i]
-                while mv.color is E:
-                    torem = self.kifu.locate(mv.x, mv.y).getmove()
-                    self.rules.remove(torem, reset=False)
-                    self.kifu.delete(torem)
-                    self.current_mn -= 1
-                    i += 1
-                    if i < len(moves):
-                        mv = moves[i]
-                    else: break
-                if i:
-                    self.rules.confirm()  # save the changes and update GUI
-                while i < len(moves):
-                    assert mv.color in (B, W)
-                    mv.number = self.current_mn + 1
-                    self.rules.put(mv, reset=False)
-                    self.kifu.append(mv)
-                    self.current_mn += 1
-                    i += 1
-                    if i < len(moves):
-                        mv = moves[i]
-                    else: break
-                self.rules.confirm()  # save the changes and update GUI
-                self.log_mn()
-            else:
-                raise NotImplementedError("Variations not allowed yet. Please navigate to end of game.")
-
     def _mouse_release(self, event):
         """ Method override to add correction event. """
         move = super(ControllerV, self)._mouse_release(event)
         if move is not None:
             self.corrected(None, move)
 
-    def _delete(self, event=None, learn=True):
+    def _delete(self, x, y, learn=True):
         """
         Method override to introduce a correction event, passed down to stones finder.
 
         learn -- True to pass this correction down to the listeners, False to do it silently.
 
         """
-        move = super(ControllerV, self)._delete(event)
+        move = super()._delete(x, y)
         if learn and move is not None:
             self.corrected(move, None)
+        return move
 
     def _drag(self, event):
         """ Method override to add correction event. """

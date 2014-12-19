@@ -30,7 +30,12 @@ class ControllerVSeq(ControllerBase):
         super(ControllerVSeq, self).__init__(sgffile=sgffile)
         self.video = video
         self.bounds = bounds
-        self.api = {"append": self.cvappend}
+        self.api = {
+            "append": self.cvappend,
+            "delete": self._delete,
+            "bulk": self._bulk_append,
+
+        }
 
     def pipe(self, instruction, args):
         """
