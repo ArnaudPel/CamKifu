@@ -9,7 +9,7 @@ from numpy.ma import absolute
 
 from camkifu.config.cvconf import canonical_size
 from camkifu.core.exceptions import CorrectionWarning, DeletedError
-from camkifu.core.imgutil import draw_str, Segment, within_margin
+from camkifu.core.imgutil import draw_str, Segment, within_margin, around
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E, B, W
 from golib.model.move import Move
@@ -438,7 +438,7 @@ class StonesFinder(VidProcessor):
         max_area = (3 * radius) ** 2
         return min_area, max_area
 
-    def check_against(self, stones: ndarray, reference: ndarray=None, **kwargs):
+    def check_against(self, stones: ndarray, reference: ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
         Check that the newly found 'stones' array is coherent with the already existing 'reference' array.
         'stones' and 'reference' can be subregions of the Goban, as long as they have the same shape.
@@ -448,8 +448,8 @@ class StonesFinder(VidProcessor):
         """
         refs = 0  # number of stones found in reference
         matches = 0  # number of matches with the references (non-empty only)
-        for r in range(reference.shape[0]):
-            for c in range(reference.shape[1]):
+        for r in range(rs, re):
+            for c in range(cs, ce):
                 if reference[r, c] in (B, W):
                     refs += 1
                     if stones[r, c] is reference[r, c]:
@@ -461,31 +461,32 @@ class StonesFinder(VidProcessor):
                 return -1  # refused
         return 0  # undetermined
 
-    def check_lines(self, stones: ndarray, img: ndarray=None, rs=0, cs=0, **kwargs):
+    def check_lines(self, stones: ndarray, img: ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
         Check that the provided "stones" 2D array is coherent with lines detection in the image: no line should
         be found in zones where a stone has been detected.
 
-        A confirmation is counted for the zone if it is empty (E) and at least one line has also been detected
-        in that zone.
+        A match is counted for the zone if it is empty (E) and at least one line has also been detected in that zone.
 
         stones -- a 2D array that can store the objects, used to record the stones found. It is created if not provided.
         grid -- a 3D (or 2D) array that has negative values where lines have been found.
-        rs, cs -- optional row/column offsets to apply if 'stones' is a subregion of the goban
+        rs, re -- optional row start and end, can be used to restrain check to a subregion
+        cs, ce -- optional column start and end, can be used to restrain check to a subregion
 
-        Return
-        lines -- the number of intersections where lines have been detected (based on the provided grid)
-        confirms -- the number of empty intersections where lines have been detected, meaning the
+        Return:
+            1 if enough matches have been found,
+           -1 if too many mismatches have been found,
+            0 if data isn't sufficient to judge (eg. too few lines found, potentially caused by too few empty positions)
 
         """
         grid = self.get_intersections(img)
         lines = 0  # the number of intersections where lines have been detected
         matches = 0  # the number of empty intersections where lines have been detected
-        for i in range(stones.shape[0]):
-            for j in range(stones.shape[1]):
-                if sum(grid[i + rs, j + cs]) < 0:
+        for r in range(rs, re):
+            for c in range(cs, ce):
+                if sum(grid[r, c]) < 0:
                     lines += 1
-                    if stones[i, j] is E:
+                    if stones[r, c] is E:
                         matches += 1
         if 4 < lines:
             if 0.9 < matches / lines:
@@ -494,40 +495,71 @@ class StonesFinder(VidProcessor):
                 return -1  # refused
         return 0  # undetermined
 
-    def check_logic(self, stones: ndarray, **kwargs):
+    def check_thickness(self, stones: ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
-        Check that the provided "stones" 2D array is coherent with Go logic. This is of course inextricable,
-        but some major directions can be checked. 'stones' can be a subregion only of the whole Goban.
+        Check that the provided "stones" 2D array doesn't contain "big chunks" that wouldn't make sense in a regular
+        game of Go.
+
+        rs, re -- optional row start and end, can be used to restrain check to a subregion
+        cs, ce -- optional column start and end, can be used to restrain check to a subregion
 
         """
-        # 1. primal test, see if rules are complaining (suicide for example).
-        # rule = RuleUnsafe()
-        # try:
-        # move_nr = 1
-        # for r in range(r_start, r_end):
-        #         for c in range(c_start, c_end):
-        #             if stones[r, c] in (B, W):
-        #                 rule.put(Move('np', (stones[r, c], r, c), number=move_nr), reset=False)
-        #                 move_nr += 1
-        #     rule.confirm()
-        # todo check that no kill has happened if we are in warmup phase
-        # except StateError as se:
-        #     print(se)
-        #     return -1  # refused
-
-        # 2. thick ugly chunks vetoer
         for color in (B, W):
-            avatar = vectorize(lambda x: 1 if x is color else 0)(stones.flatten())
+            avatar = vectorize(lambda x: 1 if x is color else 0)(stones[rs:re, cs:ce].flatten())
             # diagonal moves cost as much as side moves
-            dist = cv2.distanceTransform(avatar.reshape(stones.shape).astype(uint8), cv2.DIST_C, 3)
+            dist = cv2.distanceTransform(avatar.reshape((re-rs, ce-cs)).astype(uint8), cv2.DIST_C, 3)
             if 2 < npmax(dist):
-                # a stone surrounded by a 3-stones-thick wall of its own color is most likely not Go
-                print("{} thick chunk refused".format(color))
+                # a stone surrounded by a 2-stones-thick wall of its own color is most likely not Go
                 return -1
-        # todo check that there is no lonely stone on first line (no neighbour say 3 lines around it)
-
-        # 3. if survived up to here, can't really confirm, but at least nothing seems wrong
         return 0
+
+    def check_flow(self, stones: ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
+        """
+        Check that newly added stones colors match expectations.
+        If multiple new stones : there should be at most one more stone of a color than the other color.
+
+        rs, re -- optional row start and end, can be used to restrain check to a subregion
+        cs, ce -- optional column start and end, can be used to restrain check to a subregion
+
+        """
+        moves = []  # newly added moves
+        for r in range(rs, re):
+            for c in range(cs, ce):
+                if self.is_empty(r, c) and stones[r, c] is not E:
+                    moves.append(stones[r, c])
+        # the total color counts in new moves should differ by at most 1
+        else:
+            diff = 0
+            for mv in moves:
+                diff += 1 if mv is B else -1
+            # can't really confirm, but at least nothing seems wrong
+            return 0 if abs(diff) <= 1 else -1
+
+    def first_line_lonelies(self, stones: ndarray, reference: ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
+        """
+        Return all the stones on the first line that have no neighbour in a 2-lines thick square around them.
+
+        """
+        pos = set()
+        for r in (rs, re):
+            if r in (0, gsize - 1):
+                for c in range(cs, ce):
+                    pos.add((r, c))
+        for c in (cs, ce):
+            if c in (0, gsize - 1):
+                for r in range(rs, re):
+                    pos.add((r, c))
+        lonelies = []
+        for (r, c) in pos:
+            if stones[r, c] in (B, W):
+                alone = True
+                for x, y in around(r, c, 2, xmin=0, xmax=gsize, ymin=0, ymax=gsize):
+                    if reference[x, y] in (B, W) or stones[x, y] in (B, W):
+                        alone = False
+                        break
+                if alone:
+                    lonelies.append((r, c))
+        return lonelies
 
     def _drawgrid(self, img: ndarray):
         """

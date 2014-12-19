@@ -4,7 +4,7 @@ from sys import float_info, maxsize
 
 from numpy import zeros, uint8, int32, ndarray, ones_like, arange, column_stack, flipud, vstack, array_equal,\
     array, sum as npsum, roll, where
-from numpy.ma import minimum, around, sqrt as npsqrt
+from numpy.ma import minimum, around as nparound, sqrt as npsqrt
 import cv2
 
 
@@ -164,7 +164,7 @@ def rgb_histo(img):
     for ch, col in enumerate(color):
         hist_item = cv2.calcHist([img], [ch], None, [256], [0, 256])
         cv2.normalize(hist_item, hist_item, 0, 255, cv2.NORM_MINMAX)
-        hist = int32(around(hist_item))
+        hist = int32(nparound(hist_item))
         pts = column_stack((bins, hist))
         cv2.polylines(h, [pts], False, col)
     return flipud(h)
@@ -287,6 +287,20 @@ def within_margin(p, box, margin):
 
     """
     return box[0] + margin < p[0] < box[2] - margin and box[1] + margin < p[1] < box[3] - margin
+
+
+def around(x, y, margin, xmin=None, xmax=None, ymin=None, ymax=None):
+    """
+    Yield the positions around (x, y) as far as 'margin' in x and y directions, with respect of min and max values.
+
+    """
+    for i in range(-margin, margin + 1):
+        if (xmin is None or xmin <= x + i) and (xmax is None or x + i < xmax):
+            for j in range(-margin, margin + 1):
+                if i == j == 0:
+                    continue
+                if (ymin is None or ymin <= y + j) and (ymax is None or y + j < ymax):
+                    yield x + i, y + j
 
 
 def draw_contours_multicolor(img, contours):

@@ -145,27 +145,40 @@ class Region():
                 self.data.append("Q")  # quiet (calm)
                 if self.states[0] is Search:
                     # try clustering if needs be
-                    subrefs = ref_stones[self.rs:self.re, self.cs:self.ce]
                     tried = False
-                    if self.clustering_needs_try(subrefs):
-                        self.try_clustering(img, subrefs)
+                    if self.clustering_needs_try(ref_stones):
+                        self.try_clustering(img, ref_stones)
                         tried = True
                     # default routine sequence
                     if (not tried) or (self.finder is not self.sf.cluster):
-                        stones = self.finder.find_stones(img, **kwargs)
-                        if stones is not None:
-                            # todo check that no more than 2-3 stones have been added
-                            # todo if multiple new stones, check both colors are equally present
-                            accu = self.accus[self.finder]
-                            accu[:] = stones[self.rs:self.re, self.cs:self.ce]
-                            self.commit(accu)
+                        self.routine(img, ref_stones, **kwargs)
                     self.states[0] = Idle
             self.states.increment()
         else:
             self.data.append("A")  # agitated
         self.draw_data()
 
-    def try_clustering(self, img, subrefs):
+    def routine(self, img, refs, **kwargs):
+        """
+        Run the current finder on 'img' to detect stones, then verify and commit them.
+
+        """
+        stones = self.finder.find_stones(img, **kwargs)
+        if stones is not None:
+            lonelies = self.sf.first_line_lonelies(stones, refs, rs=self.rs, re=self.re, cs=self.cs, ce=self.ce)
+            for r, c in lonelies:
+                # correct that kind of error instead of refusing result, since it may be recurring
+                stones[r, c] = E
+            if len(lonelies):  # todo remove debug after a while
+                print("Discarded lonely stone(s) on first line {}".format(lonelies))
+            constraints = (self.sf.check_against, self.sf.check_flow)
+            passed = self.verify(constraints, stones, refs, img)
+            if 0 <= passed:
+                accu = self.accus[self.finder]
+                accu[:] = stones[self.rs:self.re, self.cs:self.ce]
+                self.commit(accu)
+
+    def try_clustering(self, img, refs):
         """
         Run and evaluate "clustering finder" in this region. Basically once a region is dense enough,
         the clustering seems much more trustworthy than contours analysis, so it should be used as soon as possible.
@@ -175,20 +188,12 @@ class Region():
         stones = self.sf.cluster.find_stones(img, r_start=self.rs, r_end=self.re, c_start=self.cs, c_end=self.ce)
         passed = -1
         if stones is not None:
-            substones = stones[self.rs:self.re, self.cs:self.ce]
-            # Check some validity constraints
-            for constraint in (self.sf.check_logic, self.sf.check_against, self.sf.check_lines):
-                check = constraint(substones, img=img, reference=subrefs, rs=self.rs, cs=self.cs)
-                if check < 0:
-                    print("{} vetoed region {}".format(constraint.__name__, (self.re, self.ce)))
-                    passed = -1  # veto from that constraint
-                    substones = None
-                    break
-                passed += check
+            constraints = (self.sf.check_thickness, self.sf.check_against, self.sf.check_lines)
+            passed = self.verify(constraints, stones, refs, img)
         # accumulate results
         self.cluster_score[0] = passed
         if 0 < passed:  # store successfully tested scores
-            self.cluster_accu[:] = substones
+            self.cluster_accu[:] = stones[self.rs:self.re, self.cs:self.ce]
             self.commit(self.cluster_accu)
         if self.cluster_score.at_end():  # wait the end of the cycle before making the decision
             total_score = npsum(self.cluster_score.buffer)
@@ -201,7 +206,25 @@ class Region():
                     # else:
                     # print("Clustering vetoed {} in region {}".format(passed, (self.re, self.ce)))
         self.cluster_score.increment()
-        self.population = self.get_population(subrefs)
+        self.population = self.get_population(refs)
+
+    def verify(self, constraints, stones, refs, img):
+        """
+        Check that the provided 'constraints' are verified by 'stones'.
+        refs -- an array of reference to compare the stones against (eg., the stones found so far)
+        img -- the image from which the 'stones' result has been extracted
+
+        @param constraints:
+        """
+        passed = 0
+        for constr in constraints:
+            check = constr(stones, img=img, reference=refs, rs=self.rs, re=self.re, cs=self.cs, ce=self.ce)
+            if check < 0:
+                print("{} vetoed region {}".format(constr.__name__, (self.re, self.ce)))
+                passed = -1  # veto from that constraint
+                break
+            passed += check
+        return passed
 
     def commit(self, cb: CyclicBuffer) -> None:
         assert len(cb.buffer.shape) == 3
@@ -257,10 +280,10 @@ class Region():
     def clustering_needs_try(self, ref_stones) -> bool:
         """
         Indicate whether clustering finder should be tried in that region.
-        stones -- the stones of the region (and NOT the whole goban), used to determine a reference population.
+        ref_stones -- the stones found so far (the whole goban), used to determine a reference population.
 
         """
-        current_pop = self.get_population(ref_stones)
+        current_pop = self.get_population(ref_stones[self.rs:self.re, self.cs:self.ce])
         return (not self.cluster_score.at_start()) or \
             self.finder is not self.sf.cluster and self.population + 1 < current_pop  # try again every 2 new stones
 
