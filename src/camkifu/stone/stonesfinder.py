@@ -3,7 +3,7 @@ from queue import Queue, Full, Empty
 from time import time
 
 import cv2
-from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray, array
+from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray, array, vectorize, max as npmax
 from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute
 
@@ -34,9 +34,11 @@ class StonesFinder(VidProcessor):
 
         """
         super(StonesFinder, self).__init__(vmanager)
+        self.goban_img = None  # the current goban image
         self._posgrid = PosGrid(canonical_size)
         self.mask_cache = None
         self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
+        self.intersections = None  # cache for the result of self.find_intersections()
 
         # background-related attributes
         if learn_bg:
@@ -48,7 +50,6 @@ class StonesFinder(VidProcessor):
         self.saved_bg = zeros((canonical_size, canonical_size, 3), dtype=float32)
         self.deleted = {}  # locations under "deletion watch". keys: the locations, values: the number of samples to do
         self.nb_del_samples = 5
-        self.goban_img = None  # the current goban image
 
     def _doframe(self, frame):
         transform = None
@@ -365,6 +366,7 @@ class StonesFinder(VidProcessor):
         Return a copy of the current goban state.
 
         """
+        # todo hide that if controller. bad enough to access the controller from vmanager already
         with self.vmanager.controller.rules.rlock:
             return array(self.vmanager.controller.rules.stones, dtype=object).T
 
@@ -376,40 +378,6 @@ class StonesFinder(VidProcessor):
             return self._fg
         else:
             raise ValueError("This StonesFinder doesn't seem to be segmenting background. See self.__init__()")
-
-    def _drawgrid(self, img: ndarray):
-        """
-        Draw a circle around each intersection of the goban, as they are currently estimated.
-
-        """
-        if self._posgrid is not None:
-            for i in range(19):
-                for j in range(19):
-                    p = self._posgrid.mtx[i][j]
-                    cv2.circle(img, (p[1], p[0]), 5, (255, 255, 0))
-
-    def _drawvalues(self, img, values):
-        """
-        Display one value per goban position. Obviously values will soon overlap if they are longish.
-
-        """
-        for row in range(gsize):
-            for col in range(gsize):
-                x, y = self._posgrid.mtx[row, col]
-                draw_str(img, str(values[row, col]), x - 10, y + 2)
-
-    def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
-        """
-        Override to take control of the location of the window of this stonesfinder
-
-        """
-        if loc is None:
-            try:
-                from test.devconf import sf_loc
-                loc = sf_loc
-            except ImportError:
-                pass
-        super()._show(img, name, latency, thread, loc=loc, max_frequ=max_frequ)
 
     def find_intersections(self, img: ndarray) -> ndarray:
         """
@@ -440,6 +408,15 @@ class StonesFinder(VidProcessor):
                     update_grid(lines, (x0, y0, x1, y1), grid[r][c])
         return grid
 
+    def get_intersections(self, img):
+        """
+        A cached wrapper of self.find_intersections()
+
+        """
+        if self.intersections is None:
+            self.intersections = self.find_intersections(img)
+        return self.intersections
+
     def stone_radius(self) -> float:
         """
         The approximation of the radius (in pixels) of a stone in the canonical frame.
@@ -460,6 +437,118 @@ class StonesFinder(VidProcessor):
         min_area = (4 / 3 * radius) ** 2
         max_area = (3 * radius) ** 2
         return min_area, max_area
+
+    def check_against(self, stones: ndarray, reference: ndarray=None, **kwargs):
+        """
+        Check that the newly found 'stones' array is coherent with the already existing 'reference' array.
+        'stones' and 'reference' can be subregions of the Goban, as long as they have the same shape.
+
+        Return -1, 0, 1 if the check is respectively refused, undetermined, or passed.
+
+        """
+        refs = 0  # number of stones found in reference
+        matches = 0  # number of matches with the references (non-empty only)
+        for r in range(reference.shape[0]):
+            for c in range(reference.shape[1]):
+                if reference[r, c] in (B, W):
+                    refs += 1
+                    if stones[r, c] is reference[r, c]:
+                        matches += 1
+        if 4 < refs:  # check against at least 4 stones
+            if 0.81 < matches / refs:  # start allowing errors if more than 5 stones have been put
+                return 1  # passed
+            else:
+                return -1  # refused
+        return 0  # undetermined
+
+    def check_lines(self, stones: ndarray, img: ndarray=None, rs=0, cs=0, **kwargs):
+        """
+        Check that the provided "stones" 2D array is coherent with lines detection in the image: no line should
+        be found in zones where a stone has been detected.
+
+        A confirmation is counted for the zone if it is empty (E) and at least one line has also been detected
+        in that zone.
+
+        stones -- a 2D array that can store the objects, used to record the stones found. It is created if not provided.
+        grid -- a 3D (or 2D) array that has negative values where lines have been found.
+        rs, cs -- optional row/column offsets to apply if 'stones' is a subregion of the goban
+
+        Return
+        lines -- the number of intersections where lines have been detected (based on the provided grid)
+        confirms -- the number of empty intersections where lines have been detected, meaning the
+
+        """
+        grid = self.get_intersections(img)
+        lines = 0  # the number of intersections where lines have been detected
+        matches = 0  # the number of empty intersections where lines have been detected
+        for i in range(stones.shape[0]):
+            for j in range(stones.shape[1]):
+                if sum(grid[i + rs, j + cs]) < 0:
+                    lines += 1
+                    if stones[i, j] is E:
+                        matches += 1
+        if 4 < lines:
+            if 0.9 < matches / lines:
+                return 1  # passed
+            else:
+                return -1  # refused
+        return 0  # undetermined
+
+    def check_logic(self, stones: ndarray, **kwargs):
+        """
+        Check that the provided "stones" 2D array is coherent with Go logic. This is of course inextricable,
+        but some major directions can be checked. 'stones' can be a subregion only of the whole Goban.
+
+        """
+        # 1. primal test, see if rules are complaining (suicide for example).
+        # rule = RuleUnsafe()
+        # try:
+        # move_nr = 1
+        # for r in range(r_start, r_end):
+        #         for c in range(c_start, c_end):
+        #             if stones[r, c] in (B, W):
+        #                 rule.put(Move('np', (stones[r, c], r, c), number=move_nr), reset=False)
+        #                 move_nr += 1
+        #     rule.confirm()
+        # todo check that no kill has happened if we are in warmup phase
+        # except StateError as se:
+        #     print(se)
+        #     return -1  # refused
+
+        # 2. thick ugly chunks vetoer
+        for color in (B, W):
+            avatar = vectorize(lambda x: 1 if x is color else 0)(stones.flatten())
+            # diagonal moves cost as much as side moves
+            dist = cv2.distanceTransform(avatar.reshape(stones.shape).astype(uint8), cv2.DIST_C, 3)
+            if 2 < npmax(dist):
+                # a stone surrounded by a 3-stones-thick wall of its own color is most likely not Go
+                print("{} thick chunk refused".format(color))
+                return -1
+        # todo check that there is no lonely stone on first line (no neighbour say 3 lines around it)
+
+        # 3. if survived up to here, can't really confirm, but at least nothing seems wrong
+        return 0
+
+    def _drawgrid(self, img: ndarray):
+        """
+        Draw a circle around each intersection of the goban, as they are currently estimated.
+
+        """
+        if self._posgrid is not None:
+            for i in range(19):
+                for j in range(19):
+                    p = self._posgrid.mtx[i][j]
+                    cv2.circle(img, (p[1], p[0]), 5, (255, 255, 0))
+
+    def _drawvalues(self, img, values):
+        """
+        Display one value per goban position. Obviously values will soon overlap if they are longish.
+
+        """
+        for row in range(gsize):
+            for col in range(gsize):
+                x, y = self._posgrid.mtx[row, col]
+                draw_str(img, str(values[row, col]), x - 10, y + 2)
 
     def draw_stones(self, stones: ndarray, canvas: ndarray=None):
         """
@@ -498,6 +587,19 @@ class StonesFinder(VidProcessor):
                     cv2.circle(img, (-inter[1], -inter[0]), 5, color=(0, 0, 0), thickness=6)
                 cv2.circle(img, (-inter[1], -inter[0]), 5, color=self.get_display_color(i, j), thickness=2)
         self._show(img, "{} - Intersections".format(self._window_name()))
+
+    def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
+        """
+        Override to take control of the location of the window of this stonesfinder
+
+        """
+        if loc is None:
+            try:
+                from test.devconf import sf_loc
+                loc = sf_loc
+            except ImportError:
+                pass
+        super()._show(img, name, latency, thread, loc=loc, max_frequ=max_frequ)
 
     @staticmethod
     def get_display_color(i, j):

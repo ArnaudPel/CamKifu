@@ -1,16 +1,11 @@
+from numpy import zeros, ndarray, unique, int8, uint8, max as npmax, sum as npsum
 
-import cv2
-from numpy import zeros, ndarray, unique, int8, uint8, vectorize, max as npmax, sum as npsum
 from camkifu.core.exceptions import DeletedError, CorrectionWarning
-
 from camkifu.core.imgutil import draw_str, CyclicBuffer
 from camkifu.stone.sf_clustering import SfClustering
 from camkifu.stone.sf_contours import SfContours
 from camkifu.stone.stonesfinder import StonesFinder
 from golib.config.golib_conf import gsize, B, W, E
-from golib.model.exceptions import StateError
-from golib.model.move import Move
-from golib.model.rules import RuleUnsafe
 
 
 __author__ = 'Arnaud Peloquin'
@@ -37,7 +32,6 @@ class SfMeta(StonesFinder):
         self.cluster = SfClustering(None)    # set to None for safety, put vmanager when needed
         self.contour = SfContours(vmanager)  # this one needs a vmanager already
         self.contour._show = self._show  # hack
-        self.intersections = None  # used to perform search of intersections on demand only
 
         # the whole processing is divided into subregions
         self.split = 3
@@ -100,15 +94,6 @@ class SfMeta(StonesFinder):
             ce = gsize
         return row * step, re, col * step, ce
 
-    def get_intersections(self, img):
-        """
-        A cached wrapper of self.find_intersections()
-
-        """
-        if self.intersections is None:
-            self.intersections = self.find_intersections(img)
-        return self.intersections
-
     def _window_name(self):
         return SfMeta.label
 
@@ -126,6 +111,7 @@ class Region():
         self.histo = histo
         self.finder = finder
         self.states = CyclicBuffer(1, self.histo, dtype=object, init=state)
+        self.data = []
 
         shape = (self.re - self.rs, self.ce - self.cs)
         self.contour_accu = CyclicBuffer(shape, self.histo, dtype=object, init=E)
@@ -135,8 +121,6 @@ class Region():
         self.canvas = None
         self.population = -1  # populations of regions as they  where the last time clustering was assessed
         self.cluster_score = CyclicBuffer(1, self.histo, dtype=int8)  # assessment score
-
-        self.data = []
 
     def process(self, img: ndarray, ref_stones: ndarray, canvas: ndarray=None) -> None:
         """
@@ -193,8 +177,8 @@ class Region():
         if stones is not None:
             substones = stones[self.rs:self.re, self.cs:self.ce]
             # Check some validity constraints
-            for constraint in (self.check_logic, self.check_against, self.check_lines):
-                check = constraint(substones, img=img, reference=subrefs)
+            for constraint in (self.sf.check_logic, self.sf.check_against, self.sf.check_lines):
+                check = constraint(substones, img=img, reference=subrefs, rs=self.rs, cs=self.cs)
                 if check < 0:
                     print("{} vetoed region {}".format(constraint.__name__, (self.re, self.ce)))
                     passed = -1  # veto from that constraint
@@ -279,92 +263,6 @@ class Region():
         current_pop = self.get_population(ref_stones)
         return (not self.cluster_score.at_start()) or \
             self.finder is not self.sf.cluster and self.population + 1 < current_pop  # try again every 2 new stones
-
-    def check_against(self, stones: ndarray, reference: ndarray=None, **kwargs):
-        """
-        Return -1, 0, 1 if the check is respectively refused, undetermined, or passed.
-
-        """
-        refs = 0  # number of stones found in reference
-        matches = 0  # number of matches with the references (non-empty only)
-        for r in range(reference.shape[0]):
-            for c in range(reference.shape[1]):
-                if reference[r, c] in (B, W):
-                    refs += 1
-                    if stones[r, c] is reference[r, c]:
-                        matches += 1
-        if 4 < refs:  # check against at least 4 stones
-            if 0.81 < matches / refs:  # start allowing errors if more than 5 stones have been put
-                return 1  # passed
-            else:
-                return -1  # refused
-        return 0  # undetermined
-
-    def check_lines(self, stones: ndarray, img: ndarray=None, **kwargs):
-        """
-        Check that the provided "stones" 2D array is coherent with lines detection in the image: no line should
-        be found in zones where a stone has been detected.
-
-        A confirmation is counted for the zone if it is empty (E) and at least one line has also been detected
-        in that zone.
-
-        stones -- a 2D array that can store the objects, used to record the stones found. It is created if not provided.
-        grid -- a 3D (or 2D) array that has negative values where lines have been found.
-
-        Return
-        lines -- the number of intersections where lines have been detected (based on the provided grid)
-        confirms -- the number of empty intersections where lines have been detected, meaning the
-
-        """
-        grid = self.sf.get_intersections(img)
-        lines = 0  # the number of intersections where lines have been detected
-        matches = 0  # the number of empty intersections where lines have been detected
-        for i in range(stones.shape[0]):
-            for j in range(stones.shape[1]):
-                if sum(grid[i+self.rs, j+self.cs]) < 0:
-                    lines += 1
-                    if stones[i, j] is E:
-                        matches += 1
-        if 4 < lines:
-            if 0.9 < matches / lines:
-                return 1  # passed
-            else:
-                return -1  # refused
-        return 0  # undetermined
-
-    def check_logic(self, stones: ndarray, **kwargs):
-        """
-        Check that the provided "stones" 2D array is coherent with Go logic. This is of course inextricable,
-        but some major directions can be checked.
-
-        """
-        # 1. primal test, see if rules are complaining (suicide for example).
-        # rule = RuleUnsafe()
-        # try:
-        # move_nr = 1
-        #     for r in range(r_start, r_end):
-        #         for c in range(c_start, c_end):
-        #             if stones[r, c] in (B, W):
-        #                 rule.put(Move('np', (stones[r, c], r, c), number=move_nr), reset=False)
-        #                 move_nr += 1
-        #     rule.confirm()
-        # todo check that no kill has happened if we are in warmup phase
-        # except StateError as se:
-        #     print(se)
-        #     return -1  # refused
-
-        # 2. thick ugly chunks vetoer
-        for color in (B, W):
-            avatar = vectorize(lambda x: 1 if x is color else 0)(stones.flatten())
-            # diagonal moves cost as much as side moves
-            dist = cv2.distanceTransform(avatar.reshape(stones.shape).astype(uint8), cv2.DIST_C, 3)
-            if 2 < npmax(dist):
-                # a stone surrounded by a 3-stones-thick wall of its own color is most likely not Go
-                print("{} thick chunk refused".format(color))
-                return -1
-        # todo check that there is no lonely stone on first line (no neighbour say 3 lines around it)
-        # 3. if survived up to here, can't really confirm, but at least nothing seems wrong
-        return 0
 
     def get_population(self, stones):
         # noinspection PyTupleAssignmentBalance
