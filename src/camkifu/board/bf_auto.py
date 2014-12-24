@@ -1,3 +1,4 @@
+from time import time
 import cv2
 from math import pi
 from numpy import zeros, uint8
@@ -26,6 +27,22 @@ class BoardFinderAuto(BoardFinder):
         super(BoardFinderAuto, self).__init__(vmanager)
         self.lines_accu = []
         self.groups_accu = []  # groups of points in the same image region
+
+        self.auto_refresh = 10  # the number of seconds to wait after the last positive detection before searching again
+        self.last_positive = -1.0  # last time the board was detected
+
+    def _doframe(self, frame):
+        """
+        Decoration of super()._doframe() to add a sleeping period after a positive board detection.
+
+        """
+        last_positive = time() - self.last_positive
+        if self.auto_refresh < last_positive:
+            super()._doframe(frame)
+        else:
+            self.corners.paint(frame)
+            self.metadata["Last detection {}s ago"] = int(last_positive)
+            self._show(frame)
 
     def _detect(self, frame):
         length_ref = min(frame.shape[0], frame.shape[1])  # a reference length linked to the image
@@ -57,6 +74,8 @@ class BoardFinderAuto(BoardFinder):
             self.corners.paint(median)
             self.metadata["Board  : {}"] = "found" if found else "searching"
             self._show(median)
+        if found:
+            self.last_positive = time()
         return found
 
     # noinspection PyMethodMayBeStatic

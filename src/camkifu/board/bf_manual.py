@@ -70,7 +70,6 @@ class BoardFinderManual(BoardFinder):
         if event == cv2.EVENT_LBUTTONDOWN:
             self.corners.submit((x, y))
             if self.corners.is_ready():
-                self.last_positive = 0  # update transform matrix as soon as possible
                 self.manual_found = True
                 # noinspection PyProtectedMember
                 path = self.get_save_file_path()
