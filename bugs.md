@@ -3,11 +3,7 @@
 
 ## BUGS
 
-image hidding (image not shown) doesn't seem to work as expected when one vidprocessor owns 2 images.
-
 stones finder bulk update may suggest moves impossible in the game of Go. So the rules object will refuse and crash. things don't seem to go back to normal aftewards, so check that the game's state is not corrupted.
-
-check the drag feature, if the mouse goes too far there may be exceptions risen.
 
 
 ## WON'T FIX
