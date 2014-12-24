@@ -33,7 +33,7 @@ class ControllerVSeq(ControllerBase):
         self.api = {
             "append": self.cvappend,
             "delete": self._delete,
-            "bulk": self._bulk_append,
+            "bulk": self._bulk_update,
 
         }
 

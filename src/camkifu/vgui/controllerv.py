@@ -60,7 +60,7 @@ class ControllerV(Controller):
         self.api = {
             "append": self._cvappend,
             "delete": lambda x, y: self._delete(y, x, learn=False),  # NB: (x,y) inversion ! Call with numpy coordinates
-            "bulk": self._bulk_append,
+            "bulk": self._bulk_update,
             "register_bf": self._add_bfinder,
             "register_sf": self._add_sfinder,
             "select_bf": self._select_bfinder,

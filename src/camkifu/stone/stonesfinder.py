@@ -151,7 +151,6 @@ class StonesFinder(VidProcessor):
                 raise DeletedError("The zone has not changed enough since last deletion")
             else:
                 # the area has changed, alleviate ban.
-                # todo check all that
                 print("previously user-deleted location: {} now unlocked".format((r, c)))
                 del self.deleted[(r, c)]
         else:
