@@ -42,8 +42,8 @@ class VidProcessor(object):
         # Tkinter and openCV must cohabit on the main thread to display things.
         # If this main thread is too crammed with openCV showing images, bad things start to happen
         # The variables below help relieving the main thread by not showing all images requested.
-        self.last_shown = 0  # the last time an image has been shown for this VidProcessor
-        self.ignored_show = 0  # the number of images ignored since last_shown
+        self.last_shown = defaultdict(lambda: 0)    # the last time an image has been shown for this VidProcessor
+        self.ignored_show = defaultdict(lambda: 0)  # the number of images ignored since last_shown
 
         # metadata to print on the next image.
         # the structure is a dict because some images may not be shown, so data may have to be aggregated / overwritten
@@ -192,7 +192,7 @@ class VidProcessor(object):
             pass  # not interested in non-char keys ATM
         self.key = None
 
-    def _draw_metadata(self, img, latency, thread):
+    def _draw_metadata(self, img, name, latency, thread):
         """
         Print info strings on the image.
 
@@ -205,7 +205,7 @@ class VidProcessor(object):
             x_offset = 40
             line_spacing = 20
             draw_str(img, "Frame {}/{} ({} %)".format(frame_idx, total, progress), x_offset, line_spacing)
-            draw_str(img, "images not shown:  %d" % self.ignored_show, x_offset, 2 * line_spacing)
+            draw_str(img, "images not shown:  %d" % self.ignored_show[name], x_offset, 2 * line_spacing)
             if latency:
                 draw_str(img, "latency:  %.1f ms" % ((time() - self.last_read) * 1000), x_offset, 3 * line_spacing)
             if thread:
@@ -235,20 +235,20 @@ class VidProcessor(object):
         if name is None:
             name = self._window_name()
         if self.vmanager.imqueue is not None:
-            if 1 / max_frequ < time() - self.last_shown:  # todo use a dict to allow one VProc to show multiple windows
-                self._draw_metadata(img, latency, thread)
+            if 1 / max_frequ < time() - self.last_shown[name]:
+                self._draw_metadata(img, name, latency, thread)
                 try:
                     self.vmanager.imqueue.put_nowait((name, img, self, loc))
                     self.own_images[name] = img
-                    self.ignored_show = 0
-                    self.last_shown = time()
+                    self.ignored_show[name] = 0
+                    self.last_shown[name] = time()
                 except Full:
-                    self.ignored_show += 1
+                    self.ignored_show[name] += 1
                     print("Image queue full, not showing {0}".format(hex(id(img))))
             else:
-                self.ignored_show += 1
+                self.ignored_show[name] += 1
         else:
-            self._draw_metadata(img, latency, thread)
+            self._draw_metadata(img, name, latency, thread)
             show(img, name=name, loc=loc)  # assume we are on main thread
             self.own_images[name] = img
 
