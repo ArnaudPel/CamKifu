@@ -12,7 +12,7 @@ class ControllerVTest(ControllerBase):
                     can be useful when processing a few moves inside a bigger game.
 
         """
-        super(ControllerVTest, self).__init__()  # the kifu will be overridden by our checker object
+        super().__init__()  # the kifu will be overridden by our checker object
         self.kifu = KifuChecker(reffile, sgffile=sgffile, failfast=failfast, bounds=move_bounds)
         self.video = video
         self.bounds = vid_bounds

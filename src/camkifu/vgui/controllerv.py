@@ -36,7 +36,7 @@ class ControllerV(Controller):
     """
 
     def __init__(self, user_input, display, sgffile=None, video=0, bounds=(0, 1)):
-        super(ControllerV, self).__init__(user_input, display, sgffile=sgffile)
+        super().__init__(user_input, display, sgffile=sgffile)
         self.queue = Queue(commands_size)
         self.video = video
         # todo provide a way to set these bounds from the GUI ?
@@ -204,7 +204,7 @@ class ControllerV(Controller):
 
     def _mouse_release(self, event):
         """ Method override to add correction event. """
-        move = super(ControllerV, self)._mouse_release(event)
+        move = super()._mouse_release(event)
         if move is not None:
             self.corrected(None, move)
 
@@ -222,21 +222,21 @@ class ControllerV(Controller):
 
     def _drag(self, event):
         """ Method override to add correction event. """
-        moves = super(ControllerV, self)._drag(event)
+        moves = super()._drag(event)
         if moves is not None:
             self.corrected(*moves)
 
     def _opensgf(self):
         """ Method override to pause vision threads during long GUI operations. """
         self._pause(True)
-        opened = super(ControllerV, self)._opensgf()
+        opened = super()._opensgf()
         self._pause(False)
         return opened
 
     def _save(self):
         """ Method override to pause vision threads during long GUI operations. """
         self._pause(True)
-        super(ControllerV, self)._save()
+        super()._save()
         self._pause(False)
 
     @promptdiscard
@@ -274,7 +274,7 @@ class ControllerV(Controller):
             except AttributeError:
                 pass  # most likely last_move() has returned null
 
-        return super(ControllerV, self).__setattr__(name, value)
+        return super().__setattr__(name, value)
 
 
 class Pause(object):

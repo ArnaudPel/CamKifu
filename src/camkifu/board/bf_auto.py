@@ -24,7 +24,7 @@ class BoardFinderAuto(BoardFinder):
     label = "Automatic"
 
     def __init__(self, vmanager):
-        super(BoardFinderAuto, self).__init__(vmanager)
+        super().__init__(vmanager)
         self.lines_accu = []
         self.groups_accu = []  # groups of points in the same image region
 

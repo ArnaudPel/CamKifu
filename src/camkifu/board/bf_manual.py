@@ -23,7 +23,7 @@ class BoardFinderManual(BoardFinder):
                             has no impact on live cam, but prevent unwanted frames consumption for files.
 
         """
-        super(BoardFinderManual, self).__init__(vmanager)
+        super().__init__(vmanager)
         self.manual_found = False
         self.capture_pos = None
         try:

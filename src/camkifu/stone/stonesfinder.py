@@ -33,7 +33,7 @@ class StonesFinder(VidProcessor):
         learn_bg -- set to True to create and maintain a background model, which enables self.get_foreground().
 
         """
-        super(StonesFinder, self).__init__(vmanager)
+        super().__init__(vmanager)
         self.goban_img = None  # the current goban image
         self._posgrid = PosGrid(canonical_size)
         self.mask_cache = None

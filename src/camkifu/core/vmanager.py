@@ -117,7 +117,7 @@ class VManager(VManagerBase):
     """
 
     def __init__(self, controller, imqueue=None):
-        super(VManager, self).__init__(controller, imqueue=imqueue)
+        super().__init__(controller, imqueue=imqueue)
         self.daemon = True
         self.bf_class = bfinders[0]
         self.sf_class = sfinders[0]

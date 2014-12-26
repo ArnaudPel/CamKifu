@@ -15,7 +15,7 @@ class DummyFinder(StonesFinder):
     label = "Test SF"
 
     def __init__(self, vmanager):
-        super(DummyFinder, self).__init__(vmanager)
+        super().__init__(vmanager)
         self.ctype = dummy_sf_args[0]
         self.iterator = iter(dummy_sf_args[1])
 

@@ -27,7 +27,7 @@ class ControllerVSeq(ControllerBase):
     """
 
     def __init__(self, sgffile=None, video=0, bounds=(0, 1)):
-        super(ControllerVSeq, self).__init__(sgffile=sgffile)
+        super().__init__(sgffile=sgffile)
         self.video = video
         self.bounds = bounds
         self.api = {
@@ -60,7 +60,7 @@ class VManagerSeq(VManagerBase):
     states = ("board detection", "stones detection", "stop")
 
     def __init__(self, controller=None):
-        super(VManagerSeq, self).__init__(controller)
+        super().__init__(controller)
         self.state = VManagerSeq.states[0]
         self.current_proc = None
         self.bf_locked = False  # special flag for board finder manual which has to be kept running in some situations

@@ -22,7 +22,7 @@ class BoardFinder(VidProcessor):
     """
 
     def __init__(self, vmanager):
-        super(BoardFinder, self).__init__(vmanager)
+        super().__init__(vmanager)
         self.corners = GobanCorners()
         self.transform_dst = array([(0, 0), (csize, 0), (csize, csize), (0, csize)], dtype=float32)
         self.mtx = None
