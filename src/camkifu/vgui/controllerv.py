@@ -1,4 +1,5 @@
 from queue import Full, Empty, Queue
+from numpy import array, ndarray
 
 from camkifu.core.exceptions import PipeWarning
 from golib.gui.controller import Controller
@@ -121,6 +122,14 @@ class ControllerV(Controller):
                     raise e
         except Empty:
             pass
+
+    def get_stones(self) -> ndarray:
+        """
+        Return a copy of the current goban state, in the numpy coordinates system.
+
+        """
+        with self.rlock:
+            return array(self.rules.stones, dtype=object).T
 
     def _on(self):
         """

@@ -7,35 +7,34 @@ sudo mv /etc/init/ssh.conf.disabled /etc/init/ssh.conf
 links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 
+## VISION
+- board finder auto : takes for ever when image from Room 1.mov is pyrdowned. most likely because it finds too many lines. investigate
+- board finder auto : save background and re-run only if the image is "disturbed" for too long ? Only after several converging detections maybe
+- board finder auto : enable manual corrections, which should then disable automatic changes (at least for the corrected corner(s))
+- board finder auto : try to make out the vertical side of the goban in front, it HAS to be excluded
+- board finder auto : try to detect black blades around the canonical frame, and relocate accordingly.
+- board finder auto : create a tester with randomly generated images (lines) to see to what limits it can be brought to
+- board finder auto : try to separate image in a few clusters (4-5), and look for one taking the middle of the screen (or 3 taking the middle for advanced games)
+
 
 ## BEFORE PYTHON PUBLISH:
 
-- board finder : try to make out the vertical side of the goban in front, it HAS to be excluded
-- board finder : create a tester with randomly generated images (lines) to see to what limits it can be brought to
-- stones finder behavior:
-    * start by trying to take a kmeans picture (with pertinence check) in case we don't start from scratch
-    * in low stones density regions, look for stones with contours. as soon as possible, switch to kmeans (do it per subzone)
-    * much need for analysis of contours that are not closed. look for arc-of-circle detection ? or google the problem itself
-    * discard frames / wait for changes using background analysis
-    * random idea for not closed contours : try to fill them with circles of same radius (fill in lines and / or columns)
+- make goban smaller or resizable (can't see messages on small screens)
 - make more videos, in different conditions. especially play on the first line, to test limit conditions.
-- add left-click listener on goban (golib) and provide menu to invert stone color (plus repeat existing commands maybe)
-- have an automatic downsampling before processing(s) ? in boardfinder at least (since the canonical frame size is fixed already).
-- try to have some more fun w board detection and stones detection to show a nice face to the world
-    * Try a 2means board detector ? Maybe coupled with edges detection in a second stage.
-    * Smart segmentation and edge-aware filters ?
-    * Page 267 and on for background detection modeling
-- go through todos
-- fix in-code documentation
-    * first read carefully [jetbrains' heads-up](https://www.jetbrains.com/pycharm/webhelp/documenting-source-code-in-pycharm.html), [pep3107](https://www.python.org/dev/peps/pep-3107/)
-    * check and fix existing doc
-    * create missing doc
-    * check and fix comments
-    * add messages to assertions  `assert cond() , "message"`
-- shoot as many pycharm warnings as possible
+
+- CODE REVIEW
+    * check bugs file
+    * go through todos, do them or move to this file so they get out of the way
+    * shoot as many pycharm warnings as possible
+    * fix in-code documentation
+        - first read carefully [jetbrains' heads-up](https://www.jetbrains.com/pycharm/webhelp/documenting-source-code-in-pycharm.html), [pep3107](https://www.python.org/dev/peps/pep-3107/)
+        - check and fix existing doc
+        - create missing doc
+        - check and fix comments
+        - add messages to assertions  `assert cond() , "message"`
 - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
-- fix author (replace any Kohistan with A.P.)
 - license
+- clean up and mark down this file :)
 
 
 ## ON PYTHON PUBLISH:
@@ -45,9 +44,12 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 - links to openCV install
 - links to PyCharm CE
 - jetbrains has a banner generator. can we set one on github ?
+- on contour analysis:
+    * it would be interesting to get an idea, along the contour pixel, where's the interior and where is the exterior, even when contours are not closed. Maybe doable by drawing two contours "enclosing" the initial contour, and computing the length of each. the shortest is interior, and the longest is exterior.
+    * not closed contours : try to fill them with enclosed circles (stack them in rows and columns)
 
 
-## OPENCV 3 BETA :
+## OPENCV 3 BETA / Random IDEAS :
 
 - Greatly extended Python bindings, including Python 3 support, and several OpenCV+Python tutorials
 - Line Segment Detector (LSD)     -> c++ only (As of 24/10/14)
@@ -62,7 +64,6 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 - write more test (+ code coverage tool ?), + provide videos and sgf ressources
 - try the VidRecorder again (as of opencv-2.4.8)
 - make vision values as dynamic as possible (frame size, ...)
-- clean up and mark down this file :)
 
 
 ## ON CPP PUBLISH:

@@ -1,5 +1,6 @@
 from threading import Thread
 from time import sleep
+from numpy import ndarray, array
 
 from CkMain import get_argparser
 from camkifu.board.bf_manual import BoardFinderManual
@@ -48,6 +49,13 @@ class ControllerVSeq(ControllerBase):
         move.number = self.current_mn + 1
         self.rules.put(move)
         self._append(move)
+
+    def get_stones(self) -> ndarray:
+        """
+        Return a copy of the current goban state, in the numpy coordinates system.
+
+        """
+        return array(self.rules.stones, dtype=object).T
 
 
 class VManagerSeq(VManagerBase):

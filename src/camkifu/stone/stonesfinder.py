@@ -362,12 +362,10 @@ class StonesFinder(VidProcessor):
 
     def get_stones(self):
         """
-        Return a copy of the current goban state.
+        Return a copy of the current goban state, in the numpy coordinates system.
 
         """
-        # todo hide that if controller. bad enough to access the controller from vmanager already
-        with self.vmanager.controller.rules.rlock:
-            return array(self.vmanager.controller.rules.stones, dtype=object).T
+        return self.vmanager.controller.get_stones()
 
     def get_foreground(self):
         if hasattr(self, "_fg"):
@@ -693,26 +691,6 @@ def update_grid(lines, box, result_slot):
         if 0 < number:
             result_slot[0] = - x_sum / number
             result_slot[1] = - y_sum / number
-
-
-def evalz(zone, chan):
-    # todo only used in old BgSub. Probably obsolete.
-    """ Return an integer evaluation for the zone. """
-    return int(npsum(zone[:, :, chan]))
-
-
-def compare(reference, current):
-    # todo only used in old BgSub. Probably obsolete.
-    """
-    Return a distance between the two colors. The value is positive if current is
-    brighter than the reference, and negative otherwise.
-
-    reference -- a vector, usually of shape (3, 1)
-    current -- a vector of same shape as reference.
-
-    """
-    sign = 1 if npsum(reference) <= npsum(current) else -1
-    return sign * int(npsum(absolute(current - reference)))
 
 
 class PosGrid(object):

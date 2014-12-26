@@ -1,10 +1,11 @@
 from bisect import insort
 import cv2
 import random
-from numpy import vstack, float32
+from numpy import vstack, float32, roll, sum as npsum, where
+from numpy.ma import sqrt as npsqrt
 from camkifu.core.imgutil import Segment
 
-__author__ = 'Kohistan'
+__author__ = 'Arnaud Peloquin'
 
 """
 Legacy bits that may well go away sometime. Things here are not supposed to be used.
@@ -377,3 +378,21 @@ class Chunk:
 
         """
         dest[self.x:self.mat.shape[0] + self.x, self.y:self.mat.shape[1] + self.y] = self.mat
+
+
+def draw_closing_lines(img, contours):
+    for cont in contours:
+        v1 = (roll(cont, -1, axis=0) - cont)
+        v2 = (roll(cont, 1, axis=0) - cont)
+        dotprod = npsum(v1 * v2, axis=2)
+        norm1 = npsqrt(npsum(v1 ** 2, axis=2))
+        norm2 = npsqrt(npsum(v2 ** 2, axis=2))
+        cosinus = (dotprod / norm1) / norm2
+        indexes = where(0.95 < cosinus)[0]
+        if len(indexes) == 1:
+            cv2.circle(img, tuple(cont[indexes[0], 0]), 3, (0, 255, 255))
+        elif len(indexes) == 2:
+            cv2.line(img, tuple(tuple(cont[indexes[0], 0])), tuple(cont[indexes[1], 0]), (0, 0, 255))
+        else:
+            for i in indexes:
+                cv2.circle(img, tuple(cont[i, 0]), 3, (0, 0, 255))

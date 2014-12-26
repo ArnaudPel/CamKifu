@@ -28,6 +28,7 @@ class BoardFinder(VidProcessor):
         self.mtx = None
 
     def _doframe(self, frame):
+        self.corners.frame = frame
         if self._detect(frame):
             source = array(self.corners.hull, dtype=float32)
             try:
@@ -66,6 +67,7 @@ class GobanCorners():
     """
     def __init__(self, points=None):
         self.hull = None
+        self.frame = None
         if points is not None:
             self._points = points
             self._check()
@@ -77,18 +79,19 @@ class GobanCorners():
 
     def submit(self, point):
         """
-        Add the point if less than 4 have been provided, otherwise correct the closest point.
+        Append the point if less than 4 have been provided, otherwise correct the closest point.
+        Note : in 'append' phase, a point too close to another point will be interpreted as
+        an error and will be rejected.
 
         """
+        closest = (sys.maxsize, None)  # (distance, index_in_list)
+        for i, pt in enumerate(self._points):
+            if norm(pt, point) < closest[0]:
+                closest = (norm(pt, point), i)
         if len(self._points) < 4:
-            # todo check that the new point is not too close to the others (accidental double-click), otherwise
-            # it can become annoying to understand and fix by the user
-            self._points.append(point)
+            if closest[1] is None or self.frame is None or min(*self.frame.shape[0:2]) / 5 < closest[0]:
+                self._points.append(point)
         else:
-            closest = (sys.maxsize, None)  # (distance, index_in_list)
-            for i, pt in enumerate(self._points):
-                if norm(pt, point) < closest[0]:
-                    closest = (norm(pt, point), i)
             self._points[closest[1]] = point
         self._check()
 
