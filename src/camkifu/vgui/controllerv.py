@@ -122,17 +122,6 @@ class ControllerV(Controller):
         except Empty:
             pass
 
-    def locate(self, x, y):
-        """
-        Look for a Move object having (x, y) location in the kifu.
-
-        x, y -- interpreted in the opencv (=tk) coordinates frame.
-
-        """
-        node = self.kifu.locate(x, y)
-        if node is not None:
-            return node.getmove()
-
     def _on(self):
         """
         To be set from outside (eg. by Vision Manager).

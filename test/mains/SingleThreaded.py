@@ -103,6 +103,8 @@ class VManagerSeq(VManagerBase):
             elif self.state == VManagerSeq.states[1]:
                 self.current_proc = self.stones_finder
                 self.stones_finder.execute()
+                if self.stones_finder.terminated_video():
+                    break
             else:
                 break
 

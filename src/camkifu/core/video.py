@@ -87,10 +87,13 @@ class VidProcessor(object):
         Extension point.
 
         """
-        if self.vmanager.controller.bounds[1] <= self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO):
+        if self.terminated_video():
             print("Video end reached. {} terminating main loop.".format(self.__class__.__name__))
             return True
         return self._interruptflag
+
+    def terminated_video(self):
+        return self.vmanager.controller.bounds[1] <= self.vmanager.capt.get(cv2.CAP_PROP_POS_AVI_RATIO)
 
     def ready_to_read(self) -> bool:
         """
