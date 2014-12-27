@@ -19,7 +19,6 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 ## BEFORE PYTHON PUBLISH:
 
-- make goban smaller or resizable (can't see messages on small screens)
 - make more videos, in different conditions. especially play on the first line, to test limit conditions.
 
 - CODE REVIEW

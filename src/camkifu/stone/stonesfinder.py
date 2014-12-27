@@ -623,11 +623,8 @@ class StonesFinder(VidProcessor):
 
         """
         if loc is None:
-            try:
-                from test.devconf import sf_loc
-                loc = sf_loc
-            except ImportError:
-                pass
+            from camkifu.config.cvconf import sf_loc
+            loc = sf_loc
         super()._show(img, name, latency, thread, loc=loc, max_frequ=max_frequ)
 
     @staticmethod

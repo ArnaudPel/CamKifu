@@ -2,11 +2,11 @@ from bisect import insort
 from math import sqrt, acos, pi, cos, sin
 from sys import float_info, maxsize
 
-from numpy import zeros, uint8, int32, ndarray, ones_like, arange, column_stack, flipud, vstack, array_equal,\
-    array
+from numpy import zeros, uint8, int32, ndarray, ones_like, arange, column_stack, flipud, vstack, array_equal, array
 from numpy.ma import minimum, around as nparound
 import cv2
 
+from golib.config.golib_conf import screenw, screenh
 
 __author__ = 'Arnaud Peloquin'
 
@@ -100,12 +100,8 @@ def show(img, name="Camkifu", loc=None):
         if loc is not None:
             cv2.moveWindow(name, *loc)
         else:
-            try:
-                from test.devconf import screenw, screenh
-                center = (screenw / 2, screenh / 2)
-                cv2.moveWindow(name, max(0, int(center[0] - img.shape[0] / 2)), int(img.shape[1] / 2))
-            except ImportError:
-                pass
+            center = (screenw / 2, screenh / 2)
+            cv2.moveWindow(name, max(0, int(center[0] - img.shape[0] / 2)), int(img.shape[1] / 2))
         windows.add(name)
     cv2.imshow(name, img)
 
@@ -126,16 +122,12 @@ def _factor(img):
 
     """
     f = 0
-    try:
-        from test.devconf import screenw, screenh
-        imwidth = img.shape[1]
-        imheight = img.shape[0]
-        while screenw < imwidth or screenh < imheight:
-            f += 1
-            imwidth /= 2
-            imheight /= 2
-    except ImportError:
-        pass
+    imwidth = img.shape[1]
+    imheight = img.shape[0]
+    while screenw < imwidth or screenh < imheight:
+        f += 1
+        imwidth /= 2
+        imheight /= 2
     return f
 
 

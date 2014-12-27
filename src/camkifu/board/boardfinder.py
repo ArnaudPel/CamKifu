@@ -51,11 +51,8 @@ class BoardFinder(VidProcessor):
 
         """
         if loc is None:
-            try:
-                from test.devconf import bf_loc
-                loc = bf_loc
-            except ImportError:
-                pass
+            from camkifu.config.cvconf import bf_loc
+            loc = bf_loc
         super()._show(img, name, latency, thread, loc=loc, max_frequ=max_freq)
 
 

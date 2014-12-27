@@ -7,9 +7,9 @@ import cv2
 
 
 # keep this line above other project imports to keep appname right
-from golib.config import golib_conf
+from golib.config import golib_conf as gc
 
-golib_conf.appname = "Camkifu"
+gc.appname = "Camkifu"
 
 from camkifu.vgui.vui import VUI
 
@@ -24,6 +24,15 @@ __author__ = 'Arnaud Peloquin'
 Application entry point.
 
 """
+
+
+def configure(win):
+    xstart = gc.glocation[0] + win.winfo_reqwidth() + gc.rwidth * gc.gsize + 20
+    xstart = min(xstart, gc.screenw - 100)
+    import camkifu.config.cvconf as cvc
+    cvc.bf_loc = (xstart, 40)
+    # stonesfinder's window is more likely to be smaller than boardfinder's
+    cvc.sf_loc = (xstart, int(gc.screenh * 3 / 5))
 
 
 def img_update(imqueue):
@@ -56,6 +65,7 @@ def main(video=0, sgf=None, bounds=(0, 1)):
     glmain.configure(root)
     app = VUI(root)
     app.pack()
+    configure(root)
     imqueue = Queue(maxsize=10)
     controller = ControllerV(app, app, sgffile=sgf, video=video, bounds=bounds)
     vmanager = VManager(controller, imqueue=imqueue)
