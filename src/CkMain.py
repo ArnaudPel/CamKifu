@@ -53,6 +53,7 @@ def main(video=0, sgf=None, bounds=(0, 1)):
     """
     assert cv2.__version__ == "3.0.0-beta"  # disable that if needs be, this is just meant as a quick indication
     root = Tk(className="Camkifu")
+    glmain.configure(root)
     app = VUI(root)
     app.pack()
     imqueue = Queue(maxsize=10)
