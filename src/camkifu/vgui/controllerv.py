@@ -40,7 +40,6 @@ class ControllerV(Controller):
         super().__init__(user_input, display, sgffile=sgffile)
         self.queue = Queue(commands_size)
         self.video = video
-        # todo provide a way to set these bounds from the GUI ?
         self.bounds = bounds
 
         # commands from background that have to be executed on the GUI thread.
@@ -54,6 +53,7 @@ class ControllerV(Controller):
             self.input.commands["pause"] = lambda: self._pause(self.paused.true())
             self.input.commands["vidfile"] = self._openvideo
             self.input.commands["vidlive"] = self._openlive
+            self.input.commands["vidpos"] = lambda new_pos: self.vidpos(new_pos)
         except AttributeError as ae:
             self.log("Some commands could not be bound to User Interface.")
             self.log(ae)
@@ -66,7 +66,8 @@ class ControllerV(Controller):
             "register_sf": self._add_sfinder,
             "select_bf": self._select_bfinder,
             "select_sf": self._select_sfinder,
-            "video_changed": self._prompt_new_kifu
+            "video_changed": self._prompt_new_kifu,
+            "video_progress": lambda progress: self.display.video_progress(progress),
         }
 
         if sgffile is not None:
@@ -74,7 +75,7 @@ class ControllerV(Controller):
 
         self.paused = Pause()
 
-    def pipe(self, instruction, args=None):
+    def pipe(self, instruction, args=None):  # todo refactor with *args as of Python3 ?
         """
         Send an instruction to this controller, that will be treated asynchronously.
         instruction -- a callable.
@@ -167,6 +168,16 @@ class ControllerV(Controller):
         """
         To be set from outside (eg. by Vision Manager).
         The user has clicked "Next".
+
+        """
+        pass
+
+    def vidpos(self, new_pos):
+        """
+        To be set from outside (eg. by Vision Manager).
+        The user has set a new video position.
+
+        new_pos -- the video progress to set (in %).
 
         """
         pass

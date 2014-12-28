@@ -106,6 +106,9 @@ class VManagerBase(Thread):
         """ A sub-process of this manager that terminates is supposed to pass itself here. """
         pass
 
+    def vid_progress(self, *args):
+        pass
+
 
 class VManager(VManagerBase):
     """
@@ -128,6 +131,7 @@ class VManager(VManagerBase):
         self.controller._pause = self._pause
         self.controller._on = self._on
         self.controller._off = self._off
+        self.controller.vidpos = self._vidpos
 
     def _get_capture(self):
         # noinspection PyArgumentList
@@ -164,6 +168,22 @@ class VManager(VManagerBase):
             self.board_finder = None
             self.stones_finder = None
             self.controller.pipe("video_changed")
+
+    def _vidpos(self, new_pos):
+        """
+        The user has set a new video position.
+        new_pos -- the video position to set (in % of the total video).
+
+        """
+        if self.capt is not None:
+            previous = self.capt.get(cv2.CAP_PROP_POS_AVI_RATIO)
+            # this method is also triggered by automatic update of the video progress slider when the video is read.
+            # ignoring small changes should help prevent risk of annoying rounding effect (could lock the position).
+            if 2 < abs(previous * 100 - new_pos):
+                self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, new_pos/100)
+
+    def vid_progress(self, progress):
+        self.controller.pipe("video_progress", [progress])
 
     def check_bf(self):
         """
@@ -414,6 +434,7 @@ class CaptureReader(CaptureReaderBase):
                     self.skip()
                     self.buffer = self.capture.read()
                     self.served.clear()
+                    self.vmanager.vid_progress(self.capture.get(cv2.CAP_PROP_POS_AVI_RATIO) * 100)
 
     def get_active(self):
         """

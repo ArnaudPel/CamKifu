@@ -1,4 +1,4 @@
-from tkinter import Button, Menu, StringVar, BooleanVar
+from tkinter import Button, Menu, StringVar, BooleanVar, Scale, HORIZONTAL, Label
 
 from golib.gui.ui import UI, mod1
 
@@ -21,6 +21,7 @@ class VUI(UI):
         self.checkvar_onoff.set(True)
         self.radvar_bf = StringVar()
         self.radvar_sf = StringVar()
+        self.video_pos = Scale(self.buttons, command=lambda x: self.execute("vidpos", float(x)), orient=HORIZONTAL)
 
         m_detect = Menu(self.menubar)
         m_detect.add_checkbutton(label="Active", command=self.toggle_active, variable=self.checkvar_onoff)
@@ -44,6 +45,10 @@ class VUI(UI):
         self.bind_all("<{0}-f>".format(mod1), lambda _: self.execute("next"))
         b_next.grid(row=5, column=0, columnspan=2)
 
+        video_pos_lbl = Label(self.buttons, text="Video position (%):")
+        video_pos_lbl.grid(row=6, column=0, columnspan=2)
+        self.video_pos.grid(row=7, column=0, columnspan=2)
+
         # b_debug = Button(self.buttons, text="Debug", command=lambda: self.checkvar_onoff.set(True))
         # b_debug.grid(row=5, column=0, columnspan=2)
 
@@ -55,7 +60,10 @@ class VUI(UI):
         Add the board finder to the menu.
 
         """
-        label = bf_class.label
+        try:
+            label = bf_class.label
+        except AttributeError:
+            label = "None"
         self.m_board.add_radiobutton(label=label, command=lambda: callback(bf_class),
                                      variable=self.radvar_bf, value=label)
 
@@ -80,3 +88,6 @@ class VUI(UI):
         self.radvar_sf.set(label)
         if label is not None:
             self.checkvar_onoff.set(True)
+
+    def video_progress(self, progress):
+        self.video_pos.set(progress)

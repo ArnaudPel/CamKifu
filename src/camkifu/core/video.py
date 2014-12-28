@@ -296,7 +296,6 @@ class VisionThread(Thread):
         Delegate all attributes to processor if not found in VisionThread.
 
         """
-        # todo is this clean or should it be replaced with multiple inheritance ? + read doc again about __getattr__
         if item != "processor":  # avoid infinite looping if 'processor' attribute doesn't exist
             return self.processor.__getattribute__(item)
 
