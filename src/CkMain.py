@@ -53,7 +53,7 @@ def img_update(imqueue):
         pass
 
 
-def main(video=0, sgf=None, bounds=(0, 1)):
+def main(video=0, sgf=None, bounds=(0, 1), sf=None, bf=None):
     """
     singleth --  Set to True to run everything on the main thread. Handy when in need to
             display images from inside loops during dev.
@@ -68,7 +68,7 @@ def main(video=0, sgf=None, bounds=(0, 1)):
     configure(root)
     imqueue = Queue(maxsize=10)
     controller = ControllerV(app, app, sgffile=sgf, video=video, bounds=bounds)
-    vmanager = VManager(controller, imqueue=imqueue)
+    vmanager = VManager(controller, imqueue=imqueue, bf=bf, sf=sf)
 
     def tk_routine():
         img_update(imqueue)
@@ -97,11 +97,15 @@ def get_argparser():
     bhelp = "Video file bounds, expressed as ratios in [0, 1]. See openCV VideoCapture.set()"
     parser.add_argument("-b", "--bounds", default=(0, 1), type=float, nargs=2, metavar="R", help=bhelp)
 
-    # todo add argument to choose finders: eg bf_auto doesn't want on certain files but we want to test an sf quickly
+    bfhelp = "Board finder class to instantiate at startup. Defaults to configuration defined in cvconf.py"
+    parser.add_argument("-bf", "--boardfinder", help=bfhelp)
+
+    sfhelp = "Stones finder class to instantiate at startup. Defaults to configuration defined in cvconf.py"
+    parser.add_argument("-sf", "--stonesfinder", help=sfhelp)
 
     return parser
 
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    main(video=args.video, sgf=args.sgf, bounds=args.bounds)
+    main(video=args.video, sgf=args.sgf, bounds=args.bounds, bf=args.boardfinder, sf=args.stonesfinder)

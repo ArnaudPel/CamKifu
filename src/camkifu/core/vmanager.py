@@ -119,12 +119,27 @@ class VManager(VManagerBase):
 
     """
 
-    def __init__(self, controller, imqueue=None):
+    def __init__(self, controller, imqueue=None, bf=None, sf=None):
         super().__init__(controller, imqueue=imqueue)
         self.daemon = True
-        self.bf_class = bfinders[0]
-        self.sf_class = sfinders[0]
+        self.bf_class = self._reflect(bf, bfinders)
+        self.sf_class = self._reflect(sf, sfinders)
         self.processes = []  # video processors currently running
+
+    @staticmethod
+    def _reflect(name: str, classes: list) -> object:
+        """
+        Look for the class of the right name in the list and return it.
+        If no match found, return the first element of the list.
+
+        """
+        item = None
+        if name:
+            for cl in classes:
+                if cl and cl.__name__ == name:
+                    return cl
+        if item is None:
+            return classes[0]
 
     def bind_controller(self):
         super().bind_controller()
