@@ -128,7 +128,7 @@ I hope this example helps understanding the general picture of `GUI -> VidProces
 As an example to illustrate this second GUI chapter, let's introduce the ability for `VManager` to indicate the reading progress of a video file to the GUI (Camkifu #f734a0c). Let's assume there already is a `Slider` in the GUI, of which the position should be updated to reflect the progress.
 
 ### 1. class VManager
-The actual progress of the video is kown by `VManager.CaptureReader`. Let's create a method in `VManager` that'll be available to that reader. As in the first GUI chapter, a two-stage implementation is required to satisfy inheritance needs.
+The actual progress of the video is known by `VManager.CaptureReader`. Let's create a method in `VManager` that'll be available to that reader. As in the first GUI chapter, a two-stage implementation is required to satisfy inheritance needs.
 
 ```python
 class VManagerBase(Thread):

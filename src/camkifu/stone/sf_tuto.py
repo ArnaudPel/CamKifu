@@ -1,7 +1,8 @@
+from time import sleep
 from numpy import zeros_like
 from camkifu.core.imgutil import draw_str
 from camkifu.stone.stonesfinder import StonesFinder
-from golib.config.golib_conf import gsize, B
+from golib.config.golib_conf import gsize, B, W, E
 
 
 class StonesFinderTuto(StonesFinder):
@@ -18,10 +19,19 @@ class StonesFinderTuto(StonesFinder):
         self.canvas = None
 
     def _find(self, goban_img):
-        # check emptiness to avoid complaints since this method will be called in a loop
-        if self.is_empty(2, 12):
-            # using "numpy" coordinates frame for x and y
-            self.suggest(B, 2, 12)
+        # using "numpy" coordinates frame for x and y
+        black = ((W, 8, 8), (W, 8, 10), (W, 10, 8), (W, 10, 10))
+        white = ((B, 7, 7), (B, 7, 11), (B, 11, 7), (B, 11, 11), (B, 9, 9))
+        add = black if self.total_f_processed % 2 else white
+        rem = white if self.total_f_processed % 2 else black
+        moves = []
+        for color, r, c in add:
+            moves.append((color, r, c))
+        for _, r, c in rem:
+            if not self.is_empty(r, c):
+                moves.append((E, r, c))
+        sleep(0.7)
+        self.bulk_update(moves)
 
     def _learn(self):
         pass
@@ -49,6 +59,21 @@ class StonesFinderTuto(StonesFinder):
         if self.is_empty(2, 12):
             # using "numpy" coordinates frame for x and y
             self.suggest(B, 2, 12)
+
+    def _find_bulk(self, _):
+        # using "numpy" coordinates frame for x and y
+        black = ((W, 8, 8), (W, 8, 10), (W, 10, 8), (W, 10, 10))
+        white = ((B, 7, 7), (B, 7, 11), (B, 11, 7), (B, 11, 11), (B, 9, 9))
+        add = black if self.total_f_processed % 2 else white
+        rem = white if self.total_f_processed % 2 else black
+        moves = []
+        for color, r, c in add:
+            moves.append((color, r, c))
+        for _, r, c in rem:
+            if not self.is_empty(r, c):
+                moves.append((E, r, c))
+        sleep(0.7)
+        self.bulk_update(moves)
 
     def _find_getrect(self, goban_img):
         """
