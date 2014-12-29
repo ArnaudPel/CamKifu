@@ -59,7 +59,7 @@ class StonesFinder(VidProcessor):
             self.goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
             self._learn_bg()
             self._learn()
-            self._find(self.goban_img)  # todo refactor method ? img argument can be omitted now
+            self._find(self.goban_img)
         else:
             if 1 < time() - self.last_shown:
                 black = zeros((canonical_size, canonical_size), dtype=uint8)
@@ -327,7 +327,7 @@ class StonesFinder(VidProcessor):
 
         """
         if self.mask_cache is None or depth != (1 if len(self.mask_cache.shape) == 2 else self.mask_cache.shape[2]):
-            # todo : observation shows that stones of the front line are seen too high (due to camera angle most likely)
+            # todo : observation shows that stones of the front line may be seen too high (if camera angle important)
             # investigate more and see to adapt the repartition of the mask ? Some sort of vertical gradient of size or
             # location. The former will imply the introduction of a structure to store all zones areas, at least one
             # per line.
@@ -336,7 +336,7 @@ class StonesFinder(VidProcessor):
             mask = empty(shape, dtype=uint8)  # without depth
             for row in range(gsize):
                 for col in range(gsize):
-                    x0, y0, x1, y1 = self.getrect(row, col)  # todo expose proportions ?
+                    x0, y0, x1, y1 = self.getrect(row, col)
                     zone = mask[x0:x1, y0:y1]
                     a = zone.shape[0] / 2
                     b = zone.shape[1] / 2

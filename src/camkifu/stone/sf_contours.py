@@ -42,7 +42,6 @@ class SfContours(StonesFinder):
         # todo the whole first part could be done on a larger zone than the desired subregion (to have more comp data)
         mask = zeros_like(subimg)
         for cont in self._filter_contours(contours):
-            # todo if solution retained, mark nearby intersections for later analysis (so that others can be ignored)
             cv2.drawContours(mask, [cv2.convexHull(cont)], 0, (1, 1, 1), thickness=-1)
         visible_sub = subimg * mask
         masked_sub = subimg * (1 - mask)
@@ -62,7 +61,6 @@ class SfContours(StonesFinder):
                     self._mean_channels(zones[r, c], visible_sub[a0 - x0:a1 - x0, b0 - y0:b1 - y0], visible_area)
                 else:
                     zones[r, c, 0] = 0  # masked
-                    # todo optimize: compute only when in need of comparison (and not at every location)
                     self._mean_channels(zones[r, c], masked_sub[a0 - x0:a1 - x0, b0 - y0:b1 - y0], area - visible_area)
         stones = zeros((gsize, gsize), dtype=object)
         stones[:] = E
