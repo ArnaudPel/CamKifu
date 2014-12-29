@@ -1,6 +1,6 @@
 
-from numpy import uint8, zeros, ndarray, zeros_like, sum as npsum, mean as npmean
-from numpy.ma import maximum
+from numpy import uint8, int16, zeros, ndarray, zeros_like, sum as npsum
+from numpy.ma import maximum, absolute
 import cv2
 
 from camkifu.core.imgutil import draw_contours_multicolor
@@ -40,31 +40,30 @@ class SfContours(StonesFinder):
         canny = self.get_canny(subimg)
         _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # todo the whole first part could be done on a larger zone than the desired subregion (to have more comp data)
-        mask = zeros_like(canny)
+        mask = zeros_like(subimg)
         for cont in self._filter_contours(contours):
             # todo if solution retained, mark nearby intersections for later analysis (so that others can be ignored)
-            cv2.drawContours(mask, [cv2.convexHull(cont)], 0, 1, thickness=-1)
-        subgray = cv2.cvtColor(subimg, cv2.COLOR_BGR2GRAY)  # todo diff per color ?
-        masked_gray = subgray * mask
+            cv2.drawContours(mask, [cv2.convexHull(cont)], 0, (1, 1, 1), thickness=-1)
+        visible_sub = subimg * mask
+        masked_sub = subimg * (1 - mask)
 
         # zones:
-        #       ¤ first channel (zone[:,:,0]    indicate whether or not each zone is masked
-        #       ¤ second channel (zone[:,:,1]   store the mean pixel value of each zone
-        zones = zeros((r_end - r_start, c_end - c_start, 2), dtype=uint8)
+        #       ¤ first channel (zone[:,:,0])    indicate whether or not each zone is masked
+        #       ¤ second channel (zone[:,:,1])   store the mean pixel value of each zone
+        zones = zeros((r_end - r_start, c_end - c_start, 4), dtype=int16)
         for r in range(zones.shape[0]):
             for c in range(zones.shape[1]):
                 a0, b0, a1, b1 = self.getrect(r + r_start, c + c_start)
                 area = (a1 - a0) * (b1 - b0)
-                visible_area = npsum(mask[a0 - x0:a1 - x0, b0 - y0:b1 - y0])  # count the positive (=1) mask pixels
+                visible_area = npsum(mask[a0 - x0:a1 - x0, b0 - y0:b1 - y0, 0])  # count the visible (=1) mask pixels
                 # a zone is masked if more than 60% of its pixels are masked.
                 if 0.4 * area < visible_area:
                     zones[r, c, 0] = 1  # not masked
-                    stone_mean = npsum(masked_gray[a0 - x0:a1 - x0, b0 - y0:b1 - y0]) / visible_area
-                    zones[r, c, 1] = stone_mean
+                    self._mean_channels(zones[r, c], visible_sub[a0 - x0:a1 - x0, b0 - y0:b1 - y0], visible_area)
                 else:
                     zones[r, c, 0] = 0  # masked
                     # todo optimize: compute only when in need of comparison (and not at every location)
-                    zones[r, c, 1] = npmean(subgray[a0 - x0:a1 - x0, b0 - y0:b1 - y0])
+                    self._mean_channels(zones[r, c], masked_sub[a0 - x0:a1 - x0, b0 - y0:b1 - y0], area - visible_area)
         stones = zeros((gsize, gsize), dtype=object)
         stones[:] = E
         for r in range(zones.shape[0]):
@@ -75,7 +74,13 @@ class SfContours(StonesFinder):
             draw_contours_multicolor(canvas[x0:x1, y0:y1], list(self._filter_contours(contours)))
         return stones
 
-    def find_color(self, r, c, zones: ndarray, stones: ndarray):
+    @staticmethod
+    def _mean_channels(slot, img, norm):
+        for k in range(3):
+            slot[k + 1] = npsum(img[:, :, k]) / norm
+
+    @staticmethod
+    def find_color(r, c, zones: ndarray, stones: ndarray):
         """
         Compare the (r, c) intersection's zone with its neighbours to determine whether it's a stone or not,
         and of which color.
@@ -92,19 +97,21 @@ class SfContours(StonesFinder):
                         continue
                     if 0 <= c + j < zones.shape[1]:
                         neigh = zones[r + i, c + j]
-                        diff = int(zones[r, c, 1]) - int(neigh[1])  # convert to int to allow negative values
-                        min_val = min(zones[r, c, 1], neigh[1])
+                        raw_diff = zones[r, c, 1:4] - neigh[1:4]
+                        sign = -1 if npsum(raw_diff) < 0 else 1
+                        diff = sign * npsum(absolute(raw_diff))
                         # comparison with (supposedly) empty neighbour
                         if not neigh[0]:
-                            # at least 40 points difference (in greyscale intensity for now)
-                            if 40 < abs(diff):  # todo make that more dynamic
+                            # at least 140 points absolute difference between the channels
+                            if 140 < abs(diff):
                                 colors.add(B if diff < 0 else W)
                                 added += 1
-                            elif abs(diff) < 10:
+                            elif abs(diff) < 70:
                                 colors.add(E)
                                 added = 3  # break whole search
                         # comparison with (supposedly) stone neighbour
                         else:
+                            min_val = min(npsum(zones[r, c, 1:4]), npsum(neigh[1:4]))
                             # can only compare to already found stones, unless a more elaborated structure is created
                             if i < 1 and j < 1:
                                 neigh_stone = stones[r + i, c + j]
@@ -140,7 +147,8 @@ class SfContours(StonesFinder):
                 continue
             yield cont
 
-    def get_canny(self, img):
+    @staticmethod
+    def get_canny(img):
         median = cv2.medianBlur(img, 13)
         median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
         grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
