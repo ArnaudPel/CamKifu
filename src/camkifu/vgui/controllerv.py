@@ -75,7 +75,7 @@ class ControllerV(Controller):
 
         self.paused = Pause()
 
-    def pipe(self, instruction, args=None):  # todo refactor with *args as of Python3 ?
+    def pipe(self, instruction, *args):
         """
         Send an instruction to this controller, that will be treated asynchronously.
         instruction -- a callable.
@@ -86,7 +86,7 @@ class ControllerV(Controller):
             raise PipeWarning("Target User Interface has been closed.")
         if instruction == "event":
             # virtual event, comes from self.input itself, neither keyin nor mousein
-            self.input.event_generate(args)
+            self.input.event_generate(*args)
         else:
             try:
                 self.queue.put_nowait((instruction, args))
@@ -112,10 +112,7 @@ class ControllerV(Controller):
                 count += 1
                 instruction, args = self.queue.get_nowait()
                 try:
-                    if args is not None:
-                        self.api[instruction](*args)
-                    else:
-                        self.api[instruction]()
+                    self.api[instruction](*args)
                 except KeyError:
                     pass  # instruction not implemented here
                 except Exception as e:

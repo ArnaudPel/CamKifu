@@ -171,7 +171,7 @@ class StonesFinder(VidProcessor):
         move = Move('np', ctuple=(color, x, y))
         if doprint:
             print(move)
-        self.vmanager.controller.pipe("append", [move])
+        self.vmanager.controller.pipe("append", move)
 
     def remove(self, x, y):
         """
@@ -185,7 +185,7 @@ class StonesFinder(VidProcessor):
         assert not self.is_empty(x, y), "Can't remove stone from empty intersection."
         move = Move('np', ("", x, y))
         print("delete {}".format(move))
-        self.vmanager.controller.pipe("delete", (move.x, move.y))
+        self.vmanager.controller.pipe("delete", move.x, move.y)
 
     def bulk_update(self, tuples):
         """
@@ -211,7 +211,7 @@ class StonesFinder(VidProcessor):
                 except DeletedError as de:
                     del_errors.append(de)
         if len(moves):
-            self.vmanager.controller.pipe("bulk", [moves])
+            self.vmanager.controller.pipe("bulk", moves)
         if len(del_errors):
             raise DeletedError(del_errors, message="All non-conflicting locations have been sent, this is a warning.")
 

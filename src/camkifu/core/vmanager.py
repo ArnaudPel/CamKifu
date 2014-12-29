@@ -198,7 +198,7 @@ class VManager(VManagerBase):
                 self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, new_pos/100)
 
     def vid_progress(self, progress):
-        self.controller.pipe("video_progress", [progress])
+        self.controller.pipe("video_progress", progress)
 
     def check_bf(self):
         """
@@ -216,7 +216,7 @@ class VManager(VManagerBase):
             # instantiate and start new instance
             self.board_finder = self.bf_class(self)
             self._spawn(self.board_finder)
-            self.controller.pipe("select_bf", [self.board_finder.label])
+            self.controller.pipe("select_bf", self.board_finder.label)
 
     def check_sf(self):
         """
@@ -234,15 +234,15 @@ class VManager(VManagerBase):
             # instantiate and start new instance
             self.stones_finder = self.sf_class(self)
             self._spawn(self.stones_finder)
-            self.controller.pipe("select_sf", [self.stones_finder.label])
+            self.controller.pipe("select_sf", self.stones_finder.label)
 
     def _register_processes(self):
         # register "board finders" and "stones finders" with the controller,
         # together with callbacks to start them up.
         for bf_class in bfinders:
-            self.controller.pipe("register_bf", (bf_class, self.set_bf_class))
+            self.controller.pipe("register_bf", bf_class, self.set_bf_class)
         for sf_class in sfinders:
-            self.controller.pipe("register_sf", (sf_class, self.set_sf_class))
+            self.controller.pipe("register_sf", sf_class, self.set_sf_class)
 
     def is_processing(self):
         return len(self.processes).__bool__()  # make the return type clear
@@ -256,8 +256,8 @@ class VManager(VManagerBase):
     def _off(self):
         if self.is_processing():
             self.stop_processing()
-        self.controller.pipe("select_bf", [None])
-        self.controller.pipe("select_sf", [None])
+        self.controller.pipe("select_bf", None)
+        self.controller.pipe("select_sf", None)
 
     def stop_processing(self):
         message = "Requesting "
