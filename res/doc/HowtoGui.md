@@ -1,11 +1,11 @@
-#HOW-TO : GUI
+# Camkifu GUI Demo
 
 This tutorial is an insight on how the GUI code has been structured so far. Acknowledging the great amount of intelligence inside the coding community, I recognize that all this can most likely be improved, made more graceful. So, again, any improvement suggestion or work is of course welcome with humility. Especially in the area of setting method references from outside (proxy kinda thing)
 
 
-## Communication GUI -> Video Processor
+## Communication GUI -> Vision
 
-This part is about passing information from the GUI to the workers. In this example, the objective is to implement a functionality that would let a developer make a Video Processor wait for his signal before processing the next frame. This can come in handy when having noticed a particular case requiring step-by-step visual analysis. Let's add a button for that.
+This part is about passing information from the GUI to the vision workers. In this example, the objective is to implement a functionality that would let a developer make Video Processors wait for his signal before processing the next frame (Camkifu #8a93c66). Let's add a button for that.
 
 
 ### 1. class VUI
@@ -44,7 +44,7 @@ def next(self):
 
 ### 3. class VManager
 `VManager` is responsible for managing the vision threads and their interactions. Hence it holds the references to the Video Processors that we'd like to talk to. That's where we can implement the empty `next` method of `ControllerV`. 
-Since our functionality also makes sense in dev (single-threaded) mode, so let's go crazy and edit `VManagerBase` directly.
+Since our functionality also makes sense in dev (single-threaded) mode, so let's edit `VManagerBase` directly.
  
 ```python
  class VManagerBase(Thread):
@@ -109,7 +109,7 @@ change :)
 
 ### 5. final goody
 How about adding a keyboard shortcut while we're at it ? My mouse has been tending to double-click on it's own 
-freewill lately, so that may come in handy. Let's go back to the start, with `VUI`:
+freewill lately. Let's go back to the start, with `VUI`:
 
 ```python
     from golib.gui.ui import mod1
@@ -121,4 +121,57 @@ freewill lately, so that may come in handy. Let's go back to the start, with `VU
 
 There we go !
 
-I hope this example helps understanding the general picture of the one-sided `GUI -> VidProcessor` communication. 
+I hope this example helps understanding the general picture of `GUI -> VidProcessor` communication. 
+
+
+## Communication Vision -> GUI
+As an example to illustrate this second GUI chapter, let's introduce the ability for `VManager` to indicate the reading progress of a video file to the GUI (Camkifu #f734a0c). Let's assume there already is a `Slider` in the GUI, of which the position should be updated to reflect the progress.
+
+### 1. class VManager
+The actual progress of the video is kown by `VManager.CaptureReader`. Let's create a method in `VManager` that'll be available to that reader. As in the first GUI chapter, a two-stage implementation is required to satisfy inheritance needs.
+
+```python
+class VManagerBase(Thread):
+    ...
+    def vid_progress(self, progress):
+        """
+        Communicate the progress of the current video read to listeners (GUI, ...).
+        
+        """
+        # leave base implementation blank for now. this declaration is still needed to avoid AttributeError though
+        pass
+
+class Vmanager(VManagerBase):
+    ...
+    def vid_progress(self, progress):
+        self.controller.pipe("video_progress", progress)
+```
+
+Yep, we've just introduced a new instruction that'll have to be handled.
+
+### 2. class ControllerV
+`ControllerV` holds the reference to the GUI instance, and sees it as a `display` when in need of pushing information. That's where our newly defined `"video_progress"` instruction should be registered.
+
+```python
+def __init__(self, user_input, display, sgffile=None, video=0, bounds=(0, 1)):
+    ...
+    self.api = {
+        ...,
+        "video_progress": lambda progress: self.display.video_progress(progress),
+    }
+```
+
+### 3. class VUI
+Now remains the actual GUI code updating the slider !
+
+ ```python
+def init_components(self):
+    ...
+    self.video_pos = Scale(self.buttons, command=lambda x: self.execute("vidpos", float(x)), orient=HORIZONTAL)
+ 
+def video_progress(self, progress):
+    self.video_pos.set(progress) 
+ ```
+
+### 4. more
+This chapter was quite succinct. For more information on how algorithms can communicate results, please refer to the board finder or a stones finder tutorials.

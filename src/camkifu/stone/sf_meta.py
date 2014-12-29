@@ -5,7 +5,7 @@ from camkifu.core.imgutil import draw_str, CyclicBuffer
 from camkifu.stone.sf_clustering import SfClustering
 from camkifu.stone.sf_contours import SfContours
 from camkifu.stone.stonesfinder import StonesFinder
-from golib.config.golib_conf import gsize, B, W, E
+from golib.config.golib_conf import gsize, E
 
 
 __author__ = 'Arnaud Peloquin'

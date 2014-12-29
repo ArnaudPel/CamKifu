@@ -106,7 +106,11 @@ class VManagerBase(Thread):
         """ A sub-process of this manager that terminates is supposed to pass itself here. """
         pass
 
-    def vid_progress(self, *args):
+    def vid_progress(self, progress):
+        """
+        Communicate the progress of the current video read to listeners (GUI, ...).
+
+        """
         pass
 
 

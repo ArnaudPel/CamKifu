@@ -1,11 +1,12 @@
 from time import time
-import cv2
 from math import pi
+
+import cv2
 from numpy import zeros, uint8
 
 from camkifu.board.boardfinder import BoardFinder
 from camkifu.core.imgutil import sort_contours_box, norm, get_ordered_hull, connect_clusters, segment_from_hough, \
-    draw_lines, within_margin
+    within_margin
 
 
 __author__ = 'Arnaud Peloquin'

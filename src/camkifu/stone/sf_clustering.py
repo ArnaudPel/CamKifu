@@ -1,8 +1,9 @@
-from numpy import uint8, float32, reshape, unique, zeros, argmax, vectorize, ndarray
+from numpy import uint8, float32, reshape, unique, zeros, argmax, ndarray
 import cv2
 
 from camkifu.stone.stonesfinder import StonesFinder
 from golib.config.golib_conf import gsize, W, B, E
+
 
 __author__ = 'Arnaud Peloquin'
 

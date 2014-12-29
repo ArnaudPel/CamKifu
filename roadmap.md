@@ -24,8 +24,7 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 - CODE REVIEW
     * check bugs file
     * go through todos, do them or move to this file so they get out of the way
-    * shoot as many pycharm warnings as possible
-    * fix in-code documentation
+    * documentation
         - first read carefully [jetbrains' heads-up](https://www.jetbrains.com/pycharm/webhelp/documenting-source-code-in-pycharm.html), [pep3107](https://www.python.org/dev/peps/pep-3107/)
         - check and fix existing doc
         - create missing doc

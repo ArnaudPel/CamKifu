@@ -3,7 +3,7 @@ from queue import Queue, Full, Empty
 from time import time
 
 import cv2
-from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray, array, vectorize, max as npmax
+from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray, vectorize, max as npmax
 from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute
 
