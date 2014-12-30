@@ -2,7 +2,7 @@ from threading import Thread
 from time import sleep
 from numpy import ndarray, array
 
-from CkMain import get_argparser
+from ckmain import get_argparser
 from camkifu.board.bf_manual import BoardFinderManual
 from camkifu.config.cvconf import bfinders, sfinders
 from camkifu.core.vmanager import VManagerBase
