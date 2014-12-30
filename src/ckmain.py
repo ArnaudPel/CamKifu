@@ -98,14 +98,14 @@ def get_argparser():
     parser.add_argument("-b", "--bounds", default=(0, 1), type=float, nargs=2, metavar="R", help=bhelp)
 
     bfhelp = "Board finder class to instantiate at startup. Defaults to configuration defined in cvconf.py"
-    parser.add_argument("-bf", "--boardfinder", help=bfhelp)
+    parser.add_argument("--bf", help=bfhelp)
 
     sfhelp = "Stones finder class to instantiate at startup. Defaults to configuration defined in cvconf.py"
-    parser.add_argument("-sf", "--stonesfinder", help=sfhelp)
+    parser.add_argument("--sf", help=sfhelp)
 
     return parser
 
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    main(video=args.video, sgf=args.sgf, bounds=args.bounds, bf=args.boardfinder, sf=args.stonesfinder)
+    main(video=args.video, sgf=args.sgf, bounds=args.bounds, bf=args.bf, sf=args.sf)

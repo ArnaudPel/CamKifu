@@ -66,6 +66,7 @@ Now that we've integrated into the flow, time to do some work. This part will fo
 - drawing values on the grid
 - updating the grid location
 - using a mask to isolate each intersection in a circle (will it stay ???)
+- constraint checking attempts (pros and cons)
 
 Alright let's see.
 
