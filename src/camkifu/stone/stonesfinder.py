@@ -3,13 +3,14 @@ from queue import Queue, Full, Empty
 from time import time
 
 import cv2
-from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray, vectorize, max as npmax
+from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray, vectorize,\
+    max as npmax, min as npmin
 from numpy.core.multiarray import count_nonzero
 from numpy.ma import absolute
 
 from camkifu.config.cvconf import canonical_size
 from camkifu.core.exceptions import CorrectionWarning, DeletedError
-from camkifu.core.imgutil import draw_str, Segment, within_margin, around
+from camkifu.core.imgutil import draw_str, Segment, within_margin, around, draw_lines
 from camkifu.core.video import VidProcessor
 from golib.config.golib_conf import gsize, E, B, W
 from golib.model.move import Move
@@ -53,6 +54,7 @@ class StonesFinder(VidProcessor):
 
     def _doframe(self, frame):
         transform = None
+        self.intersections = None  # reset cache
         if self.vmanager.board_finder is not None:
             transform = self.vmanager.board_finder.mtx
         if transform is not None:
@@ -213,7 +215,7 @@ class StonesFinder(VidProcessor):
         if len(moves):
             self.vmanager.controller.pipe("bulk", moves)
         if len(del_errors):
-            raise DeletedError(del_errors, message="All non-conflicting locations have been sent, this is a warning.")
+            raise DeletedError(del_errors, message="Bulk_update:warning: All non-conflicting locations have been sent.")
 
     def corrected(self, err_move: Move, exp_move: Move) -> None:
         """
@@ -376,7 +378,7 @@ class StonesFinder(VidProcessor):
         else:
             raise ValueError("This StonesFinder doesn't seem to be segmenting background. See self.__init__()")
 
-    def find_intersections(self, img: ndarray) -> ndarray:
+    def find_intersections(self, img: ndarray, canvas: ndarray=None) -> ndarray:
         """
         Return a matrix indicating which intersections are likely to be empty.
 
@@ -401,17 +403,26 @@ class StonesFinder(VidProcessor):
                 min_len = int(min_side * 2 / 3)
                 lines = cv2.HoughLinesP(zone, 1, pi / 180, threshold=thresh, maxLineGap=0, minLineLength=min_len)
                 if lines is not None and 0 < len(lines):
-                    # todo display lines again to see why adjusting grid seems to lower the number of "crosses" found
+                    if canvas is not None:
+                        # todo display lines again to see why adjusting grid seems to lower the number of "crosses" found
+                        draw_lines(canvas[x0:x1, y0:y1], [line[0] for line in lines])
                     update_grid(lines, (x0, y0, x1, y1), grid[r][c])
         return grid
 
-    def get_intersections(self, img):
+    def get_intersections(self, img, display=False) -> ndarray:
         """
         A cached wrapper of self.find_intersections()
 
         """
         if self.intersections is None:
-            self.intersections = self.find_intersections(img)
+            if display:
+                canvas = img.copy()
+            else:
+                canvas = None
+            self.intersections = self.find_intersections(img, canvas=canvas)
+            self._posgrid.learn(absolute(self.intersections))
+            if display:
+                self.display_intersections(self.intersections, canvas)
         return self.intersections
 
     def stone_radius(self) -> float:
@@ -756,7 +767,9 @@ class PosGrid(object):
         """
         assert 0 < rate <= 1  # if 0, why call ?
         diff = grid - self.mtx
-        vect = npsum(diff, axis=(0, 1), dtype=float32, keepdims=True)
+        if npmin(diff) < -200:
+            raise ValueError("Provided grid seems too far from original, at least for one point.")
+        vect = npsum(diff, axis=(0, 1), dtype=float32)
         # then, normalize.
         # in theory, should be the count of points that moved in at least one direction. but that's good enough for now.
         contributors = count_nonzero(absolute(diff[:, :, 0]) + absolute(diff[:, :, 1]))

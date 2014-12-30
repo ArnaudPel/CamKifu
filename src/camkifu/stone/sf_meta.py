@@ -49,8 +49,6 @@ class SfMeta(StonesFinder):
         -> dynamically assign one finder per region, periodically trying to introduce clustering where it's not assigned
 
         """
-        self.intersections = None  # reset cache
-        self.metadata["Frame nr: {}"] = self.total_f_processed + 1
         # 0. if startup phase: initialize background model
         if self.total_f_processed < self.bg_init_frames:
             black = zeros((goban_img.shape[0], goban_img.shape[1]), dtype=uint8)
@@ -172,7 +170,7 @@ class Region():
             if len(lonelies):  # todo remove debug after a while
                 print("Discarded lonely stone(s) on first line {}".format(lonelies))
             constraints = (self.sf.check_against, self.sf.check_flow)
-            passed = self.verify(constraints, stones, refs, img)
+            passed = self.verify(constraints, stones, refs, img, id_="routine")
             if 0 <= passed:
                 accu = self.accus[self.finder]
                 accu[:] = stones[self.rs:self.re, self.cs:self.ce]
@@ -189,7 +187,7 @@ class Region():
         passed = -1
         if stones is not None:
             constraints = (self.sf.check_thickness, self.sf.check_against, self.sf.check_lines)
-            passed = self.verify(constraints, stones, refs, img)
+            passed = self.verify(constraints, stones, refs, img, id_="tryclust")
         # accumulate results
         self.cluster_score[0] = passed
         if 0 < passed:  # store successfully tested scores
@@ -208,11 +206,12 @@ class Region():
         self.cluster_score.increment()
         self.population = self.get_population(refs)
 
-    def verify(self, constraints, stones, refs, img):
+    def verify(self, constraints, stones, refs, img, id_=""):
         """
         Check that the provided 'constraints' are verified by 'stones'.
         refs -- an array of reference to compare the stones against (eg., the stones found so far)
         img -- the image from which the 'stones' result has been extracted
+        id_ -- an optional identifier to add to the beginning of printed messages
 
         @param constraints:
         """
@@ -220,7 +219,8 @@ class Region():
         for constr in constraints:
             check = constr(stones, img=img, reference=refs, rs=self.rs, re=self.re, cs=self.cs, ce=self.ce)
             if check < 0:
-                print("{} vetoed region {}".format(constr.__name__, (self.re, self.ce)))
+                if len(id_): id_ += ": "
+                print("{}{} vetoed region {}".format(id_, constr.__name__, (self.re, self.ce)))
                 passed = -1  # veto from that constraint
                 break
             passed += check

@@ -62,8 +62,7 @@ def draw_lines(img, segments, color=(0, 255, 0)):
                 p1 = seg[0]
                 p2 = seg[1]
             else:
-                print("Unrecognized segment format: " + seg)
-                continue
+                raise ValueError("Unrecognized segment format: {}".format(seg))
         try:
             cv2.line(img, p1, p2, color=color, thickness=thickness)
         except Exception as e:
