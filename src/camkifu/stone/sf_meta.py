@@ -1,5 +1,6 @@
 from math import pi
-from numpy import zeros, ndarray, unique, int8, uint8, max as npmax, sum as npsum
+
+from numpy import zeros, ndarray, unique, int8, max as npmax, sum as npsum
 
 from camkifu.core.exceptions import DeletedError, CorrectionWarning
 from camkifu.core.imgutil import draw_str, CyclicBuffer
@@ -33,6 +34,7 @@ class SfMeta(StonesFinder):
         self.cluster = SfClustering(None)    # set to None for safety, put vmanager when needed
         self.contour = SfContours(vmanager)  # this one needs a vmanager already
         self.contour._show = self._show  # hack
+        self.contour.get_foreground = self.get_foreground  # hack
 
         # the whole processing is divided into subregions
         self.split = 3
@@ -52,10 +54,7 @@ class SfMeta(StonesFinder):
         """
         # 0. if startup phase: initialize background model
         if self.total_f_processed < self.bg_init_frames:
-            black = zeros((goban_img.shape[0], goban_img.shape[1]), dtype=uint8)
-            message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
-            draw_str(black, message)
-            self._show(black)
+            self.display_bg_sampling(goban_img)
             return
         else:
             ref_stones = self.get_stones()
@@ -170,7 +169,9 @@ class Region():
                 stones[r, c] = E
             if len(lonelies):  # todo remove debug after a while
                 print("Discarded lonely stone(s) on first line {}".format(lonelies))
-            constraints = (self.sf.check_against, self.sf.check_flow)
+            #  todo check_against only makes sens for clustering. have per-finder constraint set ?
+            # constraints = (self.sf.check_against, self.sf.check_flow)
+            constraints = (self.sf.check_flow,)
             passed = self.verify(constraints, stones, refs, img, id_="routine")
             if 0 <= passed:
                 accu = self.accus[self.finder]
@@ -269,7 +270,7 @@ class Region():
         for a0, b0, a1, b1 in self.outer_border():
             if (a1-a0) * (b1-b0) * 0.7 < npsum(fg[a0:a1, b0:b1]) / 255:
                 moving += 1
-                if moving == 2:
+                if moving == 2:  # todo "or if at the corner of the region" (or at least of the Goban)
                     self.set_agitated()
                     return False
             # for i in range(3):

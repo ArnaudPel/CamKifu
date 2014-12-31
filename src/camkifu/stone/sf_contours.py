@@ -1,9 +1,10 @@
-
-from numpy import uint8, int16, zeros, ndarray, zeros_like, sum as npsum
+from itertools import chain
+from math import radians, cos, sin
+from numpy import uint8, int16, zeros, ndarray, zeros_like, sum as npsum, empty
 from numpy.ma import maximum, absolute
 import cv2
 
-from camkifu.core.imgutil import draw_contours_multicolor
+from camkifu.core.imgutil import draw_contours_multicolor, norm
 from camkifu.stone.stonesfinder import StonesFinder
 from golib.config.golib_conf import gsize, B, W, E
 
@@ -23,12 +24,15 @@ class SfContours(StonesFinder):
         self.accu = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
 
     def _find(self, goban_img: ndarray):
-        canvas = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
-        # stones = self.find_stones(goban_img, c_start=6, c_end=13, canvas=canvas)
-        stones = self.find_stones(goban_img, canvas=canvas)
-        if stones is not None:
-            temp = self.draw_stones(stones)
-            self._show(maximum(canvas, temp))
+        if self.bg_init_frames < self.total_f_processed:
+            canvas = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
+            # stones = self.find_stones(goban_img, c_start=6, c_end=13, canvas=canvas)
+            stones = self.find_stones(goban_img, canvas=canvas)
+            if stones is not None:
+                temp = self.draw_stones(stones)
+                self._show(maximum(canvas, temp))
+        else:
+            self.display_bg_sampling(goban_img)
 
     def _learn(self):
         pass
@@ -36,12 +40,15 @@ class SfContours(StonesFinder):
     def find_stones(self, img:  ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize, canvas: ndarray=None):
         x0, y0, _, _ = self.getrect(r_start, c_start)
         _, _, x1, y1 = self.getrect(r_end - 1, c_end - 1)
+        contours_fg = self.analyse_fg(x0, y0, x1, y1, canvas=canvas)
         subimg = img[x0:x1, y0:y1]
+        # todo has the image been smoothed somewhere along the way ? in any case expose an kwarg to do it locally
         canny = self.get_canny(subimg)
         _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # todo the whole first part could be done on a larger zone than the desired subregion (to have more comp data)
         mask = zeros_like(subimg)
-        for cont in self._filter_contours(contours):
+        contours_img = list(self._filter_contours(contours))
+        for cont in chain(contours_fg, contours_img):
             cv2.drawContours(mask, [cv2.convexHull(cont)], 0, (1, 1, 1), thickness=-1)
         visible_sub = subimg * mask
         masked_sub = subimg * (1 - mask)
@@ -69,7 +76,7 @@ class SfContours(StonesFinder):
                 if zones[r, c, 0]:
                     self.find_color(r, c, zones, stones[r_start:r_end, c_start:c_end])
         if canvas is not None:
-            draw_contours_multicolor(canvas[x0:x1, y0:y1], list(self._filter_contours(contours)))
+            draw_contours_multicolor(canvas[x0:x1, y0:y1], contours_img)
         return stones
 
     @staticmethod
@@ -101,7 +108,7 @@ class SfContours(StonesFinder):
                         # comparison with (supposedly) empty neighbour
                         if not neigh[0]:
                             # at least 140 points absolute difference between the channels
-                            if 140 < abs(diff):
+                            if 100 < abs(diff):
                                 colors.add(B if diff < 0 else W)
                                 added += 1
                             elif abs(diff) < 70:
@@ -141,9 +148,98 @@ class SfContours(StonesFinder):
                 continue
             box = cv2.minAreaRect(cont)
             # ignore contours that are too big, since in that case a good kmeans would probably do a more robust job.
-            if 10 * radius < box[1][0] or 10 * radius < box[1][1]:
+            if 10 * radius < max(box[1]):
                 continue
             yield cont
+
+    def analyse_fg(self, x0, y0, x1, y1, canvas: ndarray=None) -> list:
+        """
+        Try to get stone(s) contour(s) from foreground analysis. This may help detecting newly played stones faster.
+
+        Return a list of interesting contours.
+
+        """
+        sub_fg = self.get_foreground()[x0:x1, y0:y1]
+        contours = self.extract_contours_fg(sub_fg, canvas=canvas[x0:x1, y0:y1])
+        filtered = []
+        ghost = zeros(sub_fg.shape, dtype=uint8)
+        for cont in contours:
+            # compute the distance matrix from contour: the higher the value, the further the point from the contour
+            cv2.drawContours(ghost, [cont], 0, (255, 0, 255))
+            ry0, rx0, dy, dx = cv2.boundingRect(cont)  # contour region (not rotated rectangle)
+            negative = empty((dx, dy), dtype=uint8)
+            negative[:] = 255
+            negative -= ghost[rx0:rx0 + dx, ry0:ry0 + dy]
+            distance_mtx = cv2.distanceTransform(negative, cv2.DIST_L2, cv2.DIST_MASK_5)
+            for a, b in self._find_centers(distance_mtx):
+                filtered.append(cont)
+                if canvas is not None:
+                    center = (a + y0 + ry0, b + x0 + rx0)  # put back all offsets to integrate into global img
+                    cv2.circle(canvas, center, 3, (0, 0, 255), thickness=-1)
+                break
+        if len(filtered):
+            print("len(filtered): {}".format(len(filtered)))  # todo remove debug
+        return filtered
+
+    def extract_contours_fg(self, sub_fg: ndarray, canvas: ndarray=None):
+        """
+        Extracts contours from the foreground mask that could correspond to a stone.
+        Contours are sorted by enclosing circle area ascending.
+
+        """
+        # try to remove some pollution to keep nice blobs
+        smoothed = cv2.morphologyEx(sub_fg, cv2.MORPH_OPEN, (5, 5), iterations=3)
+        canny = cv2.Canny(smoothed, 25, 75)
+        _, contours, _ = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        radius = self.stone_radius()
+        filtered = []
+        bigenough = []  # todo remove debug after a while
+        for cont in contours:
+            # it takes a minimum amount of points to describe the contour of a stone
+            if cont.shape[0] < 10:
+                continue
+            box = cv2.minAreaRect(cont)
+            # ignore contours that have at least one side too small
+            if min(box[1]) < 3 / 2 * radius:
+                continue
+            bigenough.append(cont)
+            # ignore contours that are too big (two stones max)
+            if 5 * radius < max(box[1]):
+                continue
+            # ignore badly orientated bounding rect, for big contours only
+            angle = radians(box[2])
+            if 2.5 * radius < max(box[1]) and max(abs(cos(angle)), abs(sin(angle))) < 0.97:
+                continue
+            # todo check that the contour interior is white
+            filtered.append(cont)
+        cv2.drawContours(canvas, bigenough, -1, (0, 0, 255))
+        cv2.drawContours(canvas, filtered, -1, (0, 255, 0))
+        return filtered
+
+    def _find_centers(self, distance_mtx):
+        """
+        Yield image points that are likely to represent the center of a stone, based on the following:
+
+        Locate the most "distant" point in each (estimated) stone's zone. From these candidates, only keep
+        those located in the zone's center (ignore candidates hitting the wall). The objective is to retain
+        points that are best surrounded by contour curves, and are thus likely to indicate a stone's center.
+
+        """
+        radius = self.stone_radius()
+        dx, dy = distance_mtx.shape[0], distance_mtx.shape[1]
+        nb_rows = int(round(dx / 2 / radius))
+        row_width = int(dx / nb_rows)
+        nb_cols = int(round(dy / 2 / radius))
+        col_width = int(dy / nb_cols)
+        for row in range(nb_rows):
+            rs, re = row * row_width, (row + 1) * row_width  # row start, row end
+            for col in range(nb_cols):
+                cs, ce = col * col_width, (col + 1) * col_width  # col start, col end
+                _, _, _, maxloc = cv2.minMaxLoc(distance_mtx[rs:re + 1, cs:ce + 1])
+                # discard if ==> smallest side / 3 < distance(maxloc, center)
+                if min(row_width, col_width) / 3 < norm(maxloc, ((ce - cs) / 2, (re - rs) / 2)):
+                    continue
+                yield cs + maxloc[0], rs + maxloc[1]
 
     @staticmethod
     def get_canny(img):

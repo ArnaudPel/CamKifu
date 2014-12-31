@@ -373,7 +373,7 @@ class StonesFinder(VidProcessor):
         if hasattr(self, "_fg"):
             current, target = self.total_f_processed, self.bg_init_frames
             if current < target:
-                print("Warning : background model still initializing ({} / {}})".format(current,  target))
+                print("Warning : background model still initializing ({} / {})".format(current,  target))
             return self._fg
         else:
             raise ValueError("This StonesFinder doesn't seem to be segmenting background. See self.__init__()")
@@ -628,6 +628,14 @@ class StonesFinder(VidProcessor):
                 cv2.circle(img, (-inter[1], -inter[0]), 5, color=self.get_display_color(i, j), thickness=2)
         self._show(img, "{} - Intersections".format(self._window_name()))
 
+    @staticmethod
+    def get_display_color(i, j):
+        factor = 0.5 if i % 2 else 1
+        blue = 40 / factor
+        green = (230 if j % 2 else 10) * factor
+        red = (10 if j % 2 else 200) * factor
+        return blue, green, red
+
     def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
         """
         Override to take control of the location of the window of this stonesfinder
@@ -638,13 +646,15 @@ class StonesFinder(VidProcessor):
             loc = sf_loc
         super()._show(img, name, latency, thread, loc=loc, max_frequ=max_frequ)
 
-    @staticmethod
-    def get_display_color(i, j):
-        factor = 0.5 if i % 2 else 1
-        blue = 40 / factor
-        green = (230 if j % 2 else 10) * factor
-        red = (10 if j % 2 else 200) * factor
-        return blue, green, red
+    def display_bg_sampling(self, goban_img):
+        """
+        Display a "message" image indicating the background sampling is running.
+
+        """
+        black = zeros((goban_img.shape[0], goban_img.shape[1]), dtype=uint8)
+        message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
+        draw_str(black, message)
+        self._show(black)
 
 
 def update_grid(lines, box, result_slot):
