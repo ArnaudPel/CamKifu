@@ -37,15 +37,13 @@ class SfContours(StonesFinder):
     def _learn(self):
         pass
 
-    def find_stones(self, img:  ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize, canvas: ndarray=None):
-        x0, y0, _, _ = self.getrect(r_start, c_start)
-        _, _, x1, y1 = self.getrect(r_end - 1, c_end - 1)
+    def find_stones(self, img:  ndarray, rs=0, re=gsize, cs=0, ce=gsize, canvas: ndarray=None):
+        x0, y0, _, _ = self.getrect(rs, cs)
+        _, _, x1, y1 = self.getrect(re - 1, ce - 1)
         contours_fg = self.analyse_fg(x0, y0, x1, y1, canvas=canvas)
         subimg = img[x0:x1, y0:y1]
-        # todo has the image been smoothed somewhere along the way ? in any case expose an kwarg to do it locally
         canny = self.get_canny(subimg)
         _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        # todo the whole first part could be done on a larger zone than the desired subregion (to have more comp data)
         mask = zeros_like(subimg)
         contours_img = list(self._filter_contours(contours))
         for cont in chain(contours_fg, contours_img):
@@ -56,10 +54,10 @@ class SfContours(StonesFinder):
         # zones:
         #       ¤ first channel (zone[:,:,0])    indicate whether or not each zone is masked
         #       ¤ second channel (zone[:,:,1])   store the mean pixel value of each zone
-        zones = zeros((r_end - r_start, c_end - c_start, 4), dtype=int16)
+        zones = zeros((re - rs, ce - cs, 4), dtype=int16)
         for r in range(zones.shape[0]):
             for c in range(zones.shape[1]):
-                a0, b0, a1, b1 = self.getrect(r + r_start, c + c_start)
+                a0, b0, a1, b1 = self.getrect(r + rs, c + cs)
                 area = (a1 - a0) * (b1 - b0)
                 visible_area = npsum(mask[a0 - x0:a1 - x0, b0 - y0:b1 - y0, 0])  # count the visible (=1) mask pixels
                 # a zone is masked if more than 60% of its pixels are masked.
@@ -74,7 +72,7 @@ class SfContours(StonesFinder):
         for r in range(zones.shape[0]):
             for c in range(zones.shape[1]):
                 if zones[r, c, 0]:
-                    self.find_color(r, c, zones, stones[r_start:r_end, c_start:c_end])
+                    self.find_color(r, c, zones, stones[rs:re, cs:ce])
         if canvas is not None:
             draw_contours_multicolor(canvas[x0:x1, y0:y1], contours_img)
         return stones
@@ -160,7 +158,10 @@ class SfContours(StonesFinder):
 
         """
         sub_fg = self.get_foreground()[x0:x1, y0:y1]
-        contours = self.extract_contours_fg(sub_fg, canvas=canvas[x0:x1, y0:y1])
+        sub_canvas = None
+        if canvas is not None:
+            sub_canvas = canvas[x0:x1, y0:y1]
+        contours = self.extract_contours_fg(sub_fg, canvas=sub_canvas)
         filtered = []
         ghost = zeros(sub_fg.shape, dtype=uint8)
         for cont in contours:
@@ -177,8 +178,6 @@ class SfContours(StonesFinder):
                     center = (a + y0 + ry0, b + x0 + rx0)  # put back all offsets to integrate into global img
                     cv2.circle(canvas, center, 3, (0, 0, 255), thickness=-1)
                 break
-        if len(filtered):
-            print("len(filtered): {}".format(len(filtered)))  # todo remove debug
         return filtered
 
     def extract_contours_fg(self, sub_fg: ndarray, canvas: ndarray=None):
@@ -243,6 +242,10 @@ class SfContours(StonesFinder):
 
     @staticmethod
     def get_canny(img):
+        """
+        Smooth using median blur, and call Canny with otsu thresholds.
+
+        """
         median = cv2.medianBlur(img, 13)
         median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
         grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
