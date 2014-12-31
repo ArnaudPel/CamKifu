@@ -1,3 +1,4 @@
+from math import pi
 from numpy import zeros, ndarray, unique, int8, uint8, max as npmax, sum as npsum
 
 from camkifu.core.exceptions import DeletedError, CorrectionWarning
@@ -250,7 +251,7 @@ class Region():
             pass  # would be nice to learn from it someday..
         cb.increment()
 
-    def check_foreground(self):
+    def check_foreground(self) -> bool:
         """
         Watch for foreground disturbances to "wake up" the regions of interest only.
         Return True if the region is "calm" (not much foreground), else False.
@@ -262,20 +263,39 @@ class Region():
             fg = self.sf.get_foreground()
         except ValueError:
             return True  # background analysis seems to be disabled, allow all frames.
-        x0, y0, x1, y1 = self.get_subimg_bounds()
+
+        # first, check that the outer border of this region is not moving
+        moving = 0
+        for a0, b0, a1, b1 in self.outer_border():
+            if (a1-a0) * (b1-b0) * 0.7 < npsum(fg[a0:a1, b0:b1]) / 255:
+                moving += 1
+                if moving == 2:
+                    self.set_agitated()
+                    return False
+            # for i in range(3):
+            #     self.canvas[a0:a1, b0:b1, i] = fg[a0:a1, b0:b1]
+
+        # then, allow for a few (2-3) new stones to have been detected as foreground (it takes some time to learn)
+        x0, y0, x1, y1 = self.get_img_bounds()
         subfg = fg[x0:x1, y0:y1]
-        threshold = subfg.shape[0] * subfg.shape[1] / (self.re - self.rs) / (self.ce - self.cs)
+        threshold = 3 * (self.sf.stone_radius()**2) * pi  # 3 times the expected area of a stone
         agitated = npsum(subfg) / 255
-        if threshold * 0.9 < agitated:
-            # equivalent of one intersection moved 90%. trigger search state and mark as agitated
-            if self.states[0] is Warmup:
-                # increase the duration of warmup a bit
-                self.states.replace(Idle, Warmup)
-            else:
-                # trigger full search
-                self.states.buffer[:] = Search
+        if threshold < agitated:
+            self.set_agitated()
             return False
         return True
+
+    def set_agitated(self):
+        """
+        Trigger search state for this region. If still in Warmup state, extend its duration.
+
+        """
+        if self.states[0] is Warmup:
+            # increase the duration of warmup a bit
+            self.states.replace(Idle, Warmup)
+        else:
+            # trigger full search
+            self.states.buffer[:] = Search
 
     def clustering_needs_try(self, ref_stones) -> bool:
         """
@@ -292,13 +312,43 @@ class Region():
         vals, counts = unique(stones, return_counts=True)
         return sum([counts[idx] for idx, v in enumerate(vals) if v is not E])
 
-    def get_subimg_bounds(self):
+    def get_img_bounds(self):
+        """
+        Return the rectangle defining the sub-image associated with this region, in relation to the global image.
+        Return x0, y0, x1, y1
+        x0, y0 -- first point of rectangle
+        x1, y1 -- second point of rectangle
+
+        """
         x0, y0, _, _ = self.sf.getrect(self.rs, self.cs)
         _, _, x1, y1 = self.sf.getrect(self.re - 1, self.ce - 1)
         return x0, y0, x1, y1
 
+    def outer_border(self):
+        """
+        Enumerate the intersections pixels around this region.
+        Concretely, yield the pixel rectangles around the sub-image of this region (outside of it), as per
+        StonesFinder.getrect(r, c).
+
+        """
+        x = max(0, self.cs-1)
+        for y in range(max(0, self.rs-1), min(gsize, self.re+1)):
+            yield self.sf.getrect(y, x)
+
+        y = min(gsize-1, self.re)
+        for x in range(max(1, self.cs), min(gsize, self.ce+1)):
+            yield self.sf.getrect(y, x)
+
+        x = min(gsize-1, self.ce)
+        for y in range(min(gsize-2, self.re-1), max(-1, self.rs-2), -1):
+            yield self.sf.getrect(y, x)
+
+        y = max(0, self.rs-1)
+        for x in range(min(gsize-2, self.ce-1), max(0, self.cs-1), -1):
+            yield self.sf.getrect(y, x)
+
     def draw_data(self):
-        x0, y0, x1, y1 = self.get_subimg_bounds()
+        x0, y0, x1, y1 = self.get_img_bounds()
         if isinstance(self.finder, SfClustering):
             self.data.append("K")
         elif isinstance(self.finder, SfContours):
