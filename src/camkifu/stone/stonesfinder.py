@@ -788,7 +788,7 @@ class PosGrid(object):
         self.adjust_vect += vect * rate
         self.adjust_contribs += contributors
         if 20 < self.adjust_contribs:
-            print("Adjust vector : {}".format(self.adjust_vect))
+            print("Grid adjust vector : {}".format(self.adjust_vect))
             self.mtx += self.adjust_vect.astype(int16)
             self.adjust_vect[:] = 0
             self.adjust_contribs = 0

@@ -32,7 +32,7 @@ class SfClustering(StonesFinder):
                     moves.append((stones[i][j], i, j))
             self.bulk_update(moves)
 
-    def find_stones(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize, **kwargs):
+    def find_stones(self, img: ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
         Return a matrix containing the detected stones in the desired subregion of the image.
 
@@ -42,8 +42,8 @@ class SfClustering(StonesFinder):
         """
         if img.dtype is not float32:
             img = img.astype(float32)
-        ratios, centers = self.cluster_colors(img, r_start=r_start, r_end=r_end, c_start=c_start, c_end=c_end)
-        stones = self.interpret_ratios(ratios, centers, r_start=r_start, r_end=r_end, c_start=c_start, c_end=c_end)
+        ratios, centers = self.cluster_colors(img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
+        stones = self.interpret_ratios(ratios, centers, r_start=rs, r_end=re, c_start=cs, c_end=ce)
         if not self.check_density(stones):
             return None  # don't detect anything
         return stones

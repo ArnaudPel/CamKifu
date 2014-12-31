@@ -204,15 +204,14 @@ class VidProcessor(object):
         try:
             frame_idx = int(round(self.vmanager.capt.get(cv2.CAP_PROP_POS_FRAMES)))
             total = int(round(self.vmanager.capt.get(cv2.CAP_PROP_FRAME_COUNT)))
-            progress = int(round(100 * frame_idx / max(1, total)))  # %
             x_offset = 40
             line_spacing = 20
-            draw_str(img, "Frame {}/{} ({} %)".format(frame_idx, total, progress), x_offset, line_spacing)
-            draw_str(img, "images not shown:  %d" % self.ignored_show[name], x_offset, 2 * line_spacing)
+            s = "Frame {}/{} ({} not shown)".format(frame_idx, total, self.ignored_show[name])
+            draw_str(img, s, x_offset, line_spacing)
             if latency:
-                draw_str(img, "latency:  %.1f ms" % ((time() - self.last_read) * 1000), x_offset, 3 * line_spacing)
+                draw_str(img, "latency: %.1f ms" % ((time() - self.last_read) * 1000), x_offset, 2 * line_spacing)
             if thread:
-                draw_str(img, "thread : " + current_thread().getName(), x_offset, 4 * line_spacing)
+                draw_str(img, "thread: " + current_thread().getName(), x_offset, 3 * line_spacing)
                 # step 2 : draw custom metadata, from the bottom of image
             i = 0
             for k, v in self.metadata.items():

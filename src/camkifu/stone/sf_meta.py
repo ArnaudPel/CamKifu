@@ -35,6 +35,10 @@ class SfMeta(StonesFinder):
         self.contour = SfContours(vmanager)  # this one needs a vmanager already
         self.contour._show = self._show  # hack
         self.contour.get_foreground = self.get_foreground  # hack
+        self.routine_constr = {
+            self.cluster: (self.check_against, self.check_flow),
+            self.contour: (self.check_flow,)
+        }
 
         # the whole processing is divided into subregions
         self.split = 3
@@ -132,9 +136,10 @@ class Region():
         self.data.append(self.states[0][0])  # append first letter of current state
         calm = self.check_foreground()
         if calm:
-            kwargs = {'r_start': self.rs, 'r_end': self.re, 'c_start': self.cs, 'c_end': self.ce, 'canvas': canvas}
+            kwargs = {'rs': self.rs, 're': self.re, 'cs': self.cs, 'ce': self.ce, 'canvas': canvas}
             # 1. if warmup phase: accumulate a few passes of contours analysis
             if self.states[0] is Warmup:
+                # todo run some constraints ? maybe a warmup-specific subset (eg. not check flow)
                 self.contour_accu[:] = self.sf.contour.find_stones(img, **kwargs)[self.rs:self.re, self.cs:self.ce]
                 self.commit(self.contour_accu)
                 self.states[0] = Search
@@ -169,9 +174,7 @@ class Region():
                 stones[r, c] = E
             if len(lonelies):  # todo remove debug after a while
                 print("Discarded lonely stone(s) on first line {}".format(lonelies))
-            #  todo check_against only makes sens for clustering. have per-finder constraint set ?
-            # constraints = (self.sf.check_against, self.sf.check_flow)
-            constraints = (self.sf.check_flow,)
+            constraints = self.sf.routine_constr[self.finder]
             passed = self.verify(constraints, stones, refs, img, id_="routine")
             if 0 <= passed:
                 accu = self.accus[self.finder]
@@ -267,10 +270,13 @@ class Region():
 
         # first, check that the outer border of this region is not moving
         moving = 0
+        border_threshold = 2  # the min number of agitated border intersections to trigger "agitated"
         for a0, b0, a1, b1 in self.outer_border():
             if (a1-a0) * (b1-b0) * 0.7 < npsum(fg[a0:a1, b0:b1]) / 255:
+                if (a0 == 0 or a1 == fg.shape[0]-1) and (b0 == 0 or b1 == fg.shape[1]-1):
+                    moving = border_threshold  # moved at corner, set agitated since it is a limit condition
                 moving += 1
-                if moving == 2:  # todo "or if at the corner of the region" (or at least of the Goban)
+                if border_threshold <= moving:
                     self.set_agitated()
                     return False
             # for i in range(3):
@@ -305,6 +311,8 @@ class Region():
 
         """
         current_pop = self.get_population(ref_stones[self.rs:self.re, self.cs:self.ce])
+        if current_pop < 4:
+            return False
         return (not self.cluster_score.at_start()) or \
             self.finder is not self.sf.cluster and self.population + 1 < current_pop  # try again every 2 new stones
 
