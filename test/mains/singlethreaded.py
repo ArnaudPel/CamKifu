@@ -1,12 +1,10 @@
 from threading import Thread
 from time import sleep
-from numpy import ndarray, array
 
 from ckmain import get_argparser
 from camkifu.board.bf_manual import BoardFinderManual
-from camkifu.config.cvconf import bfinders, sfinders
 from camkifu.core.vmanager import VManagerBase
-from golib.gui.controller import ControllerBase
+from test.objects.controllerv_dev import ControllerVDev
 
 
 __author__ = 'Arnaud Peloquin'
@@ -21,67 +19,34 @@ especially to use waitKey().
 """
 
 
-class ControllerVSeq(ControllerBase):
-    """
-    Controller with no GUI that is supposed to be run in a single-threaded environment.
-
-    """
-
-    def __init__(self, sgffile=None, video=0, bounds=(0, 1)):
-        super().__init__(sgffile=sgffile)
-        self.video = video
-        self.bounds = bounds
-        self.api = {
-            "append": self.cvappend,
-            "delete": self._delete,
-            "bulk": self._bulk_update,
-
-        }
-
-    def pipe(self, instruction, *args):
-        """
-        Execute instruction straight away (assumption of single-threaded environment).
-
-        """
-        self.api[instruction](*args)
-
-    def cvappend(self, move):
-        move.number = self.current_mn + 1
-        self.rules.put(move)
-        self._append(move)
-
-    def get_stones(self) -> ndarray:
-        """
-        Return a copy of the current goban state, in the numpy coordinates system.
-
-        """
-        return array(self.rules.stones, dtype=object).T
-
-
 class VManagerSeq(VManagerBase):
     """
     Single-threaded vision manager, meant to be used during development only (no GUI).
-    Notably because, as of today, opencv show() and waitkey() must be run on the main thread.
+    Notably because, as of opencv 3.0.0-beta, cv2.show() and cv2.waitkey() must be run on the main thread.
 
     """
 
     states = ("board detection", "stones detection", "stop")
 
-    def __init__(self, controller=None):
-        super().__init__(controller)
+    def __init__(self, controller=None, bf=None, sf=None):
+        super().__init__(controller, bf=bf, sf=sf)
         self.state = VManagerSeq.states[0]
         self.current_proc = None
         self.bf_locked = False  # special flag for board finder manual which has to be kept running in some situations
 
     def init_bf(self):
-        self.board_finder = bfinders[0](self)
+        self.board_finder = self.bf_class(self)
+        self.setup_finder(self.board_finder)
         self.board_finder.bindings['o'] = self.unlock_bf
-        self.board_finder.bindings['q'] = self.stop_processing
 
     def init_sf(self):
-        self.stones_finder = sfinders[0](self)
+        self.stones_finder = self.sf_class(self)
+        self.setup_finder(self.stones_finder)
         self.stones_finder.bindings['z'] = self.goto_detect
-        self.stones_finder.bindings['q'] = self.stop_processing
+
+    def setup_finder(self, finder):
+        finder.bindings['q'] = self.stop_processing
+        finder.full_speed = self.full_speed
 
     def goto_detect(self):
         print("requesting return to board detection state")
@@ -137,11 +102,12 @@ class ProcessKiller(Thread):
             sleep(0.1)
 
 
-def main(video=0, sgf=None, bounds=(0, 1)):
+def main(video=0, sgf=None, bounds=(0, 1), bf=None, sf=None):
     # run in dev mode, everything on the main thread
-    vision = VManagerSeq(ControllerVSeq(sgffile=sgf, video=video, bounds=bounds))
+    controllerv_dev = ControllerVDev(sgffile=sgf, video=video, bounds=bounds)
+    vision = VManagerSeq(controllerv_dev, bf=bf, sf=sf)
     vision.run()
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    main(video=args.video, sgf=args.sgf, bounds=args.bounds)
+    main(video=args.video, sgf=args.sgf, bounds=args.bounds, bf=args.bf, sf=args.sf)

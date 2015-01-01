@@ -35,24 +35,24 @@ class ImgUpdater(Thread):
             sleep(0.1)
 
 
-def main(reffile, sgffile=None, move_nr=0, failfast=False, bounds=(0, 1), video=0):
+def main(reffile, sgffile=None, move_nr=0, failfast=False, bounds=(0, 1), video=0, bf=None, sf=None):
     root = Tk(className="Detection Test")
     root.withdraw()
     imqueue = Queue(maxsize=10)
     controller = ControllerVTest(reffile, sgffile=sgffile, video=video, vid_bounds=bounds,
                                  failfast=failfast, move_bounds=move_nr)
-    vmanager = VManager(controller, imqueue=imqueue)
+    vmanager = VManager(controller, imqueue=imqueue, bf=bf, sf=sf)
     vmanager.start()
 
     def tk_routine():
-        if not vmanager.is_alive():
+        ckmain.img_update(imqueue)
+        if vmanager.hasrun and not vmanager.is_processing():
             root.destroy()
         else:
-            ckmain.img_update(imqueue)
             root.after(5, tk_routine)
 
     try:
-        root.after(0, tk_routine)
+        root.after(5, tk_routine)
         # mac OS special, to bring app to front at startup
         if "Darwin" in platform.system():
             os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
@@ -89,4 +89,4 @@ def get_argparser():
 if __name__ == '__main__':
     args = get_argparser().parse_args()
     main(args.sgf_ref, sgffile=args.sgf, move_nr=args.move, failfast=args.failfast,
-         bounds=args.bounds, video=args.video)
+         bounds=args.bounds, video=args.video, bf=args.bf, sf=args.sf)

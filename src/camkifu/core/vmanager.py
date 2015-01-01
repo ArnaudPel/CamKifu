@@ -17,7 +17,7 @@ class VManagerBase(Thread):
 
     """
 
-    def __init__(self, controller, imqueue=None):
+    def __init__(self, controller, imqueue=None, bf=None, sf=None):
         Thread.__init__(self, name="Vision")
         self.controller = controller
         self.bind_controller()
@@ -26,8 +26,11 @@ class VManagerBase(Thread):
         self.capt = None  # initialized in run() with video argument
         self.current_video = None
 
+        self.bf_class = self._reflect(bf, bfinders)
+        self.sf_class = self._reflect(sf, sfinders)
         self.board_finder = None
         self.stones_finder = None
+
         self.full_speed = False
 
     def bind_controller(self):
@@ -113,25 +116,8 @@ class VManagerBase(Thread):
         """
         pass
 
-
-class VManager(VManagerBase):
-    """
-    Multi-threaded vision manager.
-
-    Its fields, notably the board and stones finders, must be regarded as (recursively) volatile.
-    Concurrency issues are to be expected in this area.
-
-    """
-
-    def __init__(self, controller, imqueue=None, bf=None, sf=None):
-        super().__init__(controller, imqueue=imqueue)
-        self.daemon = True
-        self.bf_class = self._reflect(bf, bfinders)
-        self.sf_class = self._reflect(sf, sfinders)
-        self.processes = []  # video processors currently running
-
     @staticmethod
-    def _reflect(name: str, classes: list) -> object:
+    def _reflect(name: str, classes: list) -> type:
         """
         Look for the class of the right name in the list and return it.
         If no match found, return the first element of the list.
@@ -144,6 +130,22 @@ class VManager(VManagerBase):
                     return cl
         if item is None:
             return classes[0]
+
+
+class VManager(VManagerBase):
+    """
+    Multi-threaded vision manager.
+
+    Its fields, notably the board and stones finders, must be regarded as (recursively) volatile.
+    Concurrency issues are to be expected in this area.
+
+    """
+
+    def __init__(self, controller, imqueue=None, bf=None, sf=None):
+        super().__init__(controller, imqueue=imqueue, bf=bf, sf=sf)
+        self.daemon = True
+        self.processes = []  # video processors currently running
+        self.hasrun = False  # indicate if at least one run iteration has completed
 
     def bind_controller(self):
         super().bind_controller()
@@ -177,6 +179,7 @@ class VManager(VManagerBase):
             self.check_sf()
             self.check_video()
             sleep(0.2)
+            self.hasrun = True
 
     def check_video(self):
         if self.current_video != self.controller.video:
@@ -270,7 +273,7 @@ class VManager(VManagerBase):
             message += proc.name + ", "
         message = message[0:len(message)-2]
         message += " interruption."
-        # release a potential FileCaptureWrapper that may keep threads sleeping
+        # release a potential CaptureReader that may keep threads sleeping
         try:
             self.capt.unsync_threads(True)
         except AttributeError:
@@ -289,7 +292,7 @@ class VManager(VManagerBase):
         vt = VisionThread(process)
         process.full_speed = self.full_speed
         self.processes.append(vt)
-        # reset a potential FileCaptureWrapper to normal behavior so that images flow again
+        # reset a potential CaptureReader to normal behavior: processes should wait for each other when reading frames
         try:
             self.capt.unsync_threads(False)
         except AttributeError:

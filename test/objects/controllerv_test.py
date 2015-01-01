@@ -1,10 +1,10 @@
-from golib.gui.controller import ControllerBase
+from test.objects.controllerv_dev import ControllerVDev
 from test.objects.kifuref import KifuChecker
 
 __author__ = 'Arnaud Peloquin'
 
 
-class ControllerVTest(ControllerBase):
+class ControllerVTest(ControllerVDev):
 
     def __init__(self, reffile, sgffile=None, video=0, vid_bounds=(0, 1), failfast=False, move_bounds=(0, 1000)):
         """
@@ -16,36 +16,22 @@ class ControllerVTest(ControllerBase):
         self.kifu = KifuChecker(reffile, sgffile=sgffile, failfast=failfast, bounds=move_bounds)
         self.video = video
         self.bounds = vid_bounds
+        self.init_kifu(sgffile, move_bounds)
+        self.ignored_instruct = set()
 
+    def init_kifu(self, sgffile, move_bounds):
         if move_bounds and (sgffile is None):
+            log_ref = self.log  # silence log, in order not to have all the skipped moves printed
+            self.log = lambda _: None
             # transfer skipped reference moves to the working structure for consistency
             while self.current_mn < move_bounds[0] - 1:
                 self.cvappend(self.kifu.ref.getmove_at(self.current_mn + 1))
+            self.log = log_ref
 
-        self.api = {"append": self.cvappend,
-                    "register_bf": self.add_finder,
-                    "register_sf": self.add_finder,
-                    "select_bf": lambda _: None,
-                    "select_sf": lambda _: None
-                    }
-
-    def cvappend(self, move):
-        move.number = self.current_mn + 1
-        self.rules.put(move)
-        self._append(move)
-
-    @staticmethod
-    def add_finder(f_class, callback, select=False):
-        """
-        This method is a "plug" of its GUI-version, hence the non-intuitive syntax.
-
-        """
-        if select:
-            callback(f_class)
-
-    def pipe(self, instruction, args):
-        """
-        Run instruction on the current thread (i.e. caller's thread),
-        because we assume that we are running without GUI.
-        """
-        self.api[instruction](*args)
+    def pipe(self, instruction, *args):
+        try:
+            super().pipe(instruction, *args)
+        except KeyError:
+            if instruction not in self.ignored_instruct:
+                print("Unsupported instruction: \"{}\", ignoring.".format(instruction))
+                self.ignored_instruct.add(instruction)

@@ -58,7 +58,11 @@ class StonesFinder(VidProcessor):
         if self.vmanager.board_finder is not None:
             transform = self.vmanager.board_finder.mtx
         if transform is not None:
-            self.goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
+            try:
+                self.goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
+            except cv2.error:
+                print("frame:", frame, sep="\n")
+                print("transform:", transform, sep="\n")
             self._learn_bg()
             self._learn()
             self._find(self.goban_img)
