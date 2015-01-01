@@ -188,7 +188,7 @@ class Region():
 
         """
         # Run clustering-based stones detection
-        stones = self.sf.cluster.find_stones(img, r_start=self.rs, r_end=self.re, c_start=self.cs, c_end=self.ce)
+        stones = self.sf.cluster.find_stones(img, rs=self.rs, re=self.re, cs=self.cs, ce=self.ce)
         passed = -1
         if stones is not None:
             constraints = (self.sf.check_thickness, self.sf.check_against, self.sf.check_lines)

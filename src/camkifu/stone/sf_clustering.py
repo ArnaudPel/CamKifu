@@ -42,13 +42,13 @@ class SfClustering(StonesFinder):
         """
         if img.dtype is not float32:
             img = img.astype(float32)
-        ratios, centers = self.cluster_colors(img, r_start=rs, r_end=re, c_start=cs, c_end=ce)
+        ratios, centers = self.cluster_colors(img, rs=rs, re=re, cs=cs, ce=ce)
         stones = self.interpret_ratios(ratios, centers, r_start=rs, r_end=re, c_start=cs, c_end=ce)
         if not self.check_density(stones):
             return None  # don't detect anything
         return stones
 
-    def cluster_colors(self, img: ndarray, r_start=0, r_end=gsize, c_start=0, c_end=gsize) -> (ndarray, list):
+    def cluster_colors(self, img: ndarray, rs=0, re=gsize, cs=0, ce=gsize) -> (ndarray, list):
         """
         Return for each analysed intersection the percentage of B, W or E found by pixel color clustering (BGR value).
         Computations based on the attribute self.accu and cv2.kmeans (3-means).
@@ -57,8 +57,8 @@ class SfClustering(StonesFinder):
         global size (gsize * gsize), but the off-domain intersections are set to 1% goban and 0% other colors.
 
         """
-        x0, y0, _, _ = self.getrect(r_start, c_start)
-        _, _, x1, y1 = self.getrect(r_end-1, c_end-1)
+        x0, y0, _, _ = self.getrect(rs, cs)
+        _, _, x1, y1 = self.getrect(re-1, ce-1)
         subimg = img[x0:x1, y0:y1]
         pixels = reshape(subimg, (subimg.shape[0] * subimg.shape[1], 3))
         crit = (cv2.TERM_CRITERIA_EPS, 15, 3)
@@ -78,8 +78,8 @@ class SfClustering(StonesFinder):
             # store each label percentage, over each intersection. Careful, they are not sorted, refer to "centers"
             ratios = zeros((gsize, gsize, 3), dtype=uint8)
             ratios[:, :, centers_val.index(sorted(centers_val)[1])] = 1  # initialize with goban
-            for x in range(r_start, r_end):
-                for y in range(c_start, c_end):
+            for x in range(rs, re):
+                for y in range(cs, ce):
                     a0, b0, a1, b1 = self.getrect(x, y)
                     # noinspection PyTupleAssignmentBalance
                     vals, counts = unique(labels[a0-x0:a1-x0, b0-y0:b1-y0], return_counts=True)

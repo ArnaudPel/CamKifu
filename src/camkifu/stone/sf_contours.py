@@ -26,7 +26,7 @@ class SfContours(StonesFinder):
     def _find(self, goban_img: ndarray):
         if self.bg_init_frames < self.total_f_processed:
             canvas = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
-            # stones = self.find_stones(goban_img, c_start=6, c_end=13, canvas=canvas)
+            # stones = self.find_stones(goban_img, cs=6, ce=13, canvas=canvas)
             stones = self.find_stones(goban_img, canvas=canvas)
             if stones is not None:
                 temp = self.draw_stones(stones)
