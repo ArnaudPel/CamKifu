@@ -2,6 +2,7 @@ from collections import defaultdict
 from queue import Full
 from threading import current_thread, Thread
 from time import sleep, time
+from traceback import print_exc
 
 import cv2
 from numpy import ndarray
@@ -60,26 +61,31 @@ class VidProcessor(object):
         faster than self.frame_period. Set this value to 0 to run flat out.
 
         """
-        self._interruptflag = False
-        while not self._interrupt_mainloop():
-            self._checkpause()
-            # check that the minimal time period between two iterations is respected
-            frequency_condition = self.full_speed or (self.frame_period < time() - self.last_read)
-            if self.ready_to_read() and frequency_condition:
-                ret, frame = self.vmanager.read(self)
-                if ret:
-                    self.last_read = time()
-                    self._doframe(frame)
-                    self.total_f_processed += 1
-                    self.checkkey()
+        try:
+            self._interruptflag = False
+            while not self._interrupt_mainloop():
+                self._checkpause()
+                # check that the minimal time period between two iterations is respected
+                frequency_condition = self.full_speed or (self.frame_period < time() - self.last_read)
+                if self.ready_to_read() and frequency_condition:
+                    ret, frame = self.vmanager.read(self)
+                    if ret:
+                        self.last_read = time()
+                        self._doframe(frame)
+                        self.total_f_processed += 1
+                        self.checkkey()
+                    else:
+                        if frame != unsynced:
+                            print("Could not read camera for {0}.".format(str(type(self))))
+                            sleep(2)
                 else:
-                    if frame != unsynced:
-                        print("Could not read camera for {0}.".format(str(type(self))))
-                        sleep(5)
-            else:
-                sleep(self.frame_period / 10)  # precision doesn't really matter here
-        self._destroy_windows()
-        self.vmanager.confirm_stop(self)
+                    sleep(self.frame_period / 10)  # precision doesn't really matter here
+        except BaseException as exc:
+            self.vmanager.error_raised(self, exc)
+            print_exc()
+        finally:
+            self._destroy_windows()
+            self.vmanager.confirm_stop(self)
 
     def _interrupt_mainloop(self) -> bool:
         """

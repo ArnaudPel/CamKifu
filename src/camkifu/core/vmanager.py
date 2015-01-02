@@ -73,6 +73,27 @@ class VManagerBase(Thread):
         """
         raise NotImplementedError("Abstract method meant to be extended")
 
+    def stop_processing(self):
+        """
+        Request this video manager to terminate all its video-processing. The run() method may stay alive and
+        running, so that processing can be restarted later on.
+
+        """
+        raise NotImplementedError("Abstract method meant to be extended")
+
+    def error_raised(self, processor, error):
+        """
+        Print the error and interrupt immediately.
+
+        processor -- the VidProcessor from which the error originated.
+
+        """
+        vname = self.__class__.__name__
+        pname = processor.__class__.__name__
+        ename = error.__class__.__name__
+        print("{} terminating due to {} in {}.".format(vname, ename, pname))
+        self.interrupt()
+
     def read(self, caller):
         """
         Proxy method to hide the wrapping of the "capture" attribute.
@@ -103,14 +124,6 @@ class VManagerBase(Thread):
         """
         if self.stones_finder is not None:
             self.stones_finder.corrected(err_move, exp_move)
-
-    def stop_processing(self):
-        """
-        Request this video manager to terminate all its sub-processes. The thread itself will not die,
-        so that processing can be restarted later on.
-
-        """
-        raise NotImplementedError("Abstract method meant to be extended")
 
     def confirm_stop(self, process):
         """ A sub-process of this manager that terminates is supposed to pass itself here. """
@@ -275,8 +288,6 @@ class VManager(VManagerBase):
     def _off(self):
         if self.is_processing():
             self.stop_processing()
-        self.controller.pipe("select_bf", None)
-        self.controller.pipe("select_sf", None)
 
     def stop_processing(self):
         message = "Requesting "
@@ -294,6 +305,10 @@ class VManager(VManagerBase):
 
     def confirm_stop(self, process):
         self.processes.remove(process)
+        if process is self.board_finder:
+            self.controller.pipe("select_bf", None)
+        if process is self.stones_finder:
+            self.controller.pipe("select_sf", None)
         print("{0} terminated.".format(process.__class__.__name__))
 
     def _spawn(self, process):
@@ -382,6 +397,12 @@ class CaptureReaderBase:
         """
         Set the next frame number for self.capture, in such a way that self.frame_rate is respected.
         In other word, skip as many frames as needed to match the desired file read frame rate.
+
+        NOTE: on my configuration (mac OS X 10.7, Python 3.4, opencv 3.0.0-beta), when reading a file,
+        cv2.VideoCapture.read() seems to regularly skip frames. No more than one at a time, but quite often:
+        326 missing frames out of 2904 in my test video (.mov format).
+        This phenomenon seems to be deterministic since the skipped frames numbers are always the same.
+        See videocapture_skipped_frames() below to test that.
 
         """
         idx = self.capture.get(cv2.CAP_PROP_POS_FRAMES)
@@ -493,3 +514,31 @@ class CaptureReader(CaptureReaderBase):
 
         """
         self.unsync = unsync
+
+
+def videocapture_skipped_frames(video="/Path/To/movie.mov"):
+    """
+    Analyse the number of frames read by cv2.VideoCapture from the file. (Dev)
+
+    """
+    # noinspection PyArgumentList
+    capture = cv2.VideoCapture(video)
+    total = int(round(capture.get(cv2.CAP_PROP_FRAME_COUNT)))
+    print("number of frames: {}".format(total))
+    ret = True
+    prev = 0
+    count = 0
+    diffs = []
+    pos = []
+    while ret:
+        ret, frame = capture.read()
+        x = int(round(capture.get(cv2.CAP_PROP_POS_FRAMES)))
+        if 1 < x - prev:
+            diffs.append(x - prev - 1)
+            pos.append(x - 1)
+        prev = x
+        count += 1
+    print("total (cv2 property) - observed count = {}".format(total - count))
+    print("sum of differences: {}".format(sum(diffs)))
+    print("skipped frames:")
+    print(pos)
