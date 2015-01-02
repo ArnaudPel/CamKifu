@@ -1,7 +1,6 @@
+from argparse import ArgumentParser
 from queue import Queue, Empty
 from tkinter import Tk
-import platform
-import os
 
 import cv2
 
@@ -76,32 +75,37 @@ def main(video=0, sgf=None, bounds=(0, 1), sf=None, bf=None):
 
     root.after(0, tk_routine)
     glmain.place(root)
-
-    # mac OS special, to bring app to front at startup
-    if "Darwin" in platform.system():
-        os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
+    glmain.bring_to_front()
 
     vmanager.start()
     root.mainloop()
 
 
-def get_argparser():
+def add_finder_args(parser: ArgumentParser):
+    """
+    Add board finder and stones finder arguments definition to the provided parser.
+
+    """
+    bfhelp = "Board finder class to instantiate at startup. Defaults to configuration defined in cvconf.py"
+    parser.add_argument("--bf", help=bfhelp)
+
+    sfhelp = "Stones finder class to instantiate at startup. Defaults to configuration defined in cvconf.py"
+    parser.add_argument("--sf", help=sfhelp)
+
+
+def get_argparser() -> ArgumentParser:
     """
     Get command line arguments parser. Is actually an enrichment of the Golib argument parser.
 
     """
     parser = glmain.get_argparser()
     vhelp = "Filename, or device, as used in cv2.VideoCapture(). Defaults to device \"0\"."
-    parser.add_argument("-v", "--video", default=0, help=vhelp)
+    parser.add_argument("-v", "--video", default=0, metavar="VID", help=vhelp)
 
     bhelp = "Video file bounds, expressed as ratios in [0, 1]. See openCV VideoCapture.set()"
     parser.add_argument("-b", "--bounds", default=(0, 1), type=float, nargs=2, metavar="R", help=bhelp)
 
-    bfhelp = "Board finder class to instantiate at startup. Defaults to configuration defined in cvconf.py"
-    parser.add_argument("--bf", help=bfhelp)
-
-    sfhelp = "Stones finder class to instantiate at startup. Defaults to configuration defined in cvconf.py"
-    parser.add_argument("--sf", help=sfhelp)
+    add_finder_args(parser)
 
     return parser
 

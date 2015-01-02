@@ -1,12 +1,10 @@
+from argparse import ArgumentParser
+from os.path import basename
 from queue import Queue
 from tkinter import Tk
-import os
-import platform
-from threading import Thread
-from time import sleep
 
 from camkifu.core.vmanager import VManager
-import ckmain
+import glmain, ckmain
 from test.objects.kifuref import display_matcher, print_matcher
 from test.objects.controllerv_test import ControllerVTest
 
@@ -21,26 +19,23 @@ can originate from board or stones algorithms indifferently.
 """
 
 
-class ImgUpdater(Thread):
+def set_title(root2, video, vmanager):
+    """
+    Set the title of the result window.
 
-    def __init__(self, imqueue, parent_thread):
-        super(ImgUpdater, self).__init__()
-        self.daemon = True
-        self.imqueue = imqueue
-        self.parentth = parent_thread
-
-    def run(self):
-        while self.parentth.isAlive():
-            ckmain.img_update(self.imqueue)
-            sleep(0.1)
+    """
+    src = "Live video"
+    if type(video) is str:
+        src = basename(video)
+    title = "{} [{}, {}]".format(src, vmanager.bf_class.__name__, vmanager.sf_class.__name__)
+    root2.title(title)
 
 
-def main(reffile, sgffile=None, move_nr=0, failfast=False, bounds=(0, 1), video=0, bf=None, sf=None):
+def main(ref_sgf, video=0, vid_bounds=(0, 1), mv_bounds=0, failfast=False, bf=None, sf=None):
     root = Tk(className="Detection Test")
     root.withdraw()
     imqueue = Queue(maxsize=10)
-    controller = ControllerVTest(reffile, sgffile=sgffile, video=video, vid_bounds=bounds,
-                                 failfast=failfast, move_bounds=move_nr)
+    controller = ControllerVTest(ref_sgf, video=video, vid_bounds=vid_bounds, mv_bounds=mv_bounds, failfast=failfast)
     vmanager = VManager(controller, imqueue=imqueue, bf=bf, sf=sf)
     vmanager.start()
 
@@ -53,28 +48,29 @@ def main(reffile, sgffile=None, move_nr=0, failfast=False, bounds=(0, 1), video=
 
     try:
         root.after(5, tk_routine)
-        # mac OS special, to bring app to front at startup
-        if "Darwin" in platform.system():
-            os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
-
+        glmain.bring_to_front()
         root.mainloop()
     finally:
         vmanager.stop_processing()
 
     # display test results
     root2 = Tk()
+    set_title(root2, video, vmanager)
     matcher = controller.kifu.check()
     frame = display_matcher(matcher, master=root2)
     print_matcher(matcher)
     frame.pack()
+    glmain.center(root2)
+    glmain.bring_to_front()
     root2.mainloop()
 
 
-def get_argparser():
+def get_argparser() -> ArgumentParser:
     parser = ckmain.get_argparser()
 
     # compulsory argument
-    parser.add_argument("sgf_ref", help="The SGF file to use as reference during test.")
+    shelp = "SGF file to use as reference during test. Required."
+    parser.add_argument("--sgf", required=True, help=shelp)
 
     # optional arguments
     parser.add_argument("--failfast", help="Fail and stop test at first wrong move.", action="store_true")
@@ -82,11 +78,11 @@ def get_argparser():
     mhelp = "The subsequence of moves to consider in the reference sgf." \
             "Provide first and last move number of interest (1-based numeration)." \
             "Previous moves will be used to initialize the \"working\" sgf."
-    parser.add_argument("-m", "--move", default=(0, 1000), type=int, nargs=2, metavar="M", help=mhelp)
+    parser.add_argument("-m", "--moves", default=(0, 1000), type=int, nargs=2, metavar="M", help=mhelp)
     return parser
 
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    main(args.sgf_ref, sgffile=args.sgf, move_nr=args.move, failfast=args.failfast,
-         bounds=args.bounds, video=args.video, bf=args.bf, sf=args.sf)
+    main(args.sgf, video=args.video, vid_bounds=args.bounds, mv_bounds=args.moves, failfast=args.failfast,
+         bf=args.bf, sf=args.sf)

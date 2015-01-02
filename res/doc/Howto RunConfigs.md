@@ -49,20 +49,6 @@ When having put together a nice algorithm, comes the need to see how well it per
 
 `CamKifu/test/mains/detectiontest.py`
 
-```
-usage: detectiontest.py sgf_ref
-                        [-h] [--sgf SGF] [-v VID] [-b R R] [--bf BF] [--sf SF] [--failfast] [-m M M]
-
-positional arguments:
-  sgf_ref               The SGF file to use as reference during test.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --sgf SGF             SGF file to load at startup.
-  -v VID, --video VID   Filename, or device, as used in cv2.VideoCapture(). Defaults to device "0".
-  -b R R, --bounds R R  Video file bounds, expressed as ratios in [0, 1]. See openCV VideoCapture.set()
-  --bf BF               Board finder class to instantiate at startup. Defaults to configuration defined in cvconf.py
-  --sf SF               Stones finder class to instantiate at startup. Defaults to configuration defined in cvconf.py
-  --failfast            Fail and stop test at first wrong move.
-  -m M M, --move M M    The subsequence of moves to consider in the reference sgf. Provide first and last move number of interest (1-based numeration). Previous moves will be used to initialize the "working" sgf.
+```python
+# TODO usage
 ```

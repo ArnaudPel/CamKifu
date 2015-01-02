@@ -15,9 +15,9 @@ class KifuChecker(Kifu):
 
     """
 
-    def __init__(self, reffile, sgffile=None, failfast=False, bounds=(0, 1000)):
-        Kifu.__init__(self, sgffile=sgffile)
-        self.ref = Kifu(sgffile=reffile)
+    def __init__(self, ref_sgf, failfast=False, bounds=(0, 1000)):
+        super().__init__()
+        self.ref = Kifu(sgffile=ref_sgf)
         self.failfast = failfast
         self.bounds = bounds
         if failfast:
