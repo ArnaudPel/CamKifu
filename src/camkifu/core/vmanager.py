@@ -66,6 +66,13 @@ class VManagerBase(Thread):
     def run(self):
         raise NotImplementedError("Abstract method meant to be extended")
 
+    def interrupt(self):
+        """
+        Request the interruption of self.run()
+
+        """
+        raise NotImplementedError("Abstract method meant to be extended")
+
     def read(self, caller):
         """
         Proxy method to hide the wrapping of the "capture" attribute.
@@ -145,6 +152,7 @@ class VManager(VManagerBase):
         super().__init__(controller, imqueue=imqueue, bf=bf, sf=sf)
         self.daemon = True
         self.processes = []  # video processors currently running
+        self._interrupt_flag = False
         self.hasrun = False  # indicate if at least one run iteration has completed
 
     def bind_controller(self):
@@ -174,12 +182,16 @@ class VManager(VManagerBase):
         self._register_processes()
 
         # Main loop, watch for processor class changes and video input changes. Not intended to stop (daemon thread)
-        while True:
+        while not self._interrupt_flag:
             self.check_bf()
             self.check_sf()
             self.check_video()
             sleep(0.2)
             self.hasrun = True
+
+    def interrupt(self):
+        self.stop_processing()
+        self._interrupt_flag = True
 
     def check_video(self):
         if self.current_video != self.controller.video:

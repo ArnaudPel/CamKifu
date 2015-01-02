@@ -4,7 +4,7 @@ from time import sleep
 from ckmain import get_argparser
 from camkifu.board.bf_manual import BoardFinderManual
 from camkifu.core.vmanager import VManagerBase
-from test.objects.controllerv_dev import ControllerVDev
+from test.objects.controllerv_test import ControllerVDev
 
 
 __author__ = 'Arnaud Peloquin'
@@ -81,7 +81,18 @@ class VManagerSeq(VManagerBase):
             else:
                 break
 
+    def interrupt(self):
+        """
+        No difference between interruption an stopping processing for this single threaded VManager.
+
+        """
+        self.stop_processing()
+
     def stop_processing(self):
+        """
+        Stop current processor and exit "run" loop.
+
+        """
         print("requesting {0} exit.".format(self.current_proc.__class__.__name__))
         self.state = VManagerSeq.states[2]
         self.current_proc.interrupt()
@@ -99,6 +110,7 @@ class ProcessKiller(Thread):
         while True:
             if self.condition():
                 self.process.interrupt()
+                break
             sleep(0.1)
 
 
