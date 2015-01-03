@@ -77,7 +77,6 @@ def main(vid_dir, refdir=None, bf=None, sf=None):
     for i, (sgf, vid) in enumerate(bench.items()):
         msg_base = "{} ({}/{}) ----------------------------------------------------------------"
         print(msg_base.format(basename(vid), i+1, len(bench)))
-        # todo parse other arguments from the first node of the sgf file ?
         controller = ControllerVTest(sgf, video=vid)
         vmanager = VManager(controller, imqueue=DummyQueue(), bf=bf, sf=sf)
         stop_condition = lambda: vmanager.hasrun and not vmanager.is_processing()

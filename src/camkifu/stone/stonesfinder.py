@@ -333,10 +333,6 @@ class StonesFinder(VidProcessor):
 
         """
         if self.mask_cache is None or depth != (1 if len(self.mask_cache.shape) == 2 else self.mask_cache.shape[2]):
-            # todo : observation shows that stones of the front line may be seen too high (if camera angle important)
-            # investigate more and see to adapt the repartition of the mask ? Some sort of vertical gradient of size or
-            # location. The former will imply the introduction of a structure to store all zones areas, at least one
-            # per line.
             print("initializing stones mask")
             shape = (canonical_size, canonical_size)
             mask = empty(shape, dtype=uint8)  # without depth
@@ -408,7 +404,6 @@ class StonesFinder(VidProcessor):
                 lines = cv2.HoughLinesP(zone, 1, pi / 180, threshold=thresh, maxLineGap=0, minLineLength=min_len)
                 if lines is not None and 0 < len(lines):
                     if canvas is not None:
-                        # todo display lines again to see why adjusting grid seems to lower the number of "crosses" found
                         draw_lines(canvas[x0:x1, y0:y1], [line[0] for line in lines])
                     update_grid(lines, (x0, y0, x1, y1), grid[r][c])
         return grid

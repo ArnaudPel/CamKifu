@@ -19,11 +19,7 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 ## BEFORE PYTHON PUBLISH:
 
-- make more videos, in different conditions. especially play on the first line, to test limit conditions.
-
 - CODE REVIEW
-    * check bugs file
-    * go through todos, do them or move to this file so they get out of the way
     * documentation
         - first read carefully [jetbrains' heads-up](https://www.jetbrains.com/pycharm/webhelp/documenting-source-code-in-pycharm.html), [pep3107](https://www.python.org/dev/peps/pep-3107/)
         - check and fix existing doc
@@ -90,6 +86,7 @@ yet if this problem becomes a pain, try to display fewer images per second and i
 - save user preferences: {sgf save dir, ...}.
 - extract vision (+ time periods) parameters to file for easier tuning (maybe via GUI)
 - try and see if some references could not be weakened  (http://docs.python.org/2/library/weakref.html)
+- benchmark.py: parse argument for each run from each reference sgf file ? ex. the first node of the game could contain a custom property where the [--bounds, --moves, --bf, --sf, etc...] arguments could be set
 
 ### GUI
 
@@ -109,14 +106,13 @@ yet if this problem becomes a pain, try to display fewer images per second and i
 
 ### CV
 
-- allow initial game setup auto detection, like handicap stones
-- provide vidprocessors with their last successful run (interruption awareness)
+- play with the ton of parameters used locally in cv2 (blurr kernels, iterations, ..., canny thresholds)
+- stones finder: adjusting grid with lines detection results seems to lower the number of "crosses" found later by the same lines detection. Re-check this method altogether.
+- sfmeta : check some constraints in warmup phase ?
+- if the angle between the camera and the board is important, stones of the front line are often detected one line higher than expected. Investigate more and see to adapt the repartition of the mask ? Some sort of vertical gradient of size or location. The former will imply the introduction of a structure to store all zones areas, at least one per line.
 - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
-- update background periodically
-- when board detected at a new location, invalidate all moves found since previous detection (stones buffer)
-- bg-sub: update B/W thresholds dynamically (per zone ?). Increase on detect, lower on user stone add.
+- if board detected at a new location during a game, invalidate all moves found since previous detection (stones buffer)
 - ability to provide image file as input (for testing)
-- ability to naviguate movie file, based on already detected moves. Eg test has passed but for a few elems, provide a way to jump before them yet as close as possible.
 
 ---------------------------------------------------------------------------------------------------
 
