@@ -1,3 +1,4 @@
+import importlib
 from time import sleep
 from threading import Thread, Lock
 from os.path import isfile
@@ -139,17 +140,24 @@ class VManagerBase(Thread):
     @staticmethod
     def _reflect(name: str, classes: list) -> type:
         """
-        Look for the class of the right name in the list and return it.
-        If no match found, return the first element of the list.
+        Look for the class of the right name in the list, import it and return it.
+        If no match found, return the class defined by the first tuple of the list.
+
+        Return None only if name == "None" or the first element of the list is (None, None)
 
         """
-        item = None
-        if name:
-            for cl in classes:
-                if cl and cl.__name__ == name:
-                    return cl
-        if item is None:
-            return classes[0]
+        if name is "None":
+            return None
+        module_str, class_str = None, None
+        for m, c in classes:
+            if c == name:
+                module_str, class_str = m, c
+                break
+        if class_str is None:
+            module_str, class_str = classes[0]
+        if class_str not in (None, "None"):
+            module = importlib.import_module(module_str)
+            return getattr(module, class_str)
 
 
 class VManager(VManagerBase):
@@ -238,7 +246,8 @@ class VManager(VManagerBase):
         type than self.bf_class, kill the previous an spawn a new instance of the right class.
 
         """
-        if type(self.board_finder) != self.bf_class and self.bf_class is not None:
+        if type(self.board_finder) != self.bf_class:
+            new_name = "None"
             # delete previous instance if any
             if self.board_finder is not None:
                 self.board_finder.interrupt()
@@ -246,9 +255,11 @@ class VManager(VManagerBase):
                     sleep(0.1)
                 self.board_finder = None  # may help prevent misuse
             # instantiate and start new instance
-            self.board_finder = self.bf_class(self)
-            self._spawn(self.board_finder)
-            self.controller.pipe("select_bf", self.board_finder.label)
+            if self.bf_class is not None:
+                self.board_finder = self.bf_class(self)
+                self._spawn(self.board_finder)
+                new_name = self.board_finder.__class__.__name__
+            self.controller.pipe("select_bf", new_name)
 
     def check_sf(self):
         """
@@ -256,7 +267,8 @@ class VManager(VManagerBase):
         type than self.sf_class, kill the previous an spawn a new instance of the right class.
 
         """
-        if type(self.stones_finder) != self.sf_class and self.sf_class is not None:
+        if type(self.stones_finder) != self.sf_class:
+            new_name = "None"
             # delete previous instance if any
             if self.stones_finder is not None:
                 self.stones_finder.interrupt()
@@ -264,16 +276,20 @@ class VManager(VManagerBase):
                     sleep(0.1)
                 self.stones_finder = None  # may help prevent misuse
             # instantiate and start new instance
-            self.stones_finder = self.sf_class(self)
-            self._spawn(self.stones_finder)
-            self.controller.pipe("select_sf", self.stones_finder.label)
+            if self.sf_class is not None:
+                self.stones_finder = self.sf_class(self)
+                self._spawn(self.stones_finder)
+                new_name = self.stones_finder.__class__.__name__
+            self.controller.pipe("select_sf", new_name)
 
     def _register_processes(self):
-        # register "board finders" and "stones finders" with the controller,
-        # together with callbacks to start them up.
-        for bf_class in bfinders:
+        """
+        Register "board finders" and "stones finders" with the controller, together with callbacks to start them up.
+
+        """
+        for bf_module, bf_class in bfinders:
             self.controller.pipe("register_bf", bf_class, self.set_bf_class)
-        for sf_class in sfinders:
+        for sf_module, sf_class in sfinders:
             self.controller.pipe("register_sf", sf_class, self.set_sf_class)
 
     def is_processing(self):
@@ -335,7 +351,8 @@ class VManager(VManagerBase):
         for process in self.processes:
             process.pause(boolean)
 
-    def set_bf_class(self, bf_class):
+    def set_bf_class(self, bf_class_str):
+        bf_class = self._reflect(bf_class_str, bfinders)
         if self.bf_class != bf_class:
             self.bf_class = bf_class
         elif not self.is_processing():
@@ -344,7 +361,8 @@ class VManager(VManagerBase):
             self.sf_class = None  # a new processing loop has started, forget last choice
             self.stones_finder = None
 
-    def set_sf_class(self, sf_class):
+    def set_sf_class(self, sf_class_str):
+        sf_class = self._reflect(sf_class_str, sfinders)
         if self.sf_class != sf_class:
             self.sf_class = sf_class
         elif not self.is_processing():

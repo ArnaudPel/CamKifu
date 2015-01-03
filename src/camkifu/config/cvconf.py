@@ -20,33 +20,24 @@ unsynced = "unsynced"
 # file read frames per second (can be used to skip frames automatically). eg 5 frames per sec is still fast for Go.
 file_fps = 5
 
-# imports below must be done after variable declarations above,
-# so that cyclic imports are avoided.
-
-# from test.objects.sf_dummy import DummyFinder
-from camkifu.board.bf_manual import BoardFinderManual
-from camkifu.board.bf_auto import BoardFinderAuto
-
-# the first element in the list will be loaded at startup.
+# the first element in the list will be loaded at startup (unless specified otherwise in startup arguments)
+# format: (module, class)
 bfinders = [
-    BoardFinderManual,
-    BoardFinderAuto,
+    ("camkifu.board.bf_manual", "BoardFinderManual"),
+    ("camkifu.board.bf_auto", "BoardFinderAuto"),
+    ("None", "None"),
 ]
 
-from camkifu.stone.sf_contours import SfContours
-from camkifu.stone.sf_clustering import SfClustering
-from camkifu.stone.sf_meta import SfMeta
-from camkifu.stone.sf_tuto import StonesFinderTuto
-from camkifu.stone.sf_sandbox import SfSandbox
-# the first element in the list will be loaded at startup.
+# the first element in the list will be loaded at startup (unless specified otherwise in startup arguments)
+# format: (module, class)
 sfinders = [
-    # DummyFinder,
-    SfMeta,
-    SfClustering,
-    SfSandbox,
-    SfContours,
-    None,
-    StonesFinderTuto,
+    ("camkifu.stone.sf_meta", "SfMeta"),
+    ("camkifu.stone.sf_contours", "SfContours"),
+    ("camkifu.stone.sf_clustering", "SfClustering"),
+    ("camkifu.stone.sf_tuto", "StonesFinderTuto"),
+    ("camkifu.stone.sf_sandbox", "SfSandbox"),
+    ("None", "None"),
+    # ("test.objects.sf_dummy", "DummyFinder"),
 ]
 
 # location of the board_finder window. set to None to center

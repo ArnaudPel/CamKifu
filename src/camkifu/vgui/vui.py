@@ -60,24 +60,16 @@ class VUI(UI):
         Add the board finder to the menu.
 
         """
-        try:
-            label = bf_class.label
-        except AttributeError:
-            label = "None"
-        self.m_board.add_radiobutton(label=label, command=lambda: callback(bf_class),
-                                     variable=self.radvar_bf, value=label)
+        self.m_board.add_radiobutton(label=bf_class, command=lambda: callback(bf_class),
+                                     variable=self.radvar_bf, value=bf_class)
 
     def add_sf(self, sf_class, callback):
         """
         Add the stones finder to the menu.
 
         """
-        try:
-            label = sf_class.label
-        except AttributeError:
-            label = "None"
-        self.m_stones.add_radiobutton(label=label, command=lambda: callback(sf_class),
-                                      variable=self.radvar_sf, value=label)
+        self.m_stones.add_radiobutton(label=sf_class, command=lambda: callback(sf_class),
+                                      variable=self.radvar_sf, value=sf_class)
 
     def select_bf(self, label):
         self.radvar_bf.set(label)
