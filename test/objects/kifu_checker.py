@@ -1,14 +1,14 @@
-from tkinter.constants import LEFT
-from tkinter import Frame, Label
-from difflib import SequenceMatcher
+import difflib
+import tkinter as tk
+import tkinter.constants
 
-from golib.model.kifu import Kifu
+import golib.model
 
 
 __author__ = 'Arnaud Peloquin'
 
 
-class KifuChecker(Kifu):
+class KifuChecker(golib.model.Kifu):
     """
     A Kifu holding another (reference) Kifu.
     Aim to provides fail-fast or diff tools to test and analyse detection algorithms findings.
@@ -17,7 +17,7 @@ class KifuChecker(Kifu):
 
     def __init__(self, ref_sgf, failfast=False, bounds=(0, 1000)):
         super().__init__()
-        self.ref = Kifu(sgffile=ref_sgf)
+        self.ref = golib.model.Kifu(sgffile=ref_sgf)
         self.failfast = failfast
         self.bounds = bounds
         if failfast:
@@ -40,7 +40,7 @@ class KifuChecker(Kifu):
         f, l = self.bounds
         ref = self.ref.get_move_seq(first=f, last=l)
         seq = self.get_move_seq(first=f, last=l)
-        return SequenceMatcher(a=ref, b=seq)
+        return difflib.SequenceMatcher(a=ref, b=seq)
 
 
 def print_matcher(matcher):
@@ -87,23 +87,23 @@ def display_matcher(matcher, master=None):
     -- matcher.b is the sequence under test.
 
     """
-    sequence = Frame(master=master)
+    sequence = tk.Frame(master=master)
     idx1 = idx2 = 0
     blocks = matcher.get_matching_blocks()
     for block in blocks:
         # display items from reference that have been missed
         miss = concat(matcher.a, idx1, block[0])
-        Label(master=sequence, text=miss, fg="red").pack(side=LEFT)
+        tk.Label(master=sequence, text=miss, fg="red").pack(side=tkinter.constants.LEFT)
         idx1 = block[0] + block[2]
 
         # display items that are not present in ref (or at least not at this pos)
         unex = concat(matcher.b, idx2, block[1])
-        Label(master=sequence, text=unex, fg="dark gray").pack(side=LEFT)
+        tk.Label(master=sequence, text=unex, fg="dark gray").pack(side=tkinter.constants.LEFT)
         idx2 = block[1] + block[2]
 
         # display matching items
         match = concat(matcher.a, block[0], block[0] + block[2])
-        Label(master=sequence, text=match, fg="dark green").pack(side=LEFT)
+        tk.Label(master=sequence, text=match, fg="dark green").pack(side=tkinter.constants.LEFT)
     return sequence
 
 

@@ -4,7 +4,7 @@ import time
 
 import cv2
 import numpy as np
-import golib.model.move
+import golib.model
 
 import camkifu.core
 from camkifu.core import imgutil
@@ -172,7 +172,7 @@ class StonesFinder(camkifu.core.VidProcessor):
 
         """
         self._check_dels(x, y)
-        move = golib.model.move.Move('np', ctuple=(color, x, y))
+        move = golib.model.Move('np', ctuple=(color, x, y))
         if doprint:
             print(move)
         self.vmanager.controller.pipe("append", move)
@@ -187,7 +187,7 @@ class StonesFinder(camkifu.core.VidProcessor):
 
         """
         assert not self.is_empty(x, y), "Can't remove stone from empty intersection."
-        move = golib.model.move.Move('np', ("", x, y))
+        move = golib.model.Move('np', ("", x, y))
         print("delete {}".format(move))
         self.vmanager.controller.pipe("delete", move.x, move.y)
 
@@ -200,18 +200,18 @@ class StonesFinder(camkifu.core.VidProcessor):
         del_errors = []
         for color, x, y in tuples:
             if color is E and not self.is_empty(x, y):
-                    moves.append(golib.model.move.Move('np', (color, x, y)))
+                    moves.append(golib.model.Move('np', (color, x, y)))
             elif color in (B, W):
                 if not self.is_empty(x, y):
                     existing_mv = self.vmanager.controller.locate(y, x)
                     if color is not existing_mv.color:  # if existing_mv is None, better to crash now, so no None check
                         # delete current stone to be able to put the other color
-                        moves.append(golib.model.move.Move('np', (E, x, y)))
+                        moves.append(golib.model.Move('np', (E, x, y)))
                     else:
                         continue  # already up to date, go to next iteration
                 try:
                     self._check_dels(x, y)
-                    moves.append(golib.model.move.Move('np', (color, x, y)))
+                    moves.append(golib.model.Move('np', (color, x, y)))
                 except camkifu.core.DeletedError as de:
                     del_errors.append(de)
         if len(moves):
@@ -220,7 +220,7 @@ class StonesFinder(camkifu.core.VidProcessor):
             msg = "Bulk_update:warning: All non-conflicting locations have been sent."
             raise camkifu.core.DeletedError(del_errors, message=msg)
 
-    def corrected(self, err_move: golib.model.move.Move, exp_move: golib.model.move.Move) -> None:
+    def corrected(self, err_move: golib.model.Move, exp_move: golib.model.Move) -> None:
         """
         Entry point to provide corrections made by the user to stone(s) location(s) on the Goban. See _learn().
 

@@ -1,11 +1,11 @@
-from numpy import ndarray, array
-from golib.gui.controller import ControllerBase
+import numpy as np
+import golib.gui
 import test.objects
 
 __author__ = 'Arnaud Peloquin'
 
 
-class ControllerVDev(ControllerBase):
+class ControllerVDev(golib.gui.ControllerBase):
     """
     A no-GUI base controller for "test" code.
 
@@ -37,12 +37,12 @@ class ControllerVDev(ControllerBase):
         self.rules.put(move)
         self._append(move)
 
-    def get_stones(self) -> ndarray:
+    def get_stones(self) -> np.ndarray:
         """
         Return a copy of the current goban state, in the numpy coordinates system.
 
         """
-        return array(self.rules.stones, dtype=object).T
+        return np.array(self.rules.stones, dtype=object).T
 
 
 class ControllerVTest(ControllerVDev):

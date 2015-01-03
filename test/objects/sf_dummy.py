@@ -1,4 +1,4 @@
-from golib.model.move import Move
+import golib.model
 import camkifu.stone
 from test import devconf
 
@@ -22,7 +22,7 @@ class DummyFinder(camkifu.stone.StonesFinder):
     def _find(self, goban_img):
         try:
             mv_string = next(self.iterator)
-            mv = Move(self.ctype, string=mv_string)
+            mv = golib.model.Move(self.ctype, string=mv_string)
             self.suggest(mv.color, mv.x, mv.y)
         except StopIteration:
             # self.interrupt()

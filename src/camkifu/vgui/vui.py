@@ -1,11 +1,11 @@
 import tkinter as tk
-import golib.gui.ui
+import golib.gui
 
 
 __author__ = 'Arnaud Peloquin'
 
 
-class VUI(golib.gui.ui.UI):
+class VUI(golib.gui.UI):
     """
     Extension of the GUI to add some vision-related commands.
 

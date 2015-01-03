@@ -1,7 +1,7 @@
 import queue
 
 import numpy as np
-import golib.gui.controller
+import golib.gui
 
 import camkifu.core
 
@@ -31,7 +31,7 @@ def promptdiscard(meth):
 
 
 # noinspection PyMethodMayBeStatic
-class ControllerV(golib.gui.controller.Controller):
+class ControllerV(golib.gui.Controller):
     """
     Extension of the default GUI controller, adding the handling of Vision threads.
 
