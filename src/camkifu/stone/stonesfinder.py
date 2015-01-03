@@ -777,16 +777,16 @@ class PosGrid(object):
         diff = grid - self.mtx
         if np.min(diff) < -200:
             raise ValueError("Provided grid seems too far from original, at least for one point.")
-        vect = np.sum(diff, axis=(0, 1), dtype=np.float32)
-        # then, normalize.
-        # in theory, should be the count of points that moved in at least one direction. but that's good enough for now.
+        # the number of intersections that are contributing to adjust the grid
         contributors = np.count_nonzero(np.absolute(diff[:, :, 0]) + np.absolute(diff[:, :, 1]))
-        vect /= contributors
-        self.adjust_vect *= (1.0 - rate)
-        self.adjust_vect += vect * rate
-        self.adjust_contribs += contributors
-        if 20 < self.adjust_contribs:
-            print("Grid adjust vector : {}".format(self.adjust_vect))
-            self.mtx += self.adjust_vect.astype(np.int16)
-            self.adjust_vect[:] = 0
-            self.adjust_contribs = 0
+        if 0 < contributors:
+            vect = np.sum(diff, axis=(0, 1), dtype=np.float32)
+            vect /= contributors
+            self.adjust_vect *= (1.0 - rate)
+            self.adjust_vect += vect * rate
+            self.adjust_contribs += contributors
+            if 20 < self.adjust_contribs:
+                print("Grid adjust vector : {}".format(self.adjust_vect))
+                self.mtx += self.adjust_vect.astype(np.int16)
+                self.adjust_vect[:] = 0
+                self.adjust_contribs = 0
