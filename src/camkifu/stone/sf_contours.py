@@ -192,7 +192,7 @@ class SfContours(StonesFinder):
         _, contours, _ = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         radius = self.stone_radius()
         filtered = []
-        bigenough = []  # todo remove debug after a while
+        bigenough = []  # the contours that are big enough but have been discarded by subsequent constraints
         for cont in contours:
             # it takes a minimum amount of points to describe the contour of a stone
             if cont.shape[0] < 10:
@@ -209,10 +209,18 @@ class SfContours(StonesFinder):
             angle = radians(box[2])
             if 2.5 * radius < max(box[1]) and max(abs(cos(angle)), abs(sin(angle))) < 0.97:
                 continue
-            # todo check that the contour interior is white
+            # ignore contours which interior is too black
+            hull = cv2.convexHull(cont)
+            y0, x0, dy, dx = cv2.boundingRect(hull)
+            ghost = zeros((dx, dy), dtype=uint8)
+            cv2.drawContours(ghost, [hull], 0, color=1, thickness=-1, offset=(-y0, -x0))
+            ratio = npsum(sub_fg[x0:x0 + dx, y0:y0 + dy] * (ghost == 1)) / dx / dy / 255
+            if ratio < 0.3:
+                continue
             filtered.append(cont)
-        cv2.drawContours(canvas, bigenough, -1, (0, 0, 255))
-        cv2.drawContours(canvas, filtered, -1, (0, 255, 0))
+        if canvas is not None:
+            cv2.drawContours(canvas, bigenough, -1, (0, 0, 255))
+            cv2.drawContours(canvas, filtered, -1, (0, 255, 0))
         return filtered
 
     def _find_centers(self, distance_mtx):
@@ -247,7 +255,7 @@ class SfContours(StonesFinder):
 
         """
         median = cv2.medianBlur(img, 13)
-        median = cv2.medianBlur(median, 7)  # todo play with median size / iterations a bit
+        median = cv2.medianBlur(median, 7)
         grey = cv2.cvtColor(median, cv2.COLOR_BGR2GRAY)
         otsu, _ = cv2.threshold(grey, 12, 255, cv2.THRESH_OTSU)
         return cv2.Canny(median, otsu / 2, otsu)

@@ -139,7 +139,6 @@ class Region():
             kwargs = {'rs': self.rs, 're': self.re, 'cs': self.cs, 'ce': self.ce, 'canvas': canvas}
             # 1. if warmup phase: accumulate a few passes of contours analysis
             if self.states[0] is Warmup:
-                # todo run some constraints ? maybe a warmup-specific subset (eg. not check flow)
                 self.contour_accu[:] = self.sf.contour.find_stones(img, **kwargs)[self.rs:self.re, self.cs:self.ce]
                 self.commit(self.contour_accu)
                 self.states[0] = Search
@@ -168,12 +167,7 @@ class Region():
         """
         stones = self.finder.find_stones(img, **kwargs)
         if stones is not None:
-            lonelies = self.sf.first_line_lonelies(stones, refs, rs=self.rs, re=self.re, cs=self.cs, ce=self.ce)
-            for r, c in lonelies:
-                # correct that kind of error instead of refusing result, since it may be recurring
-                stones[r, c] = E
-            if len(lonelies):  # todo remove debug after a while
-                print("Discarded lonely stone(s) on first line {}".format(lonelies))
+            self.discard_lonelies(stones, refs)
             constraints = self.sf.routine_constr[self.finder]
             passed = self.verify(constraints, stones, refs, img, id_="routine")
             if 0 <= passed:
@@ -332,6 +326,18 @@ class Region():
         x0, y0, _, _ = self.sf.getrect(self.rs, self.cs)
         _, _, x1, y1 = self.sf.getrect(self.re - 1, self.ce - 1)
         return x0, y0, x1, y1
+
+    def discard_lonelies(self, stones: ndarray, reference: ndarray):
+        """
+        Discard all the stones on the first line that have no neighbour in a 2-lines thick square around them.
+
+        """
+        lonelies = self.sf.first_line_lonelies(stones, reference, rs=self.rs, re=self.re, cs=self.cs, ce=self.ce)
+        for r, c in lonelies:
+            # correct that kind of error instead of refusing result, since it may be recurring
+            stones[r, c] = E
+        if len(lonelies):
+            print("Discarded lonely stone(s) on first line {}".format(lonelies))
 
     def outer_border(self):
         """
