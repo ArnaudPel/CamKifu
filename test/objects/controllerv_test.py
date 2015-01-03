@@ -1,6 +1,6 @@
 from numpy import ndarray, array
 from golib.gui.controller import ControllerBase
-from test.objects.kifuref import KifuChecker
+import test.objects
 
 __author__ = 'Arnaud Peloquin'
 
@@ -55,7 +55,7 @@ class ControllerVTest(ControllerVDev):
         """
         super().__init__(video=video, bounds=vid_bounds)
         # overwrite attribute "kifu" with our checker object
-        self.kifu = KifuChecker(ref_sgf, failfast=failfast, bounds=mv_bounds)
+        self.kifu = test.objects.KifuChecker(ref_sgf, failfast=failfast, bounds=mv_bounds)
         self.init_kifu(mv_bounds)
         self.ignored_instruct = set()
 

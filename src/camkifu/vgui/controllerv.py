@@ -1,8 +1,9 @@
-from queue import Full, Empty, Queue
-from numpy import array, ndarray
+import queue
 
-from camkifu.core.exceptions import PipeWarning
-from golib.gui.controller import Controller
+import numpy as np
+import golib.gui.controller
+
+import camkifu.core
 
 
 __author__ = 'Arnaud Peloquin'
@@ -30,7 +31,7 @@ def promptdiscard(meth):
 
 
 # noinspection PyMethodMayBeStatic
-class ControllerV(Controller):
+class ControllerV(golib.gui.controller.Controller):
     """
     Extension of the default GUI controller, adding the handling of Vision threads.
 
@@ -38,7 +39,7 @@ class ControllerV(Controller):
 
     def __init__(self, user_input, display, sgffile=None, video=0, bounds=(0, 1)):
         super().__init__(user_input, display, sgffile=sgffile)
-        self.queue = Queue(commands_size)
+        self.queue = queue.Queue(commands_size)
         self.video = video
         self.bounds = bounds
 
@@ -83,14 +84,14 @@ class ControllerV(Controller):
 
         """
         if self.input.closed:
-            raise PipeWarning("Target User Interface has been closed.")
+            raise camkifu.core.PipeWarning("Target User Interface has been closed.")
         if instruction == "event":
             # virtual event, comes from self.input itself, neither keyin nor mousein
             self.input.event_generate(*args)
         else:
             try:
                 self.queue.put_nowait((instruction, args))
-            except Full:
+            except queue.Full:
                 print("Controller instruction queue full, ignoring {0}".format(instruction))
             self.input.event_generate("<<execute>>")
 
@@ -118,16 +119,16 @@ class ControllerV(Controller):
                 except Exception as e:
                     print("Instruction [%s] with arguments [%s] did not complete normally" % (instruction, args))
                     raise e
-        except Empty:
+        except queue.Empty:
             pass
 
-    def get_stones(self) -> ndarray:
+    def get_stones(self) -> np.ndarray:
         """
         Return a copy of the current goban state, in the numpy coordinates system.
 
         """
         with self.rlock:
-            return array(self.rules.stones, dtype=object).T
+            return np.array(self.rules.stones, dtype=object).T
 
     def _on(self):
         """
@@ -192,8 +193,8 @@ class ControllerV(Controller):
     def _add_bfinder(self, bf_class, callback):
         self.display.add_bf(bf_class, callback)
 
-    def _add_sfinder(self, label, callback):
-        self.display.add_sf(label, callback)
+    def _add_sfinder(self, sf_class, callback):
+        self.display.add_sf(sf_class, callback)
 
     def _select_bfinder(self, label):
         self.display.select_bf(label)

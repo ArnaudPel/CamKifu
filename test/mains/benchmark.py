@@ -1,11 +1,12 @@
-from argparse import ArgumentParser
-from os import listdir
-from ntpath import basename
-from time import time
-from camkifu.core.vmanager import VManager
+import argparse
+import os
+import ntpath
+import time
+
 import ckmain
-from test.mains.singlethreaded import ProcessKiller
-from test.objects.controllerv_test import ControllerVTest
+import camkifu.core
+import test.objects
+
 
 __author__ = 'Arnaud Peloquin'
 
@@ -40,28 +41,28 @@ def list_bench(refdir, vid_dir) -> dict:
 
     # step 1: list video candidates (all files that are not sgf)
     vid_files = []
-    for f in listdir(vid_dir):
+    for f in os.listdir(vid_dir):
         if not f.endswith('.sgf'):
             vid_files.append(f)
 
     # step 2: match sgf references to video candidates
     bench = {}
     unmatched = []
-    for sgf in listdir(refdir):
+    for sgf in os.listdir(refdir):
         if sgf.endswith('.sgf'):
             matched = False
-            key = basename(sgf)[:-4]
+            key = ntpath.basename(sgf)[:-4]
             for vf in vid_files:
-                if basename(vf).startswith(key):
+                if ntpath.basename(vf).startswith(key):
                     matched = True
                     if sgf not in bench:
                         bench[refdir + sgf] = vid_dir + vf
                     else:
                         msg_base = "Benchmark warning: multiple video candidates for reference file {}.sgf : {}"
-                        print(msg_base.format(key, [basename(bench[sgf]), vf]))
+                        print(msg_base.format(key, [ntpath.basename(bench[sgf]), vf]))
                         break  # at least one warning should be enough to get attention
             if not matched:
-                unmatched.append(basename(sgf))
+                unmatched.append(ntpath.basename(sgf))
     if len(unmatched):
         print("Benchmark warning: unmatched reference files {}".format(unmatched))
     return bench
@@ -76,20 +77,20 @@ def main(vid_dir, refdir=None, bf=None, sf=None):
     reports = []
     for i, (sgf, vid) in enumerate(bench.items()):
         msg_base = "{} ({}/{}) ----------------------------------------------------------------"
-        print(msg_base.format(basename(vid), i+1, len(bench)))
-        controller = ControllerVTest(sgf, video=vid)
-        vmanager = VManager(controller, imqueue=DummyQueue(), bf=bf, sf=sf)
+        print(msg_base.format(ntpath.basename(vid), i+1, len(bench)))
+        controller = test.objects.ControllerVTest(sgf, video=vid)
+        vmanager = camkifu.core.VManager(controller, imqueue=DummyQueue(), bf=bf, sf=sf)
         stop_condition = lambda: vmanager.hasrun and not vmanager.is_processing()
-        ProcessKiller(vmanager, stop_condition).start()
-        start = time()
+        test.objects.ProcessKiller(vmanager, stop_condition).start()
+        start = time.time()
         vmanager.run()
-        reports.append(Report(vmanager, time() - start))
+        reports.append(Report(vmanager, time.time() - start))
     for r in reports:
         print(r)
 
 
-def get_argparser() -> ArgumentParser:
-    parser = ArgumentParser()
+def get_argparser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
     ckmain.add_finder_args(parser)
 
     # compulsory argument
@@ -113,7 +114,7 @@ class Report():
         self.duration = duration
 
     def __repr__(self):
-        name = basename(self.sgf)[:-4]
+        name = ntpath.basename(self.sgf)[:-4]
         percent = round(100*self.matcher.ratio(), 1)
         return "[{}: {}% in {} s]".format(name, percent, int(round(self.duration)))
 

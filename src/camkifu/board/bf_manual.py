@@ -1,15 +1,15 @@
-from ntpath import basename
+import ntpath
 
 import cv2
 import numpy as np
 
-from camkifu.board.boardfinder import BoardFinder
+from camkifu import board
 
 
 __author__ = 'Arnaud Peloquin'
 
 
-class BoardFinderManual(BoardFinder):
+class BoardFinderManual(board.BoardFinder):
     """
     Let the user indicate the corners of the Goban manually, by clicking on each of them.
 
@@ -80,7 +80,7 @@ class BoardFinderManual(BoardFinder):
         try:
             from test.devconf import gobanloc_npz
             if type(self.vmanager.current_video) is str:
-                fname = basename(self.vmanager.current_video)
+                fname = ntpath.basename(self.vmanager.current_video)
                 return gobanloc_npz + fname + ".npz"
         except ImportError:
             return None

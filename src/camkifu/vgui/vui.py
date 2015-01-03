@@ -1,12 +1,11 @@
-from tkinter import Button, Menu, StringVar, BooleanVar, Scale, HORIZONTAL, Label
-
-from golib.gui.ui import UI, mod1
+import tkinter as tk
+import golib.gui.ui
 
 
 __author__ = 'Arnaud Peloquin'
 
 
-class VUI(UI):
+class VUI(golib.gui.ui.UI):
     """
     Extension of the GUI to add some vision-related commands.
 
@@ -14,38 +13,38 @@ class VUI(UI):
 
     # noinspection PyAttributeOutsideInit
     def init_components(self):
-        UI.init_components(self)
+        super().init_components()
 
         # Tkinter way to select buttons -- see add_bf() and add_sf()
-        self.checkvar_onoff = BooleanVar()
+        self.checkvar_onoff = tk.BooleanVar()
         self.checkvar_onoff.set(True)
-        self.radvar_bf = StringVar()
-        self.radvar_sf = StringVar()
-        self.video_pos = Scale(self.buttons, command=lambda x: self.execute("vidpos", float(x)), orient=HORIZONTAL)
+        self.radvar_bf = tk.StringVar()
+        self.radvar_sf = tk.StringVar()
+        self.video_pos = tk.Scale(self.buttons, command=lambda x: self.execute("vidpos", float(x)), orient=tk.HORIZONTAL)
 
-        m_detect = Menu(self.menubar)
+        m_detect = tk.Menu(self.menubar)
         m_detect.add_checkbutton(label="Active", command=self.toggle_active, variable=self.checkvar_onoff)
-        self.m_board = Menu(m_detect)
-        self.m_stones = Menu(m_detect)
+        self.m_board = tk.Menu(m_detect)
+        self.m_stones = tk.Menu(m_detect)
         m_detect.add_cascade(label="Board", menu=self.m_board)
         m_detect.add_cascade(label="Stones", menu=self.m_stones)
         self.menubar.insert_cascade(0, label="Detection", menu=m_detect)
 
-        m_video = Menu(self.menubar)
+        m_video = tk.Menu(self.menubar)
         m_video.add_command(label="Video File...", command=lambda: self.execute("vidfile"))
         m_video.add_command(label="Live video", command=lambda: self.execute("vidlive"))
         self.menubar.insert_cascade(0, label="Video", menu=m_video)
 
-        b_run = Button(self.buttons, text="Run", command=lambda: self.execute("run"))
-        b_pause = Button(self.buttons, text="Pause", command=lambda: self.execute("pause"))
+        b_run = tk.Button(self.buttons, text="Run", command=lambda: self.execute("run"))
+        b_pause = tk.Button(self.buttons, text="Pause", command=lambda: self.execute("pause"))
         b_run.grid(row=4, column=0)
         b_pause.grid(row=4, column=1)
 
-        b_next = Button(self.buttons, text="Next", command=lambda: self.execute("next"))
-        self.bind_all("<{0}-f>".format(mod1), lambda _: self.execute("next"))
+        b_next = tk.Button(self.buttons, text="Next", command=lambda: self.execute("next"))
+        self.bind_all("<{0}-f>".format(golib.gui.ui.mod1), lambda _: self.execute("next"))
         b_next.grid(row=5, column=0, columnspan=2)
 
-        video_pos_lbl = Label(self.buttons, text="Video position (%):")
+        video_pos_lbl = tk.Label(self.buttons, text="Video position (%):")
         video_pos_lbl.grid(row=6, column=0, columnspan=2)
         self.video_pos.grid(row=7, column=0, columnspan=2)
 

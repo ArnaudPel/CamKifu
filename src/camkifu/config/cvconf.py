@@ -1,4 +1,4 @@
-from golib.config.golib_conf import gsize
+from golib.config import golib_conf
 
 
 __author__ = 'Arnaud Peloquin'
@@ -9,7 +9,7 @@ Vision-related configuration.
 """
 
 # the size in pixels of the canonical image (the rectangular image containing exactly the goban)
-canonical_size = 20 * gsize
+canonical_size = 20 * golib_conf.gsize
 
 # shortest time (in seconds) between two processing: put thread to sleep if it's too early
 frame_period = 0.2

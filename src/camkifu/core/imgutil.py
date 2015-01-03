@@ -1,12 +1,11 @@
-from bisect import insort
-from math import sqrt, acos, pi, cos, sin
-from sys import float_info, maxsize
+import bisect
+import math
+import sys
 
-from numpy import zeros, uint8, int32, ndarray, ones_like, arange, column_stack, flipud, vstack, array_equal, array
-from numpy.ma import minimum, around as nparound
+import numpy as np
 import cv2
 
-from golib.config.golib_conf import screenw, screenh
+from golib.config import golib_conf
 
 __author__ = 'Arnaud Peloquin'
 
@@ -40,7 +39,7 @@ def connect_clusters(groups, dist):
 
 def draw_circles(img, centers, color=(0, 0, 255), radius=5, thickness=1):
     for point in centers:
-        if isinstance(point, ndarray) and point.shape == (1, 2):  # vertical points
+        if isinstance(point, np.ndarray) and point.shape == (1, 2):  # vertical points
             point = point.T
         x = point[0]
         y = point[1]
@@ -99,7 +98,7 @@ def show(img, name="Camkifu", loc=None):
         if loc is not None:
             cv2.moveWindow(name, *loc)
         else:
-            center = (screenw / 2, screenh / 2)
+            center = (golib_conf.screenw / 2, golib_conf.screenh / 2)
             cv2.moveWindow(name, max(0, int(center[0] - img.shape[0] / 2)), int(img.shape[1] / 2))
         windows.add(name)
     cv2.imshow(name, img)
@@ -123,7 +122,7 @@ def _factor(img):
     f = 0
     imwidth = img.shape[1]
     imheight = img.shape[0]
-    while screenw < imwidth or screenh < imheight:
+    while golib_conf.screenw < imwidth or golib_conf.screenh < imheight:
         f += 1
         imwidth /= 2
         imheight /= 2
@@ -136,10 +135,10 @@ def saturate(img):
     and return corresponding enhanced BGR image (opencv defaults to BGR and not RGB).
 
     """
-    maxsv = ones_like(img)
+    maxsv = np.ones_like(img)
     maxsv[:, :, 1:3] *= 255
     saturated = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    saturated[:, :, 1:3] = minimum(maxsv[:, :, 1:3], saturated[:, :, 1:3] * 1.5)
+    saturated[:, :, 1:3] = np.minimum(maxsv[:, :, 1:3], saturated[:, :, 1:3] * 1.5)
     return cv2.cvtColor(saturated, cv2.COLOR_HSV2BGR)
 
 
@@ -149,16 +148,16 @@ def rgb_histo(img):
     http://opencvpython.blogspot.fr/2012/04/drawing-histogram-in-opencv-python.html
 
     """
-    h = zeros((300, 256, 3))
-    bins = arange(256).reshape(256, 1)
+    h = np.zeros((300, 256, 3))
+    bins = np.arange(256).reshape(256, 1)
     color = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
     for ch, col in enumerate(color):
         hist_item = cv2.calcHist([img], [ch], None, [256], [0, 256])
         cv2.normalize(hist_item, hist_item, 0, 255, cv2.NORM_MINMAX)
-        hist = int32(nparound(hist_item))
-        pts = column_stack((bins, hist))
+        hist = np.int32(np.around(hist_item))
+        pts = np.column_stack((bins, hist))
         cv2.polylines(h, [pts], False, col)
-    return flipud(h)
+    return np.flipud(h)
 
 
 def segment_from_hough(hough_line, img_shape):
@@ -168,7 +167,7 @@ def segment_from_hough(hough_line, img_shape):
     img_shape -- as img.shape, gives an order of magnitude for the segment length.
     """
     rho, theta = hough_line[0]
-    a, b = cos(theta), sin(theta)
+    a, b = math.cos(theta), math.sin(theta)
     x0, y0 = a * rho, b * rho
     extent = max(img_shape[0], img_shape[1])
     pt1 = int(x0 + extent * (-b)), int(y0 + extent * a)
@@ -194,7 +193,7 @@ def cyclic_permute(cvhull):
     """
     hull = []
     idx = 0
-    mind = maxsize
+    mind = sys.maxsize
     for i in range(len(cvhull)):
         p = cvhull[i]
         dist = p[0] ** 2 + p[1] ** 2
@@ -221,7 +220,7 @@ def get_ordered_hull(points):
     [(126, 96), (514, 92), (638, 364), (5, 367)]
 
     """
-    cvhull = cv2.convexHull(vstack(points))
+    cvhull = cv2.convexHull(np.vstack(points))
     return cyclic_permute([x[0] for x in cvhull])
 
 
@@ -230,7 +229,7 @@ def _sort_contours(contours, wclass, area_bounds=None):
     for i, cont in enumerate(contours):
         wrapped = wclass(cont, i)
         if area_bounds is None or area_bounds[0] < wrapped.area < area_bounds[1]:
-            insort(sortedconts, wrapped)
+            bisect.insort(sortedconts, wrapped)
     return sortedconts
 
 
@@ -266,7 +265,7 @@ def norm(p1, p2):
     '6.324555'
 
     """
-    return sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
+    return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
 
 
 def within_margin(p, box, margin):
@@ -330,7 +329,7 @@ class EnclosingCircle(object):
         self.contour = contour
         self.pos = pos
         self.circle = cv2.minEnclosingCircle(contour)
-        self.area = pi * self.circle[1]**2
+        self.area = math.pi * self.circle[1]**2
 
     def __lt__(self, other):
         return self.area < other.area
@@ -355,7 +354,7 @@ class Segment:
 
         """
         self.coords = coordinates
-        self.theta = acos((coordinates[2] - coordinates[0]) / self.norm())
+        self.theta = math.acos((coordinates[2] - coordinates[0]) / self.norm())
 
         # metadata that may be set from outside (ex: to re-integrate this Segment in a bigger image).
         self.offset = 0, 0
@@ -376,7 +375,7 @@ class Segment:
         """
         x2 = (self.coords[0] - self.coords[2]) ** 2
         y2 = (self.coords[1] - self.coords[3]) ** 2
-        return sqrt(x2 + y2)
+        return math.sqrt(x2 + y2)
 
     def line_angle(self, other):
         """
@@ -388,8 +387,8 @@ class Segment:
         y0 = (self.coords[3] - self.coords[1]) / self.norm()
         x1 = (other.coords[2] - other.coords[0]) / other.norm()
         y1 = (other.coords[3] - other.coords[1]) / other.norm()
-        theta = acos(round(x0 * x1 + y0 * y1, 10))
-        return theta if theta <= pi / 2 else pi - theta
+        theta = math.acos(round(x0 * x1 + y0 * y1, 10))
+        return theta if theta <= math.pi / 2 else math.pi - theta
 
     def intersection(self, other):
         """
@@ -400,7 +399,7 @@ class Segment:
         d1 = (self[2] - self[0], self[3] - self[1])
         d2 = (other[2] - other[0], other[3] - other[1])
         cross = float(d1[0] * d2[1] - d1[1] * d2[0])
-        if abs(cross) < float_info.epsilon:
+        if abs(cross) < sys.float_info.epsilon:
             return None
         else:
             t1 = (x[0] * d2[1] - x[1] * d2[0]) / cross
@@ -426,7 +425,7 @@ class CyclicBuffer():
 
     To get / set values in the current cycle index, access the instance as a numpy array:
 
-    >>> cb = CyclicBuffer((2, 2), 2, uint8, init=1)
+    >>> cb = CyclicBuffer((2, 2), 2, np.uint8, init=1)
     >>> print(cb[:])  # convenient access to currently buffered array
     [[1 1]
      [1 1]]
@@ -467,7 +466,7 @@ class CyclicBuffer():
         self.size = size
         if type(shape) is int:
             shape = (shape, )
-        self.buffer = zeros(shape + (size,), dtype=dtype)
+        self.buffer = np.zeros(shape + (size,), dtype=dtype)
         self.index = 0
         if init is not None:
             self.buffer[:] = init
@@ -496,11 +495,11 @@ class CyclicBuffer():
         Find the next occurrence of "old", and replace it with "new" (start search at current index and exclude it).
 
         """
-        toreplace = old if isinstance(old, ndarray) else array([old])
+        toreplace = old if isinstance(old, np.ndarray) else np.array([old])
         i = self.index
         for _ in range(self.size):
             i += 1
-            if array_equal(self.buffer[..., i % self.size], toreplace):
+            if np.array_equal(self.buffer[..., i % self.size], toreplace):
                 self.buffer[..., i % self.size] = new
                 break
 

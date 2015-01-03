@@ -1,23 +1,19 @@
-from argparse import ArgumentParser
-from queue import Queue, Empty
-from tkinter import Tk
+import argparse
+import queue
+import tkinter
 
 import cv2
 
-
-# keep this line above other project imports to keep appname right
 from golib.config import golib_conf as gc
-
-gc.appname = "Camkifu"
-
-from camkifu.vgui.vui import VUI
-
+gc.appname = "Camkifu"  # keep this line above other project imports to have appname right
 import glmain
-from camkifu.core.vmanager import VManager
-from camkifu.vgui.controllerv import ControllerV
-from camkifu.core.imgutil import show, destroy_win
+
+import camkifu.core
+from camkifu.core import imgutil
+import camkifu.vgui
 
 __author__ = 'Arnaud Peloquin'
+
 
 """
 Application entry point.
@@ -28,10 +24,10 @@ Application entry point.
 def configure(win):
     xstart = gc.glocation[0] + win.winfo_reqwidth() + gc.rwidth * gc.gsize + 20
     xstart = min(xstart, gc.screenw - 100)
-    import camkifu.config.cvconf as cvc
-    cvc.bf_loc = (xstart, 40)
+    from camkifu.config import cvconf
+    cvconf.bf_loc = (xstart, 40)
     # stonesfinder's window is more likely to be smaller than boardfinder's
-    cvc.sf_loc = (xstart, int(gc.screenh * 3 / 5))
+    cvconf.sf_loc = (xstart, int(gc.screenh * 3 / 5))
 
 
 def img_update(imqueue):
@@ -43,12 +39,12 @@ def img_update(imqueue):
         while True:
             name, img, vidproc, loc = imqueue.get_nowait()
             if img is not None:
-                show(img, name=name, loc=loc)
+                imgutil.show(img, name=name, loc=loc)
                 key = cv2.waitKey(20)
                 vidproc.key = key
             else:
-                destroy_win(name)
-    except Empty:
+                imgutil.destroy_win(name)
+    except queue.Empty:
         pass
 
 
@@ -60,14 +56,14 @@ def main(video=0, sgf=None, bounds=(0, 1), sf=None, bf=None):
 
     """
     assert cv2.__version__ == "3.0.0-beta"  # disable that if needs be, this is just meant as a quick indication
-    root = Tk(className="Camkifu")
+    root = tkinter.Tk(className="Camkifu")
     glmain.configure(root)
-    app = VUI(root)
+    app = camkifu.vgui.VUI(root)
     app.pack()
     configure(root)
-    imqueue = Queue(maxsize=10)
-    controller = ControllerV(app, app, sgffile=sgf, video=video, bounds=bounds)
-    vmanager = VManager(controller, imqueue=imqueue, bf=bf, sf=sf)
+    imqueue = queue.Queue(maxsize=10)
+    controller = camkifu.vgui.ControllerV(app, app, sgffile=sgf, video=video, bounds=bounds)
+    vmanager = camkifu.core.VManager(controller, imqueue=imqueue, bf=bf, sf=sf)
 
     def tk_routine():
         img_update(imqueue)
@@ -81,7 +77,7 @@ def main(video=0, sgf=None, bounds=(0, 1), sf=None, bf=None):
     root.mainloop()
 
 
-def add_finder_args(parser: ArgumentParser):
+def add_finder_args(parser: argparse.ArgumentParser):
     """
     Add board finder and stones finder arguments definition to the provided parser.
 
@@ -93,7 +89,7 @@ def add_finder_args(parser: ArgumentParser):
     parser.add_argument("--sf", help=sfhelp)
 
 
-def get_argparser() -> ArgumentParser:
+def get_argparser() -> argparse.ArgumentParser:
     """
     Get command line arguments parser. Is actually an enrichment of the Golib argument parser.
 

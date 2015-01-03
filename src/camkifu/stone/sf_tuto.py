@@ -1,11 +1,13 @@
-from time import sleep
-from numpy import zeros_like
-from camkifu.core.imgutil import draw_str
-from camkifu.stone.stonesfinder import StonesFinder
+import time
+
+import numpy
 from golib.config.golib_conf import gsize, B, W, E
 
+import camkifu.stone
+from camkifu.core import imgutil
 
-class StonesFinderTuto(StonesFinder):
+
+class StonesFinderTuto(camkifu.stone.StonesFinder):
     """
     This class has been used to put together a tutorial on how to create a new StonesFinder. Methods can be renamed to
     quickly run a particular step of the tutorial.
@@ -30,7 +32,7 @@ class StonesFinderTuto(StonesFinder):
         for _, r, c in rem:
             if not self.is_empty(r, c):
                 moves.append((E, r, c))
-        sleep(0.7)
+        time.sleep(0.7)
         self.bulk_update(moves)
 
     def _learn(self):
@@ -47,7 +49,7 @@ class StonesFinderTuto(StonesFinder):
         Implemnentation 1 of _find() from the tutorial.
 
         """
-        draw_str(goban_img, "Hello stones finding tutorial !")
+        imgutil.draw_str(goban_img, "Hello stones finding tutorial !")
         self._show(goban_img)
 
     def _find_suggest(self, _):
@@ -72,7 +74,7 @@ class StonesFinderTuto(StonesFinder):
         for _, r, c in rem:
             if not self.is_empty(r, c):
                 moves.append((E, r, c))
-        sleep(0.7)
+        time.sleep(0.7)
         self.bulk_update(moves)
 
     def _find_getrect(self, goban_img):
@@ -80,7 +82,7 @@ class StonesFinderTuto(StonesFinder):
         Implemnentation 3 of _find() from the tutorial.
 
         """
-        canvas = zeros_like(goban_img)
+        canvas = numpy.zeros_like(goban_img)
         for r in range(gsize):      # row index
             for c in range(gsize):  # column index
                 if r == c or r == gsize - c - 1:
@@ -93,7 +95,7 @@ class StonesFinderTuto(StonesFinder):
         Implemnentation 4 of _find() from the tutorial.
 
         """
-        canvas = zeros_like(goban_img)
+        canvas = numpy.zeros_like(goban_img)
         for r, c in self._empties_border(2):  # 2 is the line height as in go vocabulary (0-based)
             x0, y0, x1, y1 = self.getrect(r, c)
             canvas[x0:x1, y0:y1] = goban_img[x0:x1, y0:y1]
@@ -106,7 +108,7 @@ class StonesFinderTuto(StonesFinder):
         """
         count = 0
         if self.canvas is None:
-            self.canvas = zeros_like(goban_img)
+            self.canvas = numpy.zeros_like(goban_img)
         for r, c in self._empties_spiral():
             if count == self.total_f_processed % gsize ** 2:
                 x0, y0, x1, y1 = self.getrect(r, c)

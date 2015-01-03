@@ -1,11 +1,11 @@
 from golib.model.move import Move
-from camkifu.stone.stonesfinder import StonesFinder
-from test.devconf import dummy_sf_args
+import camkifu.stone
+from test import devconf
 
 __author__ = 'Arnaud Peloquin'
 
 
-class DummyFinder(StonesFinder):
+class DummyFinder(camkifu.stone.StonesFinder):
     """
     Can be used to simulate the detection of an arbitrary sequence of stones.
     Useful to test "test code". Double use of word 'test' intended :)
@@ -16,8 +16,8 @@ class DummyFinder(StonesFinder):
 
     def __init__(self, vmanager):
         super().__init__(vmanager)
-        self.ctype = dummy_sf_args[0]
-        self.iterator = iter(dummy_sf_args[1])
+        self.ctype = devconf.dummy_sf_args[0]
+        self.iterator = iter(devconf.dummy_sf_args[1])
 
     def _find(self, goban_img):
         try:

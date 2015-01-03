@@ -1,14 +1,14 @@
-from collections import defaultdict
-from queue import Full
-from threading import current_thread, Thread
-from time import sleep, time
-from traceback import print_exc
+import collections
+import queue
+import threading
+import time
+import traceback
 
 import cv2
-from numpy import ndarray
+import numpy as np
 
-from camkifu.config.cvconf import unsynced, frame_period
-from camkifu.core.imgutil import show, draw_str, destroy_win
+from camkifu.config import cvconf
+from camkifu.core import imgutil
 
 
 __author__ = 'Arnaud Peloquin'
@@ -29,7 +29,9 @@ class VidProcessor(object):
         self.vmanager = vmanager
         self.own_images = {}
 
-        self.frame_period = frame_period  # shortest time between two processings: put thread to sleep if it's too early
+        # shortest time between two processings: put thread to sleep if it's too early
+        self.frame_period = cvconf.frame_period
+
         self.full_speed = False  # whether to respect the frame period or not
         self.last_read = 0.0  # the instant of the last successful frame read (before the processing of that frame).
 
@@ -43,13 +45,13 @@ class VidProcessor(object):
         # Tkinter and openCV must cohabit on the main thread to display things.
         # If this main thread is too crammed with openCV showing images, bad things start to happen
         # The variables below help relieving the main thread by not showing all images requested.
-        self.last_shown = defaultdict(lambda: 0)    # the last time an image has been shown for this VidProcessor
-        self.ignored_show = defaultdict(lambda: 0)  # the number of images ignored since last_shown
+        self.last_shown = collections.defaultdict(lambda: 0)    # the last time an image has been shown
+        self.ignored_show = collections.defaultdict(lambda: 0)  # the number of images ignored since last_shown
 
         # metadata to print on the next image.
         # the structure is a dict because some images may not be shown, so data may have to be aggregated / overwritten
         # usage : for k, v in self.metadata.items(): k.format(v)  --  one key per row
-        self.metadata = defaultdict(list)
+        self.metadata = collections.defaultdict(list)
         self.total_f_processed = 0  # total number of frames processed since init.
 
     def execute(self):
@@ -66,23 +68,23 @@ class VidProcessor(object):
             while not self._interrupt_mainloop():
                 self._checkpause()
                 # check that the minimal time period between two iterations is respected
-                frequency_condition = self.full_speed or (self.frame_period < time() - self.last_read)
+                frequency_condition = self.full_speed or (self.frame_period < time.time() - self.last_read)
                 if self.ready_to_read() and frequency_condition:
                     ret, frame = self.vmanager.read(self)
                     if ret:
-                        self.last_read = time()
+                        self.last_read = time.time()
                         self._doframe(frame)
                         self.total_f_processed += 1
                         self.checkkey()
                     else:
-                        if frame != unsynced:
+                        if frame != cvconf.unsynced:
                             print("Could not read camera for {0}.".format(str(type(self))))
-                            sleep(2)
+                            time.sleep(2)
                 else:
-                    sleep(self.frame_period / 10)  # precision doesn't really matter here
+                    time.sleep(self.frame_period / 10)  # precision doesn't really matter here
         except BaseException as exc:
             self.vmanager.error_raised(self, exc)
-            print_exc()
+            traceback.print_exc()
         finally:
             self._destroy_windows()
             self.vmanager.confirm_stop(self)
@@ -112,7 +114,7 @@ class VidProcessor(object):
         """
         return not self._interruptflag
 
-    def _doframe(self, frame: ndarray):
+    def _doframe(self, frame: np.ndarray):
         """
         Image-processing algorithm may be implemented under that extension point.
 
@@ -155,7 +157,7 @@ class VidProcessor(object):
         """
         if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
             while self.pausedflag and not self.next_flag:
-                sleep(0.1)
+                time.sleep(0.1)
             self.next_flag = False
         else:  # supposedly in single-threaded dev mode
             if self.pausedflag:
@@ -213,20 +215,20 @@ class VidProcessor(object):
             x_offset = 40
             line_spacing = 20
             s = "Frame {}/{} ({} not shown)".format(frame_idx, total, self.ignored_show[name])
-            draw_str(img, s, x_offset, line_spacing)
+            imgutil.draw_str(img, s, x_offset, line_spacing)
             if latency:
-                draw_str(img, "latency: %.1f ms" % ((time() - self.last_read) * 1000), x_offset, 2 * line_spacing)
+                imgutil.draw_str(img, "latency: %.1f ms" % ((time.time() - self.last_read) * 1000), x_offset, 2 * line_spacing)
             if thread:
-                draw_str(img, "thread: " + current_thread().getName(), x_offset, 3 * line_spacing)
+                imgutil.draw_str(img, "thread: " + threading.current_thread().getName(), x_offset, 3 * line_spacing)
                 # step 2 : draw custom metadata, from the bottom of image
             i = 0
             for k, v in self.metadata.items():
-                draw_str(img, k.format(v), x_offset, img.shape[0] - (i + 1) * line_spacing)
+                imgutil.draw_str(img, k.format(v), x_offset, img.shape[0] - (i + 1) * line_spacing)
                 i += 1
             self.metadata.clear()
             if self.pausedflag:
                 for img in self.own_images.values():
-                    draw_str(img, "PAUSED", int(img.shape[0] / 2 - 30), int(img.shape[1] / 2))
+                    imgutil.draw_str(img, "PAUSED", int(img.shape[0] / 2 - 30), int(img.shape[1] / 2))
         except Exception as exc:
             print("VidProcessor._draw_metadata(): {}".format(exc))
 
@@ -243,21 +245,21 @@ class VidProcessor(object):
         if name is None:
             name = self._window_name()
         if self.vmanager.imqueue is not None:
-            if 1 / max_frequ < time() - self.last_shown[name]:
+            if 1 / max_frequ < time.time() - self.last_shown[name]:
                 self._draw_metadata(img, name, latency, thread)
                 try:
                     self.vmanager.imqueue.put_nowait((name, img, self, loc))
                     self.own_images[name] = img
                     self.ignored_show[name] = 0
-                    self.last_shown[name] = time()
-                except Full:
+                    self.last_shown[name] = time.time()
+                except queue.Full:
                     self.ignored_show[name] += 1
                     print("Image queue full, not showing {0}".format(hex(id(img))))
             else:
                 self.ignored_show[name] += 1
         else:
             self._draw_metadata(img, name, latency, thread)
-            show(img, name=name, loc=loc)  # assume we are on main thread
+            imgutil.show(img, name=name, loc=loc)  # assume we are on main thread
             self.own_images[name] = img
 
     def _window_name(self) -> str:
@@ -279,11 +281,11 @@ class VidProcessor(object):
                 # caveat: wait until a slot is available to ensure destruction
                 self.vmanager.imqueue.put((name, None, None, None))
             else:
-                destroy_win(name)
+                imgutil.destroy_win(name)
         self.own_images.clear()
 
 
-class VisionThread(Thread):
+class VisionThread(threading.Thread):
     """
     Wrapper for VidProcessor, to run it in a daemon thread.
 

@@ -1,18 +1,18 @@
-from traceback import print_exc
-import cv2
+import traceback
 import sys
 
-from numpy import float32, array
+import cv2
+import numpy as np
 
-from camkifu.config.cvconf import canonical_size as csize
-from camkifu.core.imgutil import draw_circles, draw_lines, get_ordered_hull, norm
-from camkifu.core.video import VidProcessor
+import camkifu.core
+from camkifu.core import imgutil
+from camkifu.config import cvconf
 
 
 __author__ = 'Arnaud Peloquin'
 
 
-class BoardFinder(VidProcessor):
+class BoardFinder(camkifu.core.VidProcessor):
     """
     Abstract class providing a suggestion of common features that should be shared by board-finding algorithms.
 
@@ -24,18 +24,18 @@ class BoardFinder(VidProcessor):
     def __init__(self, vmanager):
         super().__init__(vmanager)
         self.corners = GobanCorners()
-        self.transform_dst = array([(0, 0), (csize, 0), (csize, csize), (0, csize)], dtype=float32)
+        self.transform_dst = np.array([(0, 0), (cvconf.canonical_size, 0), (cvconf.canonical_size, cvconf.canonical_size), (0, cvconf.canonical_size)], dtype=np.float32)
         self.mtx = None
 
     def _doframe(self, frame):
         self.corners.frame = frame
         if self._detect(frame):
-            source = array(self.corners.hull, dtype=float32)
+            source = np.array(self.corners.hull, dtype=np.float32)
             try:
                 self.mtx = cv2.getPerspectiveTransform(source, self.transform_dst)
             except cv2.error:
                 self.mtx = None  # the stones finder must stop
-                print_exc()
+                traceback.print_exc()
 
     def _detect(self, frame):
         """
@@ -51,8 +51,7 @@ class BoardFinder(VidProcessor):
 
         """
         if loc is None:
-            from camkifu.config.cvconf import bf_loc
-            loc = bf_loc
+            loc = cvconf.bf_loc
         super()._show(img, name, latency, thread, loc=loc, max_frequ=max_freq)
 
 
@@ -83,8 +82,8 @@ class GobanCorners():
         """
         closest = (sys.maxsize, None)  # (distance, index_in_list)
         for i, pt in enumerate(self._points):
-            if norm(pt, point) < closest[0]:
-                closest = (norm(pt, point), i)
+            if imgutil.norm(pt, point) < closest[0]:
+                closest = (imgutil.norm(pt, point), i)
         if len(self._points) < 4:
             if closest[1] is None or self.frame is None or min(*self.frame.shape[0:2]) / 5 < closest[0]:
                 self._points.append(point)
@@ -102,17 +101,17 @@ class GobanCorners():
         self._check()
 
     def paint(self, img):
-        #draw points found so far
-        draw_circles(img, self._points, color=(255, 255, 0))
+        # draw points found so far
+        imgutil.draw_circles(img, self._points, color=(255, 255, 0))
 
-        #draw convex hull
+        # draw convex hull
         if self.hull is not None:
             nbpts = len(self.hull) - 1
             color = (0, 0, 255)
             for i in range(-1, nbpts):
                 x1, y1 = self.hull[i]
                 x2, y2 = self.hull[i + 1]
-                draw_lines(img, [[x1, y1, x2, y2]], color)
+                imgutil.draw_lines(img, [[x1, y1, x2, y2]], color)
                 color = (255 * (nbpts - i - 1) / nbpts, 0, 255 * (i + 1) / nbpts)
 
     def _check(self):
@@ -122,7 +121,7 @@ class GobanCorners():
 
         """
         if 3 < len(self._points):
-            self.hull = get_ordered_hull(self._points)
+            self.hull = imgutil.get_ordered_hull(self._points)
             if len(self.hull) != 4:
                 self.hull = None
         else:

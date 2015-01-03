@@ -1,12 +1,14 @@
-from argparse import ArgumentParser
-from os.path import basename
-from queue import Queue
-from tkinter import Tk
+import argparse
+import os.path
+import queue
+import tkinter
 
-from camkifu.core.vmanager import VManager
-import glmain, ckmain
-from test.objects.kifuref import display_matcher, print_matcher
-from test.objects.controllerv_test import ControllerVTest
+import glmain
+import ckmain
+import camkifu.core
+
+import test.objects
+from test.objects import kifu_checker
 
 
 __author__ = 'Arnaud Peloquin'
@@ -26,17 +28,17 @@ def set_title(root2, video, vmanager):
     """
     src = "Live video"
     if type(video) is str:
-        src = basename(video)
+        src = os.path.basename(video)
     title = "{} [{}, {}]".format(src, vmanager.bf_class.__name__, vmanager.sf_class.__name__)
     root2.title(title)
 
 
 def main(ref_sgf, video=0, vid_bounds=(0, 1), mv_bounds=0, failfast=False, bf=None, sf=None):
-    root = Tk(className="Detection Test")
+    root = tkinter.Tk(className="Detection Test")
     root.withdraw()
-    imqueue = Queue(maxsize=10)
-    controller = ControllerVTest(ref_sgf, video=video, vid_bounds=vid_bounds, mv_bounds=mv_bounds, failfast=failfast)
-    vmanager = VManager(controller, imqueue=imqueue, bf=bf, sf=sf)
+    imqueue = queue.Queue(maxsize=10)
+    controller = test.objects.ControllerVTest(ref_sgf, video=video, vid_bounds=vid_bounds, mv_bounds=mv_bounds, failfast=failfast)
+    vmanager = camkifu.core.VManager(controller, imqueue=imqueue, bf=bf, sf=sf)
     vmanager.start()
 
     def tk_routine():
@@ -54,18 +56,18 @@ def main(ref_sgf, video=0, vid_bounds=(0, 1), mv_bounds=0, failfast=False, bf=No
         vmanager.stop_processing()
 
     # display test results
-    root2 = Tk()
+    root2 = tkinter.Tk()
     set_title(root2, video, vmanager)
     matcher = controller.kifu.check()
-    frame = display_matcher(matcher, master=root2)
-    print_matcher(matcher)
+    frame = kifu_checker.display_matcher(matcher, master=root2)
+    kifu_checker.print_matcher(matcher)
     frame.pack()
     glmain.center(root2)
     glmain.bring_to_front()
     root2.mainloop()
 
 
-def get_argparser() -> ArgumentParser:
+def get_argparser() -> argparse.ArgumentParser:
     parser = ckmain.get_argparser()
 
     # compulsory argument

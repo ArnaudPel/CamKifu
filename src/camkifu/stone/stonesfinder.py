@@ -1,19 +1,16 @@
-from math import pi, cos, sin
-from queue import Queue, Full, Empty
-from time import time
+import math
+import queue
+import time
 
 import cv2
-from numpy import zeros, uint8, int16, float32, sum as npsum, empty, ogrid, ndarray, vectorize,\
-    max as npmax, min as npmin
-from numpy.core.multiarray import count_nonzero
-from numpy.ma import absolute
+import numpy as np
+import golib.model.move
 
-from camkifu.config.cvconf import canonical_size
-from camkifu.core.exceptions import CorrectionWarning, DeletedError
-from camkifu.core.imgutil import draw_str, Segment, within_margin, around, draw_lines
-from camkifu.core.video import VidProcessor
+import camkifu.core
+from camkifu.core import imgutil
+from camkifu.config import cvconf
+
 from golib.config.golib_conf import gsize, E, B, W
-from golib.model.move import Move
 
 
 __author__ = 'Arnaud Peloquin'
@@ -22,7 +19,7 @@ __author__ = 'Arnaud Peloquin'
 correc_size = 10
 
 
-class StonesFinder(VidProcessor):
+class StonesFinder(camkifu.core.VidProcessor):
     """
     Abstract class providing a base structure for stones-finding processes.
     It relies on the providing of a transform matrix to extract only the goban pixels from the global frame.
@@ -36,7 +33,8 @@ class StonesFinder(VidProcessor):
         """
         super().__init__(vmanager)
         self.goban_img = None  # the current goban image
-        self._posgrid = PosGrid(canonical_size)
+        self.canonical_shape = (cvconf.canonical_size, cvconf.canonical_size)
+        self._posgrid = PosGrid(cvconf.canonical_size)
         self.mask_cache = None
         self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
         self.intersections = None  # cache for the result of self.find_intersections()
@@ -47,8 +45,8 @@ class StonesFinder(VidProcessor):
             self.bg_init_frames = 50
 
         # (quite primal) "learning" attributes. see self._learn()
-        self.corrections = Queue(correc_size)
-        self.saved_bg = zeros((canonical_size, canonical_size, 3), dtype=float32)
+        self.corrections = queue.Queue(correc_size)
+        self.saved_bg = np.zeros(self.canonical_shape + (3,), dtype=np.float32)
         self.deleted = {}  # locations under "deletion watch". keys: the locations, values: the number of samples to do
         self.nb_del_samples = 5
 
@@ -59,7 +57,7 @@ class StonesFinder(VidProcessor):
             transform = self.vmanager.board_finder.mtx
         if transform is not None:
             try:
-                self.goban_img = cv2.warpPerspective(frame, transform, (canonical_size, canonical_size))
+                self.goban_img = cv2.warpPerspective(frame, transform, self.canonical_shape)
             except cv2.error:
                 print("frame:", frame, sep="\n")
                 print("transform:", transform, sep="\n")
@@ -67,9 +65,9 @@ class StonesFinder(VidProcessor):
             self._learn()
             self._find(self.goban_img)
         else:
-            if 1 < time() - self.last_shown:
-                black = zeros((canonical_size, canonical_size), dtype=uint8)
-                draw_str(black, "NO BOARD LOCATION AVAILABLE", int(black.shape[0] / 2 - 110), int(black.shape[1] / 2))
+            if 1 < time.time() - self.last_shown:
+                black = np.zeros(self.canonical_shape, dtype=np.uint8)
+                imgutil.draw_str(black, "NO BOARD LOCATION AVAILABLE", int(black.shape[0] / 2 - 110), int(black.shape[1] / 2))
                 self._show(black)
 
     def ready_to_read(self):
@@ -124,7 +122,7 @@ class StonesFinder(VidProcessor):
                 else:
                     # missed a stone (not that bad), leave it to subclasses to figure if they want to use this info.
                     unprocessed.append((err, exp))
-        except Empty:
+        except queue.Empty:
             pass
 
         # step 2: sample all locations that still need it
@@ -136,14 +134,14 @@ class StonesFinder(VidProcessor):
                 except ValueError:
                     fg = None
                 x0, y0, x1, y1 = self.getrect(r, c)
-                if fg is None or npsum(fg[x0:x1, y0:y1] < 0.1 * (x1-x0) * (y1-y0)):
+                if fg is None or np.sum(fg[x0:x1, y0:y1] < 0.1 * (x1-x0) * (y1-y0)):
                     # noinspection PyTypeChecker
                     self.saved_bg[x0:x1, y0:y1] += self.goban_img[x0:x1, y0:y1] / self.nb_del_samples
                     self.deleted[(r, c)] = nb_left - 1
 
         # bonus step: forcibly indicate any ignored input (the user added stones, or changed the color of stones)
         if 0 < len(unprocessed):
-            raise CorrectionWarning(unprocessed, message="Unhandled corrections")
+            raise camkifu.core.CorrectionWarning(unprocessed, message="Unhandled corrections")
 
     def _check_dels(self, r: int, c: int):
         try:
@@ -153,14 +151,14 @@ class StonesFinder(VidProcessor):
         if 0 == nb_samples_left:  # only check when sampling has completed
             x0, y0, x1, y1 = self.getrect(r, c)
             diff = self.saved_bg[x0:x1, y0:y1] - self.goban_img[x0:x1, y0:y1]
-            if npsum(absolute(diff)) / (diff.shape[0] * diff.shape[1]) < 40:
-                raise DeletedError("The zone has not changed enough since last deletion")
+            if np.sum(np.absolute(diff)) / (diff.shape[0] * diff.shape[1]) < 40:
+                raise camkifu.core.DeletedError("The zone has not changed enough since last deletion")
             else:
                 # the area has changed, alleviate ban.
                 print("previously user-deleted location: {} now unlocked".format((r, c)))
                 del self.deleted[(r, c)]
         else:
-            raise DeletedError("The zone has been marked as deleted only a few frames ago")
+            raise camkifu.core.DeletedError("The zone has been marked as deleted only a few frames ago")
 
     def _window_name(self):
         return "camkifu.stone.stonesfinder.StonesFinder"
@@ -174,7 +172,7 @@ class StonesFinder(VidProcessor):
 
         """
         self._check_dels(x, y)
-        move = Move('np', ctuple=(color, x, y))
+        move = golib.model.move.Move('np', ctuple=(color, x, y))
         if doprint:
             print(move)
         self.vmanager.controller.pipe("append", move)
@@ -189,7 +187,7 @@ class StonesFinder(VidProcessor):
 
         """
         assert not self.is_empty(x, y), "Can't remove stone from empty intersection."
-        move = Move('np', ("", x, y))
+        move = golib.model.move.Move('np', ("", x, y))
         print("delete {}".format(move))
         self.vmanager.controller.pipe("delete", move.x, move.y)
 
@@ -202,33 +200,34 @@ class StonesFinder(VidProcessor):
         del_errors = []
         for color, x, y in tuples:
             if color is E and not self.is_empty(x, y):
-                    moves.append(Move('np', (color, x, y)))
+                    moves.append(golib.model.move.Move('np', (color, x, y)))
             elif color in (B, W):
                 if not self.is_empty(x, y):
                     existing_mv = self.vmanager.controller.locate(y, x)
                     if color is not existing_mv.color:  # if existing_mv is None, better to crash now, so no None check
                         # delete current stone to be able to put the other color
-                        moves.append(Move('np', (E, x, y)))
+                        moves.append(golib.model.move.Move('np', (E, x, y)))
                     else:
                         continue  # already up to date, go to next iteration
                 try:
                     self._check_dels(x, y)
-                    moves.append(Move('np', (color, x, y)))
-                except DeletedError as de:
+                    moves.append(golib.model.move.Move('np', (color, x, y)))
+                except camkifu.core.DeletedError as de:
                     del_errors.append(de)
         if len(moves):
             self.vmanager.controller.pipe("bulk", moves)
         if len(del_errors):
-            raise DeletedError(del_errors, message="Bulk_update:warning: All non-conflicting locations have been sent.")
+            msg = "Bulk_update:warning: All non-conflicting locations have been sent."
+            raise camkifu.core.DeletedError(del_errors, message=msg)
 
-    def corrected(self, err_move: Move, exp_move: Move) -> None:
+    def corrected(self, err_move: golib.model.move.Move, exp_move: golib.model.move.Move) -> None:
         """
         Entry point to provide corrections made by the user to stone(s) location(s) on the Goban. See _learn().
 
         """
         try:
             self.corrections.put_nowait((err_move, exp_move))
-        except Full:
+        except queue.Full:
             print("Corrections queue full (%s), ignoring %s -> %s" % (correc_size, str(err_move), str(exp_move)))
 
     def is_empty(self, x: int, y: int) -> bool:
@@ -326,7 +325,7 @@ class StonesFinder(VidProcessor):
         y1 = min(self._posgrid.size, int((1 - w) * p[1] + w * pafter[1]))
         return x0, y0, x1, y1
 
-    def getmask(self, depth=1) -> ndarray:
+    def getmask(self, depth=1) -> np.ndarray:
         """
         A boolean mask shaped in "cvconf.canonical_size" that has a circle around each goban intersection.
         Multiply a frame by this mask to zero-out anything outside the circles.
@@ -334,8 +333,8 @@ class StonesFinder(VidProcessor):
         """
         if self.mask_cache is None or depth != (1 if len(self.mask_cache.shape) == 2 else self.mask_cache.shape[2]):
             print("initializing stones mask")
-            shape = (canonical_size, canonical_size)
-            mask = empty(shape, dtype=uint8)  # without depth
+            shape = self.canonical_shape
+            mask = np.empty(shape, dtype=np.uint8)  # without depth
             for row in range(gsize):
                 for col in range(gsize):
                     x0, y0, x1, y1 = self.getrect(row, col)
@@ -343,12 +342,12 @@ class StonesFinder(VidProcessor):
                     a = zone.shape[0] / 2
                     b = zone.shape[1] / 2
                     r = min(a, b)
-                    y, x = ogrid[-a:zone.shape[0] - a, -b: zone.shape[1] - b]
+                    y, x = np.ogrid[-a:zone.shape[0] - a, -b: zone.shape[1] - b]
                     zmask = x * x + y * y <= r * r
                     mask[x0:x1, y0:y1] = zmask
             if 1 < depth:
                 shape += (depth, )
-            self.mask_cache = empty(shape)
+            self.mask_cache = np.empty(shape)
 
             # duplicate mask to match image depth
             if len(shape) == 3:
@@ -359,7 +358,7 @@ class StonesFinder(VidProcessor):
 
             # store the area of one zone for normalizing purposes
             x0, y0, x1, y1 = self.getrect(0, 0)
-            self.zone_area = npsum(mask[x0:x1, y0:y1])
+            self.zone_area = np.sum(mask[x0:x1, y0:y1])
         return self.mask_cache
 
     def get_stones(self):
@@ -378,7 +377,7 @@ class StonesFinder(VidProcessor):
         else:
             raise ValueError("This StonesFinder doesn't seem to be segmenting background. See self.__init__()")
 
-    def find_intersections(self, img: ndarray, canvas: ndarray=None) -> ndarray:
+    def find_intersections(self, img: np.ndarray, canvas: np.ndarray=None) -> np.ndarray:
         """
         Return a matrix indicating which intersections are likely to be empty.
 
@@ -401,14 +400,14 @@ class StonesFinder(VidProcessor):
                 min_side = min(zone.shape[0], zone.shape[1])
                 thresh = int(min_side * 3 / 4)
                 min_len = int(min_side * 2 / 3)
-                lines = cv2.HoughLinesP(zone, 1, pi / 180, threshold=thresh, maxLineGap=0, minLineLength=min_len)
+                lines = cv2.HoughLinesP(zone, 1, math.pi / 180, threshold=thresh, maxLineGap=0, minLineLength=min_len)
                 if lines is not None and 0 < len(lines):
                     if canvas is not None:
-                        draw_lines(canvas[x0:x1, y0:y1], [line[0] for line in lines])
+                        imgutil.draw_lines(canvas[x0:x1, y0:y1], [line[0] for line in lines])
                     update_grid(lines, (x0, y0, x1, y1), grid[r][c])
         return grid
 
-    def get_intersections(self, img, display=False) -> ndarray:
+    def get_intersections(self, img, display=False) -> np.ndarray:
         """
         A cached wrapper of self.find_intersections()
 
@@ -419,7 +418,7 @@ class StonesFinder(VidProcessor):
             else:
                 canvas = None
             self.intersections = self.find_intersections(img, canvas=canvas)
-            self._posgrid.learn(absolute(self.intersections))
+            self._posgrid.learn(np.absolute(self.intersections))
             if display:
                 self.display_intersections(self.intersections, canvas)
         return self.intersections
@@ -445,7 +444,7 @@ class StonesFinder(VidProcessor):
         max_area = (3 * radius) ** 2
         return min_area, max_area
 
-    def check_against(self, stones: ndarray, reference: ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
+    def check_against(self, stones: np.ndarray, reference: np.ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
         Check that the newly found 'stones' array is coherent with the already existing 'reference' array.
         'stones' and 'reference' can be subregions of the Goban, as long as they have the same shape.
@@ -468,7 +467,7 @@ class StonesFinder(VidProcessor):
                 return -1  # refused
         return 0  # undetermined
 
-    def check_lines(self, stones: ndarray, img: ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
+    def check_lines(self, stones: np.ndarray, img: np.ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
         Check that the provided "stones" 2D array is coherent with lines detection in the image: no line should
         be found in zones where a stone has been detected.
@@ -502,7 +501,7 @@ class StonesFinder(VidProcessor):
                 return -1  # refused
         return 0  # undetermined
 
-    def check_thickness(self, stones: ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
+    def check_thickness(self, stones: np.ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
         Check that the provided "stones" 2D array doesn't contain "big chunks" that wouldn't make sense in a regular
         game of Go.
@@ -512,15 +511,15 @@ class StonesFinder(VidProcessor):
 
         """
         for color in (B, W):
-            avatar = vectorize(lambda x: 1 if x is color else 0)(stones[rs:re, cs:ce].flatten())
+            avatar = np.vectorize(lambda x: 1 if x is color else 0)(stones[rs:re, cs:ce].flatten())
             # diagonal moves cost as much as side moves
-            dist = cv2.distanceTransform(avatar.reshape((re-rs, ce-cs)).astype(uint8), cv2.DIST_C, 3)
-            if 2 < npmax(dist):
+            dist = cv2.distanceTransform(avatar.reshape((re-rs, ce-cs)).astype(np.uint8), cv2.DIST_C, 3)
+            if 2 < np.max(dist):
                 # a stone surrounded by a 2-stones-thick wall of its own color is most likely not Go
                 return -1
         return 0
 
-    def check_flow(self, stones: ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
+    def check_flow(self, stones: np.ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
         Check that newly added stones colors match expectations.
         If multiple new stones : there should be at most one more stone of a color than the other color.
@@ -542,7 +541,7 @@ class StonesFinder(VidProcessor):
             # can't really confirm, but at least nothing seems wrong
             return 0 if abs(diff) <= 1 else -1
 
-    def first_line_lonelies(self, stones: ndarray, reference: ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
+    def first_line_lonelies(self, stones: np.ndarray, reference: np.ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """
         Return all the stones on the first line that have no neighbour in a 2-lines thick square around them.
 
@@ -560,7 +559,7 @@ class StonesFinder(VidProcessor):
         for (r, c) in pos:
             if stones[r, c] in (B, W):
                 alone = True
-                for x, y in around(r, c, 2, xmin=0, xmax=gsize, ymin=0, ymax=gsize):
+                for x, y in imgutil.around(r, c, 2, xmin=0, xmax=gsize, ymin=0, ymax=gsize):
                     if reference[x, y] in (B, W) or stones[x, y] in (B, W):
                         alone = False
                         break
@@ -568,7 +567,7 @@ class StonesFinder(VidProcessor):
                     lonelies.append((r, c))
         return lonelies
 
-    def _drawgrid(self, img: ndarray):
+    def _drawgrid(self, img: np.ndarray):
         """
         Draw a circle around each intersection of the goban, as they are currently estimated.
 
@@ -587,16 +586,16 @@ class StonesFinder(VidProcessor):
         for row in range(gsize):
             for col in range(gsize):
                 x, y = self._posgrid.mtx[row, col]
-                draw_str(img, str(values[row, col]), x - 10, y + 2)
+                imgutil.draw_str(img, str(values[row, col]), x - 10, y + 2)
 
-    def draw_stones(self, stones: ndarray, canvas: ndarray=None):
+    def draw_stones(self, stones: np.ndarray, canvas: np.ndarray=None):
         """
         Dev method to see an array of stones in an image. It is a simpler alternative than suggesting them to the goban,
         since there's no game logic involved (easier to update on the flight).
 
         """
         if canvas is None:
-            canvas = zeros((self._posgrid.size, self._posgrid.size, 3), dtype=uint8)
+            canvas = np.zeros((self._posgrid.size, self._posgrid.size, 3), dtype=np.uint8)
         canvas[:] = (65, 100, 128)
         for x in range(gsize):
             for y in range(gsize):
@@ -650,9 +649,9 @@ class StonesFinder(VidProcessor):
         Display a "message" image indicating the background sampling is running.
 
         """
-        black = zeros((goban_img.shape[0], goban_img.shape[1]), dtype=uint8)
+        black = np.zeros((goban_img.shape[0], goban_img.shape[1]), dtype=np.uint8)
         message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
-        draw_str(black, message)
+        imgutil.draw_str(black, message)
         self._show(black)
 
 
@@ -672,14 +671,14 @@ def update_grid(lines, box, result_slot):
     # step one: only retain lines that are either vertical or horizontal enough, and centered
     segments = []
     for line in lines:
-        seg = Segment(line[0])
-        if 0.995 < abs(cos(seg.theta)):  # horizontal check + margin respect
+        seg = imgutil.Segment(line[0])
+        if 0.995 < abs(math.cos(seg.theta)):  # horizontal check + margin respect
             p = (box[0] + box[2]) / 2, (seg.p1()[0] + seg.p2()[0]) / 2 + box[1]
-            if not within_margin(p, box, margin):
+            if not imgutil.within_margin(p, box, margin):
                 continue
-        elif 0.995 < abs(sin(seg.theta)):  # vertical check + margin respect
+        elif 0.995 < abs(math.sin(seg.theta)):  # vertical check + margin respect
             p = (seg.p1()[1] + seg.p2()[1]) / 2 + box[0], (box[3] + box[1]) / 2  # numpy coordinates
-            if not within_margin(p, box, margin):
+            if not imgutil.within_margin(p, box, margin):
                 continue
         else:
             continue
@@ -701,7 +700,7 @@ def update_grid(lines, box, result_slot):
                     p = seg1.intersection(seg2)
                     if p is not None:
                         p = p[1] + box[0], p[0] + box[1]  # add offset to match global image coordinates
-                        if within_margin(p, box, margin):
+                        if imgutil.within_margin(p, box, margin):
                             x_sum += p[0]
                             y_sum += p[1]
                             number += 1
@@ -720,8 +719,8 @@ class PosGrid(object):
 
     def __init__(self, size):
         self.size = size
-        self.mtx = zeros((gsize, gsize, 2), dtype=int16)  # stores the pixel position of each intersection o the goban
-        self.adjust_vect = zeros(2, dtype=float32)
+        self.mtx = np.zeros((gsize, gsize, 2), dtype=np.int16)  # stores the pixel position of each intersection o the goban
+        self.adjust_vect = np.zeros(2, dtype=np.float32)
         self.adjust_contribs = 0
 
         # initialize grid with default values
@@ -758,7 +757,7 @@ class PosGrid(object):
                 for j in range(-1, 2):
                     y = hook[1] + j
                     try:
-                        dist = sum(absolute(self.mtx[x][y] - point))
+                        dist = sum(np.absolute(self.mtx[x][y] - point))
                         if dist < target[2]:
                             target = (x, y, dist)
                     except IndexError:
@@ -776,18 +775,18 @@ class PosGrid(object):
         """
         assert 0 < rate <= 1  # if 0, why call ?
         diff = grid - self.mtx
-        if npmin(diff) < -200:
+        if np.min(diff) < -200:
             raise ValueError("Provided grid seems too far from original, at least for one point.")
-        vect = npsum(diff, axis=(0, 1), dtype=float32)
+        vect = np.sum(diff, axis=(0, 1), dtype=np.float32)
         # then, normalize.
         # in theory, should be the count of points that moved in at least one direction. but that's good enough for now.
-        contributors = count_nonzero(absolute(diff[:, :, 0]) + absolute(diff[:, :, 1]))
+        contributors = np.count_nonzero(np.absolute(diff[:, :, 0]) + np.absolute(diff[:, :, 1]))
         vect /= contributors
         self.adjust_vect *= (1.0 - rate)
         self.adjust_vect += vect * rate
         self.adjust_contribs += contributors
         if 20 < self.adjust_contribs:
             print("Grid adjust vector : {}".format(self.adjust_vect))
-            self.mtx += self.adjust_vect.astype(int16)
+            self.mtx += self.adjust_vect.astype(np.int16)
             self.adjust_vect[:] = 0
             self.adjust_contribs = 0

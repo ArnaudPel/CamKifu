@@ -1,9 +1,10 @@
-from bisect import insort
-import cv2
+import bisect
 import random
-from numpy import vstack, float32, roll, sum as npsum, where
-from numpy.ma import sqrt as npsqrt
-from camkifu.core.imgutil import Segment
+
+import numpy as np
+import cv2
+
+import camkifu.core.imgutil
 
 __author__ = 'Arnaud Peloquin'
 
@@ -86,7 +87,7 @@ def _merge(grid, precision=1):
                 bestmatch = valuations[0]
                 if bestmatch[0] < precision:  # if error acceptable
                     segments.remove(bestmatch[1])
-                    segmt = Segment(_get_seg(bestmatch[2]))
+                    segmt = camkifu.core.imgutil.Segment(_get_seg(bestmatch[2]))
                     merged.insort(segmt)
                 else:
                     discarded.insort(seg)
@@ -111,11 +112,11 @@ def _least_squares(seg, neighb, valuations):
     p2 = seg.coords[2:4]
     p3 = neighb.coords[0:2]
     p4 = neighb.coords[2:4]
-    ndarray = vstack([p1, p2, p3, p4])
-    points = float32(ndarray)
+    ndarray = np.vstack([p1, p2, p3, p4])
+    points = np.float32(ndarray)
     regression = cv2.fitLine(points, cv2.DIST_L2, 0, 0.01, 0.01)
     error, projections = _error(points, regression)
-    insort(valuations, (error, neighb, projections))
+    bisect.insort(valuations, (error, neighb, projections))
 
 
 def _get_neighbours(segments, start, intercept):
@@ -181,15 +182,15 @@ def _error(points, regr):
     x0 = regr[2][0]
     y0 = regr[3][0]
     # column vectors for matrix calculation
-    vect = vstack([vx, vy])
-    p0 = vstack([x0, y0])
+    vect = np.vstack([vx, vy])
+    p0 = np.vstack([x0, y0])
 
     projector = vect.dot(vect.T) / vect.T.dot(vect)  # projection matrix
 
     error = 0
     projections = []
     for point in points:
-        actual = vstack([point[0], point[1]])  # make sure we have column vector here as well
+        actual = np.vstack([point[0], point[1]])  # make sure we have column vector here as well
         projection = projector.dot(actual - p0) + p0
         errvect = actual - projection
         err = errvect.T.dot(errvect)
@@ -267,7 +268,7 @@ class SegGrid:
         return self.hsegs + self.vsegs
 
     def insort(self, segment):
-        insort(self.hsegs, segment) if segment.horiz else insort(self.vsegs, segment)
+        bisect.insort(self.hsegs, segment) if segment.horiz else bisect.insort(self.vsegs, segment)
 
 
 class SegGridIter(object):
@@ -381,14 +382,18 @@ class Chunk:
 
 
 def draw_closing_lines(img, contours):
+    """
+    R&D kindof, tried to see how to connect two 'ends' of contours that appear 'open'.
+
+    """
     for cont in contours:
-        v1 = (roll(cont, -1, axis=0) - cont)
-        v2 = (roll(cont, 1, axis=0) - cont)
-        dotprod = npsum(v1 * v2, axis=2)
-        norm1 = npsqrt(npsum(v1 ** 2, axis=2))
-        norm2 = npsqrt(npsum(v2 ** 2, axis=2))
+        v1 = (np.roll(cont, -1, axis=0) - cont)
+        v2 = (np.roll(cont, 1, axis=0) - cont)
+        dotprod = np.sum(v1 * v2, axis=2)
+        norm1 = np.sqrt(np.sum(v1 ** 2, axis=2))
+        norm2 = np.sqrt(np.sum(v2 ** 2, axis=2))
         cosinus = (dotprod / norm1) / norm2
-        indexes = where(0.95 < cosinus)[0]
+        indexes = np.where(0.95 < cosinus)[0]
         if len(indexes) == 1:
             cv2.circle(img, tuple(cont[indexes[0], 0]), 3, (0, 255, 255))
         elif len(indexes) == 2:

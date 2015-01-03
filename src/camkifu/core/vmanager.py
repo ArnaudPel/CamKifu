@@ -1,25 +1,25 @@
 import importlib
-from time import sleep
-from threading import Thread, Lock
-from os.path import isfile
+import time
+import threading
+import os.path
 
 import cv2
 
-from camkifu.config.cvconf import bfinders, sfinders, unsynced, file_fps
-from camkifu.core.video import VisionThread
+import camkifu.core.video
+from camkifu.config import cvconf
 
 
 __author__ = 'Arnaud Peloquin'
 
 
-class VManagerBase(Thread):
+class VManagerBase(threading.Thread):
     """
     Abstract vision manager, responsible for creating and coordinating all video detection processes.
 
     """
 
     def __init__(self, controller, imqueue=None, bf=None, sf=None):
-        Thread.__init__(self, name="Vision")
+        threading.Thread.__init__(self, name="Vision")
         self.controller = controller
         self.bind_controller()
         self.imqueue = imqueue
@@ -27,8 +27,8 @@ class VManagerBase(Thread):
         self.capt = None  # initialized in run() with video argument
         self.current_video = None
 
-        self.bf_class = self._reflect(bf, bfinders)
-        self.sf_class = self._reflect(sf, sfinders)
+        self.bf_class = self._reflect(bf, cvconf.bfinders)
+        self.sf_class = self._reflect(sf, cvconf.sfinders)
         self.board_finder = None
         self.stones_finder = None
 
@@ -50,7 +50,7 @@ class VManagerBase(Thread):
         if self.capt is not None:
             self.capt.release()
         self.capt = self._get_capture()
-        self.full_speed = isfile(self.controller.video)
+        self.full_speed = os.path.isfile(self.controller.video)
         self.current_video = self.controller.video
 
         # set the beginning of video files. is ignored by live camera
@@ -207,7 +207,7 @@ class VManager(VManagerBase):
             self.check_bf()
             self.check_sf()
             self.check_video()
-            sleep(0.2)
+            time.sleep(0.2)
             self.hasrun = True
 
     def interrupt(self):
@@ -252,7 +252,7 @@ class VManager(VManagerBase):
             if self.board_finder is not None:
                 self.board_finder.interrupt()
                 while self.board_finder in self.processes:
-                    sleep(0.1)
+                    time.sleep(0.1)
                 self.board_finder = None  # may help prevent misuse
             # instantiate and start new instance
             if self.bf_class is not None:
@@ -273,7 +273,7 @@ class VManager(VManagerBase):
             if self.stones_finder is not None:
                 self.stones_finder.interrupt()
                 while self.stones_finder in self.processes:
-                    sleep(0.1)
+                    time.sleep(0.1)
                 self.stones_finder = None  # may help prevent misuse
             # instantiate and start new instance
             if self.sf_class is not None:
@@ -287,9 +287,9 @@ class VManager(VManagerBase):
         Register "board finders" and "stones finders" with the controller, together with callbacks to start them up.
 
         """
-        for bf_module, bf_class in bfinders:
+        for bf_module, bf_class in cvconf.bfinders:
             self.controller.pipe("register_bf", bf_class, self.set_bf_class)
-        for sf_module, sf_class in sfinders:
+        for sf_module, sf_class in cvconf.sfinders:
             self.controller.pipe("register_sf", sf_class, self.set_sf_class)
 
     def is_processing(self):
@@ -332,7 +332,7 @@ class VManager(VManagerBase):
         Start the provided process and append it to the list of active processes.
 
         """
-        vt = VisionThread(process)
+        vt = camkifu.core.video.VisionThread(process)
         process.full_speed = self.full_speed
         self.processes.append(vt)
         # reset a potential CaptureReader to normal behavior: processes should wait for each other when reading frames
@@ -352,7 +352,7 @@ class VManager(VManagerBase):
             process.pause(boolean)
 
     def set_bf_class(self, bf_class_str):
-        bf_class = self._reflect(bf_class_str, bfinders)
+        bf_class = self._reflect(bf_class_str, cvconf.bfinders)
         if self.bf_class != bf_class:
             self.bf_class = bf_class
         elif not self.is_processing():
@@ -362,7 +362,7 @@ class VManager(VManagerBase):
             self.stones_finder = None
 
     def set_sf_class(self, sf_class_str):
-        sf_class = self._reflect(sf_class_str, sfinders)
+        sf_class = self._reflect(sf_class_str, cvconf.sfinders)
         if self.sf_class != sf_class:
             self.sf_class = sf_class
         elif not self.is_processing():
@@ -382,7 +382,7 @@ class CaptureReaderBase:
 
     """
 
-    def __init__(self, capture, vmanager: VManagerBase, fps=file_fps):
+    def __init__(self, capture, vmanager: VManagerBase, fps=cvconf.file_fps):
         """
         -- capture : the object from which actual read() calls will be consumed.
         -- vmanager : the owner of the VidProcessors to synchronize.
@@ -399,7 +399,7 @@ class CaptureReaderBase:
 
         """
         if item == "read":
-            if isfile(self.vmanager.controller.video):
+            if os.path.isfile(self.vmanager.controller.video):
                 return lambda caller: self.downsample(*self.read_file(caller))
             else:
                 # no meddling if the input is not a file, yet the argument has to be ignored
@@ -456,8 +456,8 @@ class CaptureReader(CaptureReaderBase):
         super().__init__(capture, vmanager)
         self.buffer = None   # the current result from videocapture.read()
         self.served = set()  # the threads that have received the currently buffered image
-        self.lock_init = Lock()     # synchronization on videocapture.read() calls the first time
-        self.lock_consume = Lock()  # synchronization on videocapture.read() calls
+        self.lock_init = threading.Lock()     # synchronization on videocapture.read() calls the first time
+        self.lock_consume = threading.Lock()  # synchronization on videocapture.read() calls
         self.sleep_time = 0.05  # 50 ms
         self.unsync = False     # True means that the reading is stopped, and no thread should be kept sleeping
 
@@ -472,7 +472,7 @@ class CaptureReader(CaptureReaderBase):
         """
         self.init_buffer()
         while not self.unsync and caller in self.served:  # self.served may be cleared by another thread while sleeping
-            sleep(self.sleep_time)
+            time.sleep(self.sleep_time)
             self.consume()  # check the possibility that others processors became passive without being noticed
         self.served.add(caller)
         self.consume()
@@ -495,7 +495,7 @@ class CaptureReader(CaptureReaderBase):
         """
         with self.lock_consume:
             if self.unsync:
-                self.buffer = False, unsynced
+                self.buffer = False, cvconf.unsynced
                 self.served.clear()
             else:
                 served_all = True

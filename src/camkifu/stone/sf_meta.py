@@ -1,13 +1,14 @@
-from math import pi
+import math
 
-from numpy import zeros, ndarray, unique, int8, max as npmax, sum as npsum
+import numpy as np
+from golib.config.golib_conf import gsize, E
 
-from camkifu.core.exceptions import DeletedError, CorrectionWarning
-from camkifu.core.imgutil import draw_str, CyclicBuffer
+import camkifu.core
+from camkifu.core import imgutil
+
+import camkifu.stone
 from camkifu.stone.sf_clustering import SfClustering
 from camkifu.stone.sf_contours import SfContours
-from camkifu.stone.stonesfinder import StonesFinder
-from golib.config.golib_conf import gsize, E
 
 
 __author__ = 'Arnaud Peloquin'
@@ -18,7 +19,7 @@ Search = "search"
 Idle = "idle"
 
 
-class SfMeta(StonesFinder):
+class SfMeta(camkifu.stone.StonesFinder):
     """
     Work in progress.
 
@@ -26,8 +27,6 @@ class SfMeta(StonesFinder):
     experimented so far, with the hope to become something actually useful.
 
     """
-
-    label = "SF-Meta"
 
     def __init__(self, vmanager):
         super().__init__(vmanager)
@@ -43,12 +42,13 @@ class SfMeta(StonesFinder):
         # the whole processing is divided into subregions
         self.split = 3
         self.histo = 3
-        self.regions = zeros((self.split, self.split), dtype=object)  # which finder should be used on each goban region
+        # store which finder should be used on each goban region
+        self.regions = np.zeros((self.split, self.split), dtype=object)
         for r in range(self.split):
             for c in range(self.split):
                 self.regions[r, c] = Region(self, self.subregion(r, c), self.histo, finder=self.contour, state=Warmup)
 
-    def _find(self, goban_img: ndarray):
+    def _find(self, goban_img: np.ndarray):
         """
         Baselines :
         - trust contours to find single stones. but it will fail to detect all stones in a chain or cluster.
@@ -71,7 +71,7 @@ class SfMeta(StonesFinder):
     def _learn(self):
         try:
             return super()._learn()
-        except CorrectionWarning as cw:
+        except camkifu.core.CorrectionWarning as cw:
             # would be nice to use that information someday
             print(str(cw))
 
@@ -97,7 +97,7 @@ class SfMeta(StonesFinder):
         return row * step, re, col * step, ce
 
     def _window_name(self):
-        return SfMeta.label
+        return SfMeta.__name__
 
 
 class Region():
@@ -112,19 +112,19 @@ class Region():
         self.rs, self.re, self.cs, self.ce = boundaries
         self.histo = histo
         self.finder = finder
-        self.states = CyclicBuffer(1, self.histo, dtype=object, init=state)
+        self.states = imgutil.CyclicBuffer(1, self.histo, dtype=object, init=state)
         self.data = []
 
         shape = (self.re - self.rs, self.ce - self.cs)
-        self.contour_accu = CyclicBuffer(shape, self.histo, dtype=object, init=E)
-        self.cluster_accu = CyclicBuffer(shape, self.histo, dtype=object, init=E)
+        self.contour_accu = imgutil.CyclicBuffer(shape, self.histo, dtype=object, init=E)
+        self.cluster_accu = imgutil.CyclicBuffer(shape, self.histo, dtype=object, init=E)
         self.accus = {self.sf.contour: self.contour_accu, self.sf.cluster: self.cluster_accu}
 
         self.canvas = None
         self.population = -1  # populations of regions as they  where the last time clustering was assessed
-        self.cluster_score = CyclicBuffer(1, self.histo, dtype=int8)  # assessment score
+        self.cluster_score = imgutil.CyclicBuffer(1, self.histo, dtype=np.int8)  # assessment score
 
-    def process(self, img: ndarray, ref_stones: ndarray, canvas: ndarray=None) -> None:
+    def process(self, img: np.ndarray, ref_stones: np.ndarray, canvas: np.ndarray=None) -> None:
         """
         img -- the global goban img. it will be sliced automatically down below
         foreground -- the global foreground mask. it will be sliced automatically down below
@@ -193,12 +193,12 @@ class Region():
             self.cluster_accu[:] = stones[self.rs:self.re, self.cs:self.ce]
             self.commit(self.cluster_accu)
         if self.cluster_score.at_end():  # wait the end of the cycle before making the decision
-            total_score = npsum(self.cluster_score.buffer)
+            total_score = np.sum(self.cluster_score.buffer)
             if 0 <= total_score:
                 # accept if at least one more success than failures
                 self.finder = self.sf.cluster
                 self.states.buffer[:] = Search  # new finder, run a full cycle
-                if total_score == 0 and npmax(self.cluster_score.buffer) == 0:
+                if total_score == 0 and np.max(self.cluster_score.buffer) == 0:
                     print("Wild assignment of clustering to region {}".format((self.re, self.ce)))
                     # else:
                     # print("Clustering vetoed {} in region {}".format(passed, (self.re, self.ce)))
@@ -225,14 +225,14 @@ class Region():
             passed += check
         return passed
 
-    def commit(self, cb: CyclicBuffer) -> None:
+    def commit(self, cb: imgutil.CyclicBuffer) -> None:
         assert len(cb.buffer.shape) == 3
         moves = []
         for i in range(self.re - self.rs):
             for j in range(self.ce - self.cs):
                 if self.sf.is_empty(i + self.rs, j + self.cs):
                     # noinspection PyTupleAssignmentBalance
-                    vals, counts = unique(cb.buffer[i, j], return_counts=True)
+                    vals, counts = np.unique(cb.buffer[i, j], return_counts=True)
                     if len(vals) == 2 and E in vals:  # don't commit if the two colors have been triggered
                         k = 0 if vals[0] is E else 1
                         if counts[k] / cb.size < 0.4:  # commit if less than 40% empty
@@ -244,7 +244,7 @@ class Region():
                 self.sf.bulk_update(moves)
             elif len(moves):
                 self.sf.suggest(*moves[0], doprint=False)
-        except DeletedError as de:
+        except camkifu.core.DeletedError as de:
             print(str(de))
             pass  # would be nice to learn from it someday..
         cb.increment()
@@ -266,7 +266,7 @@ class Region():
         moving = 0
         border_threshold = 2  # the min number of agitated border intersections to trigger "agitated"
         for a0, b0, a1, b1 in self.outer_border():
-            if (a1-a0) * (b1-b0) * 0.7 < npsum(fg[a0:a1, b0:b1]) / 255:
+            if (a1-a0) * (b1-b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255:
                 if (a0 == 0 or a1 == fg.shape[0]-1) and (b0 == 0 or b1 == fg.shape[1]-1):
                     moving = border_threshold  # moved at corner, set agitated since it is a limit condition
                 moving += 1
@@ -279,8 +279,8 @@ class Region():
         # then, allow for a few (2-3) new stones to have been detected as foreground (it takes some time to learn)
         x0, y0, x1, y1 = self.get_img_bounds()
         subfg = fg[x0:x1, y0:y1]
-        threshold = 3 * (self.sf.stone_radius()**2) * pi  # 3 times the expected area of a stone
-        agitated = npsum(subfg) / 255
+        threshold = 3 * (self.sf.stone_radius()**2) * math.pi  # 3 times the expected area of a stone
+        agitated = np.sum(subfg) / 255
         if threshold < agitated:
             self.set_agitated()
             return False
@@ -312,7 +312,7 @@ class Region():
 
     def get_population(self, stones):
         # noinspection PyTupleAssignmentBalance
-        vals, counts = unique(stones, return_counts=True)
+        vals, counts = np.unique(stones, return_counts=True)
         return sum([counts[idx] for idx, v in enumerate(vals) if v is not E])
 
     def get_img_bounds(self):
@@ -327,7 +327,7 @@ class Region():
         _, _, x1, y1 = self.sf.getrect(self.re - 1, self.ce - 1)
         return x0, y0, x1, y1
 
-    def discard_lonelies(self, stones: ndarray, reference: ndarray):
+    def discard_lonelies(self, stones: np.ndarray, reference: np.ndarray):
         """
         Discard all the stones on the first line that have no neighbour in a 2-lines thick square around them.
 
@@ -368,5 +368,5 @@ class Region():
             self.data.append("K")
         elif isinstance(self.finder, SfContours):
             self.data.append("C")
-        draw_str(self.canvas[x0:x1, y0:y1], str(self.data))
+        imgutil.draw_str(self.canvas[x0:x1, y0:y1], str(self.data))
         self.data.clear()

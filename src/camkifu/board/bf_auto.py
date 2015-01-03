@@ -1,18 +1,17 @@
-from time import time
-from math import pi
+import time
+import math
 
 import cv2
-from numpy import zeros, uint8
+import numpy as np
 
-from camkifu.board.boardfinder import BoardFinder
-from camkifu.core.imgutil import sort_contours_box, norm, get_ordered_hull, connect_clusters, segment_from_hough, \
-    within_margin
+from camkifu import board
+from camkifu.core import imgutil
 
 
 __author__ = 'Arnaud Peloquin'
 
 
-class BoardFinderAuto(BoardFinder):
+class BoardFinderAuto(board.BoardFinder):
     """
     Automatically detect the board location in an image. Implementation based on contours detection,
     with usage of median filtering. It is not able to detect the board when one or more stones are
@@ -37,7 +36,7 @@ class BoardFinderAuto(BoardFinder):
         Decoration of super()._doframe() to add a sleeping period after a positive board detection.
 
         """
-        last_positive = time() - self.last_positive
+        last_positive = time.time() - self.last_positive
         if self.auto_refresh < last_positive:
             super()._doframe(frame)
         else:
@@ -53,7 +52,7 @@ class BoardFinderAuto(BoardFinder):
         _, contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) == 0:
             return False
-        sorted_boxes = sort_contours_box(contours)
+        sorted_boxes = imgutil.sort_contours_box(contours)
         biggest = sorted_boxes[-1]
         frame_area = frame.shape[0] * frame.shape[1]
         found = False
@@ -66,7 +65,7 @@ class BoardFinderAuto(BoardFinder):
                 self.group_intersections(frame.shape)  # fill self.groups_accu
                 while 4 < len(self.groups_accu):
                     prev_length = len(self.groups_accu)
-                    connect_clusters(self.groups_accu, (length_ref / 50) ** 2)
+                    imgutil.connect_clusters(self.groups_accu, (length_ref / 50) ** 2)
                     if len(self.groups_accu) == prev_length:
                         break  # seems it won't get any better
                 found = self.updt_corners(length_ref)
@@ -76,7 +75,7 @@ class BoardFinderAuto(BoardFinder):
             self.metadata["Board  : {}"] = "found" if found else "searching"
             self._show(median)
         if found:
-            self.last_positive = time()
+            self.last_positive = time.time()
         return found
 
     # noinspection PyMethodMayBeStatic
@@ -94,7 +93,7 @@ class BoardFinderAuto(BoardFinder):
         -- the shape of the image in which contours have been found
 
         """
-        ghost = zeros((shape[0], shape[1]), dtype=uint8)
+        ghost = np.zeros((shape[0], shape[1]), dtype=np.uint8)
         # colors = ((0, 0, 255), (255, 0, 0), (0, 255, 0), (255, 255, 255))
         # i = 0
         for pos in posititons:
@@ -102,10 +101,10 @@ class BoardFinderAuto(BoardFinder):
             # i += 1
         # self._show(ghost)
         thresh = int(length_ref / 5)
-        lines = cv2.HoughLines(ghost, 1, pi / 180, threshold=thresh)
+        lines = cv2.HoughLines(ghost, 1, math.pi / 180, threshold=thresh)
         segments = []
         for line in lines:
-            segments.append(segment_from_hough(line, ghost.shape))
+            segments.append(imgutil.segment_from_hough(line, ghost.shape))
         # canvas = zeros(ghost.shape, dtype=uint8)
         # draw_lines(canvas, segments, color=255)
         # self.metadata["Nb lines: {}"] = len(segments)
@@ -123,11 +122,11 @@ class BoardFinderAuto(BoardFinder):
         sorted_lines = sorted(self.lines_accu, key=lambda x: x.theta)
         for s1 in sorted_lines:
             for s2 in reversed(sorted_lines):
-                if pi / 3 < s1.line_angle(s2):
+                if math.pi / 3 < s1.line_angle(s2):
                     assigned = False
                     p0 = s1.intersection(s2)
                     margin = -length_ref / 15  # allow intersections to be outside of the image a bit
-                    if within_margin(p0, (0, 0, shape[1], shape[0]), margin):
+                    if imgutil.within_margin(p0, (0, 0, shape[1], shape[0]), margin):
                         for g in self.groups_accu:
                             for p1 in g:
                                 # if the two points are close enough, group them
@@ -162,10 +161,10 @@ class BoardFinderAuto(BoardFinder):
                     centers.append((int(x / len(group)), int(y / len(group))))
                 # step 2 : run some final checks on the resulting corners
                 found = True
-                centers = get_ordered_hull(centers)  # so that the sides length can be calculated
+                centers = imgutil.get_ordered_hull(centers)  # so that the sides length can be calculated
                 #   - check 1: each side must be of a certain length
                 for i in range(len(centers)):
-                    if norm(centers[i-1], centers[i]) < length_ref / 3:
+                    if imgutil.norm(centers[i-1], centers[i]) < length_ref / 3:
                         found = False
                         break
                 #   - check 2: at least one corner must have moved significantly (don't propagate motion due to approx)
@@ -173,7 +172,7 @@ class BoardFinderAuto(BoardFinder):
                 if found and not update:
                     for i in range(nb_corners):
                         # hypothesis : both current and newly detected corners have been spacially sorted
-                        if 5 < norm(centers[i], self.corners.hull[i]):
+                        if 5 < imgutil.norm(centers[i], self.corners.hull[i]):
                             update = True
                             break
                 if update:
