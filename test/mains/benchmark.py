@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from os import listdir
-from os.path import basename
+from ntpath import basename
 from time import time
 from camkifu.core.vmanager import VManager
 import ckmain
@@ -84,7 +84,7 @@ def main(vid_dir, refdir=None, bf=None, sf=None):
         ProcessKiller(vmanager, stop_condition).start()
         start = time()
         vmanager.run()
-        reports.append(Report(controller, time() - start))
+        reports.append(Report(vmanager, time() - start))
     for r in reports:
         print(r)
 
@@ -106,10 +106,11 @@ def get_argparser() -> ArgumentParser:
 
 class Report():
 
-    def __init__(self, controller, duration):
-        self.sgf = controller.kifu.ref.sgffile
-        self.video = controller.video
-        self.matcher = controller.kifu.check()
+    def __init__(self, vmanager, duration):
+        self.vmanager = vmanager
+        self.sgf = vmanager.controller.kifu.ref.sgffile
+        self.video = vmanager.controller.video
+        self.matcher = vmanager.controller.kifu.check()
         self.duration = duration
 
     def __repr__(self):
