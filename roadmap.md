@@ -19,9 +19,10 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 ## BEFORE PYTHON PUBLISH:
 
+- shoot in-code todos
 - CODE REVIEW
     * documentation
-        - first read carefully [jetbrains' heads-up](https://www.jetbrains.com/pycharm/webhelp/documenting-source-code-in-pycharm.html), [pep3107](https://www.python.org/dev/peps/pep-3107/)
+        - inspired from [google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html#Comments) and numpy's.
         - check and fix existing doc
         - create missing doc
         - check and fix comments
@@ -33,7 +34,6 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 ## ON PYTHON PUBLISH:
 
-- indicate that some bugs may be due to the moving from (python, opencv)2 to 3
 - tutos on how to extend the code (minial board and stones finder, how to communicate to the GUI)
 - links to openCV install
 - links to PyCharm CE

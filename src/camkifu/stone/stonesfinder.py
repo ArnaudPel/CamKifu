@@ -58,9 +58,10 @@ class StonesFinder(camkifu.core.VidProcessor):
         if transform is not None:
             try:
                 self.goban_img = cv2.warpPerspective(frame, transform, self.canonical_shape)
-            except cv2.error:
+            except cv2.error as e:
                 print("frame:", frame, sep="\n")
                 print("transform:", transform, sep="\n")
+                raise e
             self._learn_bg()
             self._learn()
             self._find(self.goban_img)
