@@ -40,8 +40,6 @@ def img_update(imqueue):
             name, img, vidproc, loc = imqueue.get_nowait()
             if img is not None:
                 imgutil.show(img, name=name, loc=loc)
-                key = cv2.waitKey(20)
-                vidproc.key = key
             else:
                 imgutil.destroy_win(name)
     except queue.Empty:

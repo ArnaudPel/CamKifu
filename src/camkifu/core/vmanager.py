@@ -13,15 +13,38 @@ __author__ = 'Arnaud Peloquin'
 
 
 class VManagerBase(threading.Thread):
-    """
-    Abstract vision manager, responsible for creating and coordinating all video detection processes.
+    """ Abstract vision manager, responsible for creating and coordinating video processors.
 
+    Attributes:
+        controller: Controller
+            A controller that can handle instructions coming from vision ('append', 'delete', 'bulk')
+        imqueue: Queue
+            Contains the images to be displayed.
+
+        capt: VideoCapture
+            Responsible for handling the reading of frames from video input.
+        current_video: int or str
+            The current video input descriptor, can be an int to define a device, or a file path to a video.
+            See cv2.VideoCapture()
+
+        bf_class: type
+            The current board finder class that should be used to detect the Goban on the global images.
+        sf_class: type
+            The current stones finder class that should be used to detect the stones from the canonical (Goban) image.
+        board_finder: BoardFinder
+            The current video processor instance responsible for board detection, should be of type 'bf_class'.
+        stones_finder: StonesFinder
+            The current video processor instance responsible for stones detection, should be of type 'sf_class'.
+
+        full_speed: bool
+            Indicate whether the video processor should run at full speed. Typically this would be True for files, and
+            False for live input.
     """
 
     def __init__(self, controller, imqueue=None, bf=None, sf=None):
         threading.Thread.__init__(self, name="Vision")
         self.controller = controller
-        self.bind_controller()
+        self.punch_controller()
         self.imqueue = imqueue
 
         self.capt = None  # initialized in run() with video argument
@@ -34,18 +57,17 @@ class VManagerBase(threading.Thread):
 
         self.full_speed = False
 
-    def bind_controller(self):
-        """
-        Make some attributes of self.controller point to this vmanager implementations. (Proxy)
+    def punch_controller(self):
+        """ Dynamic setting of a few controller methods.
 
+        Some of the methods called from inside the controller are actually implemented by this VManager instance.
+        This practice is most likely not the cleanest way to handle it, but it'll have to do for now.
         """
         self.controller.corrected = self.corrected
         self.controller.next = self.next
 
     def init_capt(self):
-        """
-        Initialize the video capture with the source defined in the controller.
-
+        """ Initialize or reset the video capture object with video input as defined in the controller.
         """
         if self.capt is not None:
             self.capt.release()
@@ -53,41 +75,39 @@ class VManagerBase(threading.Thread):
         self.full_speed = os.path.isfile(self.controller.video)
         self.current_video = self.controller.video
 
-        # set the beginning of video files. is ignored by live camera
+        # set the reading position in video files. is ignored by live camera
         self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
 
     def _get_capture(self):
-        """
-        Return the proper video capture object for this vmanager. Extension point.
-
+        """ Return the proper video capture object for this vmanager (may be a wrapper of cv2.VideoCapture).
         """
         # noinspection PyArgumentList
         return CaptureReaderBase(cv2.VideoCapture(self.controller.video), self)
 
     def run(self):
+        """ Start and manage vision processes.
+        """
         raise NotImplementedError("Abstract method meant to be extended")
 
     def interrupt(self):
-        """
-        Request the interruption of self.run()
-
+        """ Request the interruption of self.run().
         """
         raise NotImplementedError("Abstract method meant to be extended")
 
     def stop_processing(self):
-        """
-        Request this video manager to terminate all its video-processing. The run() method may stay alive and
-        running, so that processing can be restarted later on.
+        """ Request this video manager to terminate all its video-processing.
 
+        self.run() may keep a main loop running, allowing processing to be restarted later on.
+        See also self.interrupt() for a more definitive stop.
         """
         raise NotImplementedError("Abstract method meant to be extended")
 
     def error_raised(self, processor, error):
-        """
-        Print the error and interrupt immediately.
+        """ Print the error and interrupt immediately.
 
-        processor -- the VidProcessor from which the error originated.
-
+        Args:
+            processor:VidProcessor
+                Processor from which the error originated.
         """
         vname = self.__class__.__name__
         pname = processor.__class__.__name__
@@ -96,16 +116,12 @@ class VManagerBase(threading.Thread):
         self.interrupt()
 
     def read(self, caller):
-        """
-        Proxy method to hide the wrapping of the "capture" attribute.
-
+        """ Read the next frame from the video input.
         """
         return self.capt.read(caller)
 
     def next(self):
-        """
-        Call next() on all VidProcessor.
-
+        """ Call next() on all VidProcessors.
         """
         if self.board_finder is not None:
             self.board_finder.next()
@@ -113,37 +129,48 @@ class VManagerBase(threading.Thread):
             self.stones_finder.next()
 
     def corrected(self, err_move, exp_move):
-        """
-        Inform that a correction has been made by the user on the goban.
-        There is no need to perform any direct action, but this information can be used to tune detection.
-        It is of high interest to prevent deleted stones to be re-suggested as soon as they are removed.
+        """ Register a correction made by the user on the goban.
 
-        Both moves below are expected to have their correct number set.
-        err_move -- the faulty move (has been removed). can be None if the correction is an "add".
-        exp_move -- the correct move (has been added). can be None if the correction is a "delete".
+        There is no need to perform any direct action, but this information may be used to tune detection algorithms.
+        One major aspect is to prevent deleted stones to be re-suggested right after the user has removed them.
 
+        The moves defining the correction are expected to have their correct number set.
+
+        Args:
+            err_move: Move
+                the faulty move (has been removed). May be None (if the correction is an "add").
+            exp_move: Move
+                the correct move (has been added).  May be None (if the correction is a "delete").
         """
         if self.stones_finder is not None:
             self.stones_finder.corrected(err_move, exp_move)
 
     def confirm_stop(self, process):
-        """ A sub-process of this manager that terminates is supposed to pass itself here. """
+        """ A sub-process of this manager that terminates is supposed to pass itself here.
+        """
         pass
 
     def vid_progress(self, progress):
-        """
-        Communicate the progress of the current video read to listeners (GUI, ...).
-
+        """ Communicate the progress of the current video read to listeners (GUI, ...).
         """
         pass
 
     @staticmethod
     def _reflect(name: str, classes: list) -> type:
-        """
-        Look for the class of the right name in the list, import it and return it.
-        If no match found, return the class defined by the first tuple of the list.
+        """ Import and return the right class based on its name and the available classes definition list.
 
-        Return None only if name == "None" or the first element of the list is (None, None)
+        If no match found, import and return the class defined in the first tuple of the list.
+
+        Args:
+            name: str
+                The name of the class to import.
+            classes: list of tuples
+                Each list element defines a class: the first tuple value is the module, the second is the class name.
+
+        Returns:
+            A class object, or
+            None if name == "None", or
+            None if the first element of the list is (None, None)) and no match is found.
 
         """
         if name is "None":
@@ -161,27 +188,35 @@ class VManagerBase(threading.Thread):
 
 
 class VManager(VManagerBase):
-    """
-    Multi-threaded vision manager.
+    """ Multi-threaded vision manager.
 
-    Its fields, notably the board and stones finders, must be regarded as (recursively) volatile.
+    Its fields, notably the board and stones finders, must be regarded as (recursively) 'volatile'.
     Concurrency issues are to be expected in this area.
 
+    Attributes:
+        daemon: bool
+            Inherited from Thread.
+        processes: list
+            The list of active video processors.
+        _interrupt_flag: bool
+            True to request the interruption of self.run().
+        hasrun: bool
+            Indicate if self.run() has completed at least one iteration.
     """
 
     def __init__(self, controller, imqueue=None, bf=None, sf=None):
         super().__init__(controller, imqueue=imqueue, bf=bf, sf=sf)
         self.daemon = True
-        self.processes = []  # video processors currently running
+        self.processes = []
         self._interrupt_flag = False
-        self.hasrun = False  # indicate if at least one run iteration has completed
+        self.hasrun = False
 
-    def bind_controller(self):
-        super().bind_controller()
+    def punch_controller(self):
+        super().punch_controller()
         self.controller._pause = self._pause
         self.controller._on = self._on
         self.controller._off = self._off
-        self.controller.vidpos = self._vidpos
+        self.controller.vidpos = self._set_vidpos
 
     def _get_capture(self):
         # noinspection PyArgumentList
@@ -192,12 +227,13 @@ class VManager(VManagerBase):
             proc.next()
 
     def run(self):
-        """
-        Run the main loop of VManager: provide to the controller all the finders listed in the config, and
-        listen to video input changes.
+        """ Initialize the video capture and processors, then periodically listen for change requests.
 
-        This main loop does not exit by itself. An exit can only occurs under the 'daemon thread' scheme.
+        Changes may take the form of video input change, or finders class change. The usual reaction is to kill the
+        appropriate object and start a fresh one to stay up to date with requests.
 
+        This main loop does not exit by itself, it has to be requested. An exit may also occurs as per the
+        'daemon thread' scheme.
         """
         self.init_capt()
         self._register_processes()
@@ -214,20 +250,42 @@ class VManager(VManagerBase):
         self.stop_processing()
         self._interrupt_flag = True
 
+    def stop_processing(self):
+        message = "Requesting "
+        for proc in self.processes:
+            proc.interrupt()
+            message += proc.name + ", "
+        message = message[0:len(message)-2]
+        message += " interruption."
+        # release a potential CaptureReader that may keep threads sleeping
+        try:
+            self.capt.unsync_threads(True)
+        except AttributeError:
+            pass
+        print(message)
+
     def check_video(self):
+        """ Listen for video input source change in controller.
+
+        If the video input source has changed, reset the capture object, then re-instantiate all the finders.
+        """
         if self.current_video != self.controller.video:
-            # global restart on the new video input
             self.stop_processing()
             self.init_capt()
-            # force restart
+            # force a fresh instantiation of each finder
             self.board_finder = None
             self.stones_finder = None
             self.controller.pipe("video_changed")
 
-    def _vidpos(self, new_pos):
-        """
-        The user has set a new video position.
-        new_pos -- the video position to set (in % of the total video).
+    def _set_vidpos(self, new_pos):
+        """ Set the reading position of the video capture, if it is more than 2% different from current position.
+
+        Ignore small changes to ensure that video progress info pushed by this object is not echoed back by the update
+        triggered in the GUI (ugly, but will have to do for now).
+
+        Args:
+            new_pos: float
+                The video position to set (in % of the total video).
 
         """
         if self.capt is not None:
@@ -238,13 +296,14 @@ class VManager(VManagerBase):
                 self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, new_pos/100)
 
     def vid_progress(self, progress):
+        """ Communicate video read progress to the controller.
+        """
         self.controller.pipe("video_progress", progress)
 
     def check_bf(self):
-        """
-        Check for changes of the board finder class that should be used. If self.board_finder is of different
-        type than self.bf_class, kill the previous an spawn a new instance of the right class.
+        """ Listen and react to changes of the requested board finder class.
 
+        If self.board_finder is of different type than self.bf_class, kill the current instance an spawn the right one.
         """
         if type(self.board_finder) != self.bf_class:
             new_name = "None"
@@ -262,10 +321,9 @@ class VManager(VManagerBase):
             self.controller.pipe("select_bf", new_name)
 
     def check_sf(self):
-        """
-        Check for changes of the stones finder class that should be used. If self.stones_finder is of different
-        type than self.sf_class, kill the previous an spawn a new instance of the right class.
+        """ Listen and react to changes of the requested stones finder class.
 
+        If self.stones_finder is of different type than self.sf_class, kill the current instance an spawn the right one.
         """
         if type(self.stones_finder) != self.sf_class:
             new_name = "None"
@@ -283,9 +341,7 @@ class VManager(VManagerBase):
             self.controller.pipe("select_sf", new_name)
 
     def _register_processes(self):
-        """
-        Register "board finders" and "stones finders" with the controller, together with callbacks to start them up.
-
+        """ Register "board finders" and "stones finders" with the controller, together with callbacks to start them up.
         """
         for bf_module, bf_class in cvconf.bfinders:
             self.controller.pipe("register_bf", bf_class, self.set_bf_class)
@@ -293,31 +349,23 @@ class VManager(VManagerBase):
             self.controller.pipe("register_sf", sf_class, self.set_sf_class)
 
     def is_processing(self):
+        """ Return True if at least one finder is currently running.
+        """
         return len(self.processes).__bool__()  # make the return type clear
 
     def _on(self):
+        """ Turn on video processing if needs be.
+        """
         if not self.is_processing():
-            # force restart (see self.check_bf() for example)
+            # force fresh instantiation (see self.check_bf() for example)
             self.board_finder = None
             self.stones_finder = None
 
     def _off(self):
+        """ Turn off video processing if needs be.
+        """
         if self.is_processing():
             self.stop_processing()
-
-    def stop_processing(self):
-        message = "Requesting "
-        for proc in self.processes:
-            proc.interrupt()
-            message += proc.name + ", "
-        message = message[0:len(message)-2]
-        message += " interruption."
-        # release a potential CaptureReader that may keep threads sleeping
-        try:
-            self.capt.unsync_threads(True)
-        except AttributeError:
-            pass
-        print(message)
 
     def confirm_stop(self, process):
         self.processes.remove(process)
@@ -328,9 +376,11 @@ class VManager(VManagerBase):
         print("{0} terminated.".format(process.__class__.__name__))
 
     def _spawn(self, process):
-        """
-        Start the provided process and append it to the list of active processes.
+        """ Start the provided process in a new thread and append it to the list of active processes.
 
+        Args:
+            process: VidProcessor
+                The process instance to start.
         """
         vt = camkifu.core.video.VisionThread(process)
         process.full_speed = self.full_speed
@@ -344,14 +394,16 @@ class VManager(VManagerBase):
         vt.start()
 
     def _pause(self, boolean):
-        """
-        Pause all sub-processes.
-
+        """ Pause all video processors.
         """
         for process in self.processes:
             process.pause(boolean)
 
     def set_bf_class(self, bf_class_str):
+        """ Set the board finder class attribute of this VManager to match the provided name.
+
+        The expected consequences are to be found in self.check_bf which handles the board finder definition changes.
+        """
         bf_class = self._reflect(bf_class_str, cvconf.bfinders)
         if self.bf_class != bf_class:
             self.bf_class = bf_class
@@ -362,6 +414,10 @@ class VManager(VManagerBase):
             self.stones_finder = None
 
     def set_sf_class(self, sf_class_str):
+        """ Set the stones finder class attribute of this VManager to match the provided name.
+
+        The expected consequences are to be found in self.check_sf which handles the stones finder definition changes.
+        """
         sf_class = self._reflect(sf_class_str, cvconf.sfinders)
         if self.sf_class != sf_class:
             self.sf_class = sf_class
@@ -373,30 +429,34 @@ class VManager(VManagerBase):
 
 
 class CaptureReaderBase:
-    """
-    Wrapper of cv2.VideoCapture to ease the tuning of its usage. This base class has an ability to periodically skip
-    frames when reading from a file, aiming at lowering the frame rate.
+    """ Wrapper of cv2.VideoCapture to ease the tuning of its usage.
 
-    For example there's no need to read 30 frames per second when analysing a game of Go, and lowering that figure to
-    5 frames per second still results in a fast sampling for this use case. This parameter can be set in cvconf.py.
+    This base class has an ability to periodically skip frames when reading from a file, aiming at lowering the frame
+    rate to mimic a live input and speed up detection. The idea is that there's no need to read 30 frames per second
+    when analysing a game of Go, and lowering that figure to 5 frames per second still results in quite a fast sampling
+    for this use case. This parameter can be set in cvconf.py.
+
+    Attributes:
+        capture: Capture
+            Expected to quack like cv2.VideoCapture (object from which actual read() calls will be consumed).
+        vmanager: VManager
+            The owner of the VidProcessors to synchronize.
+        fps: int
+            The number of frames per second that should be read from video files (i.e. potentially skip some frames).
 
     """
 
     def __init__(self, capture, vmanager: VManagerBase, fps=cvconf.file_fps):
-        """
-        -- capture : the object from which actual read() calls will be consumed.
-        -- vmanager : the owner of the VidProcessors to synchronize.
-        -- fps : number of frames per second that should be read from video files (i.e. potentially skip some frames)
-
-        """
         self.capture = capture
         self.vmanager = vmanager
         self.frame_rate = fps
 
     def __getattr__(self, item):
-        """
-        Hijack the "read()" method, delegate all others.
+        """ Hijack the "read" attribute, delegate all others to self.capture.
 
+        Introduce two extensions points that can be extended to tune frame reading:
+            - self.read_file
+            - self.downsample
         """
         if item == "read":
             if os.path.isfile(self.vmanager.controller.video):
@@ -408,12 +468,18 @@ class CaptureReaderBase:
             return self.capture.__getattribute__(item)
 
     def read_file(self, caller):
+        """ Basic file reading extension: skip the necessary number of frames before reading the next one.
+
+        Returns:
+            The result of the frame read.
+
+        """
         self.skip()
         return self.capture.read()
 
     def skip(self) -> None:
-        """
-        Set the next frame number for self.capture, in such a way that self.frame_rate is respected.
+        """ Set the next frame number for self.capture, in such a way that self.frame_rate is respected.
+
         In other word, skip as many frames as needed to match the desired file read frame rate.
 
         NOTE: on my configuration (mac OS X 10.7, Python 3.4, opencv 3.0.0-beta), when reading a file,
@@ -430,7 +496,7 @@ class CaptureReaderBase:
 
     def downsample(self, ret, img):
         """
-        Extension point that can be implemented to downsample images before returning them to readers.
+        Extension point that can be used to downsample images before returning them to readers.
 
         """
         # return ret, cv2.pyrDown(img)  # example of reducing each side by a factor of 2
@@ -438,36 +504,44 @@ class CaptureReaderBase:
 
 
 class CaptureReader(CaptureReaderBase):
-    """
-    Wrapper to synchronize image consumption from a file : all VidProcessors that are active must have received the
-    current image before the next image is consumed from VideoCapture.
+    """ VideoCapture wrapper offering synchronization of image consumption for file reading.
 
-    Delegates all _getattr()__ calls to the provided capture object, except for read() on which the
-    synchronization is intended.
+    When synchronization is turned on, all VidProcessors that are active must have received the current image before
+    the next image is read.
 
+    Attributes:
+        buffer:
+            The current result from videocapture.read().
+        served: set
+            The threads that have received the current "buffer" result and should wait for others to have been served.
+        lock_init: Lock
+            Used to ensure synchronized calls to self.capture.read().
+        sleep_time: float
+            The number of seconds the threads that have already been served should sleep to wait for others.
+        unsync: bool
+            True means that the reading is stopped, and no thread should be kept sleeping.
     """
 
     def __init__(self, capture, vmanager: VManager):
-        """
-        -- capture : the object from which actual read() calls will be consumed.
-        -- vmanager : the owner of the VidProcessors to synchronize.
-
-        """
         super().__init__(capture, vmanager)
-        self.buffer = None   # the current result from videocapture.read()
-        self.served = set()  # the threads that have received the currently buffered image
-        self.lock_init = threading.Lock()     # synchronization on videocapture.read() calls the first time
-        self.lock_consume = threading.Lock()  # synchronization on videocapture.read() calls
+        self.buffer = None
+        self.served = set()
+        self.lock = threading.Lock()
         self.sleep_time = 0.05  # 50 ms
-        self.unsync = False     # True means that the reading is stopped, and no thread should be kept sleeping
+        self.unsync = False
 
     def read_file(self, caller):
-        """
-        Implements a custom read() method that provides the same image to all VidProcessor threads.
-        Wait until all have been served before consuming the next frame.
+        """ Synchronize file read on all VidProcessor threads, so that they all receive the same sequence of frames.
 
-        Note : the logic of this method is based on concurrent access. Precisely, self.served is supposed to be
+        Serve the caller immediately if it hasn't received the current frame already, or wait until all active threads
+        have been served the current thread before consuming and returning the next frame.
+
+        Note : this method is designed to be called concurrently. Precisely, self.served is supposed to be
         cleared by the last served thread while others are waiting in this method's "sleep" loop.
+
+        Args:
+            caller:
+                Can be anything that uniquely identifies the calling thread.
 
         """
         self.init_buffer()
@@ -477,23 +551,22 @@ class CaptureReader(CaptureReaderBase):
         self.served.add(caller)
         self.consume()
         try:
-            return self.buffer[0], self.buffer[1].copy()  # readers may write on the image, don't expose it.
+            return self.buffer[0], self.buffer[1].copy()  # consumers may write on the image, don't expose it.
         except AttributeError:
             return self.buffer
 
     def init_buffer(self):
-        with self.lock_init:
+        """ Read the very first frame from video capture and buffer it for distribution to all threads.
+        """
+        with self.lock:
             if self.buffer is None:
                 self.buffer = self.capture.read()
 
     def consume(self):
-        """
+        """ Consume next image from videocapture (update buffer) if all threads have been served, otherwise pass.
         If unsync has been requested, set buffer to a None result.
-        Else if all threads have been served, consume next image from videocapture (update buffer).
-        Else do nothing.
-
         """
-        with self.lock_consume:
+        with self.lock:
             if self.unsync:
                 self.buffer = False, cvconf.unsynced
                 self.served.clear()
@@ -510,9 +583,7 @@ class CaptureReader(CaptureReaderBase):
                     self.vmanager.vid_progress(self.capture.get(cv2.CAP_PROP_POS_AVI_RATIO) * 100)
 
     def get_active(self):
-        """
-        Return the list of VidProcessor that are (supposedly) actively reading frames at the moment.
-
+        """ Return the list of VidProcessor that are (supposedly) actively reading frames at the moment.
         """
         active = []
         # noinspection PyUnresolvedReferences
@@ -525,19 +596,17 @@ class CaptureReader(CaptureReaderBase):
         return active
 
     def unsync_threads(self, unsync):
-        """
-        Request the release of all threads waiting in self.read_multi()
+        """ Control the release of all threads waiting on read.
 
-        -- unsync : True if all threads should be released, False to resume normal behavior.
-
+        Args:
+            unsync: bool
+                True if all threads should be released, False to resume synchronization on file read.
         """
         self.unsync = unsync
 
 
 def videocapture_skipped_frames(video="/Path/To/movie.mov"):
-    """
-    Analyse the number of frames read by cv2.VideoCapture from the file. (Dev)
-
+    """ (Dev) Analyse the number of frames read by cv2.VideoCapture from the file.
     """
     # noinspection PyArgumentList
     capture = cv2.VideoCapture(video)

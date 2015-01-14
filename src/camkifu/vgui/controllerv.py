@@ -84,7 +84,7 @@ class ControllerV(golib.gui.Controller):
 
         """
         if self.input.closed:
-            raise camkifu.core.PipeWarning("Target User Interface has been closed.")
+            raise camkifu.core.ControllerWarning("Target User Interface has been closed.")
         if instruction == "event":
             # virtual event, comes from self.input itself, neither keyin nor mousein
             self.input.event_generate(*args)

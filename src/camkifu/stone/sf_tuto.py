@@ -14,8 +14,6 @@ class StonesFinderTuto(camkifu.stone.StonesFinder):
 
     """
 
-    label = "Stones Tuto"
-
     def __init__(self, vmanager):
         super().__init__(vmanager)
         self.canvas = None

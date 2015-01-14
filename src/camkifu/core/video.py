@@ -162,13 +162,11 @@ class VidProcessor(object):
 
     def interrupt(self):
         """ Request the interruption of the main video processing loop.
-
         """
         self._interruptflag = True
 
     def pause(self, dopause: bool=None):
         """ Toggle pause of the main video processing loop, or set it as per 'dopause' if it is provided.
-
         """
         if dopause is not None:
             self.pausedflag = dopause
@@ -178,7 +176,6 @@ class VidProcessor(object):
 
     def next(self):
         """ Request one new frame read if main processing loop is in "paused" state. Has no effect otherwise.
-
         """
         self.next_flag = True
 
@@ -187,7 +184,6 @@ class VidProcessor(object):
 
         Multi-threaded env: will sleep thread as long as self.pausedflag is True.
         Single-threaded env: will keep calling cv.waitKey until a valid command is pressed.
-
         """
         if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
             while self.pausedflag and not self.next_flag:
@@ -213,22 +209,17 @@ class VidProcessor(object):
 
     def checkkey(self):
         """ Check if self.key has been set, and react accordingly (call appropriate command).
-
+        Supposed to be used in single threaded environment only.
         """
         try:
-            # todo remove the multi-threaded part ?
-            if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
-                key = self.key
-                if type(key) is not str:
-                    key = chr(key)
-            else:
-                key = chr(cv2.waitKey(50))  # supposedly in single-threaded (dev) mode
-            command = self.bindings[key]
-            if command is not None:
-                print("executing command '{0}'".format(key))
-                command()
-            else:
-                print("no command for '{0}'".format(key))
+            if self.vmanager.imqueue is None:  # supposedly in single-threaded (dev) mode
+                key = chr(cv2.waitKey(50))
+                command = self.bindings[key]
+                if command is not None:
+                    print("executing command '{0}'".format(key))
+                    command()
+                else:
+                    print("no command for '{0}'".format(key))
         except (TypeError, KeyError, ValueError):
             pass  # not interested in non-char keys ATM
         self.key = None
@@ -248,7 +239,6 @@ class VidProcessor(object):
                 True if latency information should be printed.
             thread: bool
                 True if current thread information should be printed.
-
         """
         # step 1 : draw default metadata, starting at the top of image
         try:
@@ -322,7 +312,6 @@ class VidProcessor(object):
 
     def _window_name(self) -> str:
         """ Return the default window name for image display.
-
         """
         return "camkifu.core.video.VidProcessor"
 
@@ -331,7 +320,6 @@ class VidProcessor(object):
 
         Multi-threaded env: put special tuple values in the image queue to request windows destruction.
         Single-threaded env: destroy the windows on this thread immediately.
-
         """
         for name in self.own_images.keys():
             if self.vmanager.imqueue is not None:
@@ -350,7 +338,6 @@ class VisionThread(threading.Thread):
             Inherited from Thread, forced to True.
         processor: VidProcesssor
             The delegate object, notably responsible for the implementation of Thread.run().
-
     """
     def __init__(self, processor):
         super().__init__(name=processor.__class__.__name__)
@@ -362,14 +349,12 @@ class VisionThread(threading.Thread):
 
     def __getattr__(self, item):
         """ Delegate all __getattr__ to processor if not found in VisionThread.
-
         """
         if item != "processor":  # avoid infinite looping if 'processor' attribute doesn't exist
             return self.processor.__getattribute__(item)
 
     def __eq__(self, other):
         """ Allow a VisionThread to be equal to a VidProcessor, based on respective run()/execute() methods equality.
-
         """
         try:
             return (self.run == other.execute) and (self.interrupt == other.interrupt)

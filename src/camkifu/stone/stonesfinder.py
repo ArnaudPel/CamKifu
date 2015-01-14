@@ -48,7 +48,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         self.corrections = queue.Queue(correc_size)
         self.saved_bg = np.zeros(self.canonical_shape + (3,), dtype=np.float32)
         self.deleted = {}  # locations under "deletion watch". keys: the locations, values: the number of samples to do
-        self.nb_del_samples = 5
+        self.nb_del_samples = 50
 
     def _doframe(self, frame):
         transform = None
@@ -153,13 +153,13 @@ class StonesFinder(camkifu.core.VidProcessor):
             x0, y0, x1, y1 = self.getrect(r, c)
             diff = self.saved_bg[x0:x1, y0:y1] - self.goban_img[x0:x1, y0:y1]
             if np.sum(np.absolute(diff)) / (diff.shape[0] * diff.shape[1]) < 40:
-                raise camkifu.core.DeletedError("The zone has not changed enough since last deletion")
+                raise camkifu.core.DeletedError(((r, c),), "The zone has not changed enough since last deletion.")
             else:
                 # the area has changed, alleviate ban.
                 print("previously user-deleted location: {} now unlocked".format((r, c)))
                 del self.deleted[(r, c)]
         else:
-            raise camkifu.core.DeletedError("The zone has been marked as deleted only a few frames ago")
+            raise camkifu.core.DeletedError(((r, c),), "The zone has been marked as deleted too recently.")
 
     def _window_name(self):
         return "camkifu.stone.stonesfinder.StonesFinder"
