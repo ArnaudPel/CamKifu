@@ -102,16 +102,17 @@ class GobanCorners():
 
     def paint(self, img):
         # draw points found so far
-        imgutil.draw_circles(img, self._points, color=(255, 255, 0))
+        for pt in self._points:
+            cv2.circle(img, tuple(pt), 5, (255, 255, 0), thickness=1)
 
-        # draw convex hull
+        # draw convex hull if present
         if self.hull is not None:
             nbpts = len(self.hull) - 1
             color = (0, 0, 255)
             for i in range(-1, nbpts):
                 x1, y1 = self.hull[i]
                 x2, y2 = self.hull[i + 1]
-                imgutil.draw_lines(img, [[x1, y1, x2, y2]], color)
+                cv2.line(img, (x1, y1), (x2, y2), color)
                 color = (255 * (nbpts - i - 1) / nbpts, 0, 255 * (i + 1) / nbpts)
 
     def _check(self):
