@@ -12,29 +12,36 @@ __author__ = 'Arnaud Peloquin'
 
 
 class BoardFinderAuto(board.BoardFinder):
-    """
-    Automatically detect the board location in an image. Implementation based on contours detection,
-    with usage of median filtering. It is not able to detect the board when one or more stones are
-    played on the first line, as those tend to break the contour.
+    """ Automatically detect the board location in an image.
+
+    Implementation based on contours detection, with usage of median filtering. It is not able to detect the board
+    when one or more stones are played on the first line, as those tend to break the contour.
 
     This implementation attempt is a work in progress.
 
+    Attributes:
+        lines_accu: list
+            Accumulator of lines detected as probable Goban sides (any of the 4 sides).
+        groups_accu: list
+            Accumulator of points that are candidates identifiers of Goban corners. They are obtained by
+            intersecting the accumulated lines described above. They are grouped together when being close enough to
+            each other, and a positive detection can be triggered if 4 groups stand out.
+        auto_refresh: int
+            The number of seconds to wait after the last positive detection before searching again.
+        last_positive: int
+            The last time the board has been detected.
     """
-
-    label = "Automatic"
 
     def __init__(self, vmanager):
         super().__init__(vmanager)
         self.lines_accu = []
-        self.groups_accu = []  # groups of points in the same image region
+        self.groups_accu = []
 
-        self.auto_refresh = 10  # the number of seconds to wait after the last positive detection before searching again
-        self.last_positive = -1.0  # last time the board was detected
+        self.auto_refresh = 10
+        self.last_positive = -1.0
 
     def _doframe(self, frame):
-        """
-        Decoration of super()._doframe() to add a sleeping period after a positive board detection.
-
+        """ Decoration of super()._doframe() to add a sleeping period after a positive board detection.
         """
         last_positive = time.time() - self.last_positive
         if self.auto_refresh < last_positive:
@@ -45,6 +52,25 @@ class BoardFinderAuto(board.BoardFinder):
             self._show(frame)
 
     def _detect(self, frame):
+        """ Look for a goban in the provided frame. It is assumed that this method will be called in a loop.
+
+        The idea followed here is to search a large rectangular object in the center of the image. Since the
+        Goban lines are not specifically searched, a median blur is applied to try to make the Goban edges sharper.
+
+        Then a contours search is run, and the first few biggest contours are analysed to find long lines.
+
+        Those lines are accumulated over a few frames (hence the important assumption that this method is being called
+        in a loop). They are periodically intersected to get candidate points for Goban corners. Finally, the points
+        are grouped to get a mean position of 4 corners. If more or less than 4 groups of candidates are obtained,
+        the detection is deemed unsuccessful and cleared for another pass.
+
+        Args:
+            frame: ndarray
+                The image to search.
+
+        Returns detected: bool
+            True to indicate that the Goban has been located successfully (all 4 corners have been located).
+        """
         length_ref = min(frame.shape[0], frame.shape[1])  # a reference length linked to the image
         median = cv2.medianBlur(frame, 15)
         canny = cv2.Canny(median, 25, 75)
@@ -80,18 +106,24 @@ class BoardFinderAuto(board.BoardFinder):
 
     # noinspection PyMethodMayBeStatic
     def find_lines(self, posititons, contours, length_ref, shape):
-        """
-        Use houghlines to find the sides of the contour (the goban hopefully).
+        """ Use houghlines to find big lines in the contours.
 
-        Another method could have been cv2.approxPolyDP(), but it fits the polygon points inside the contour, whereas
+        Another approach could have used cv2.approxPolyDP(), but it fits the polygon points inside the contour, whereas
         what is needed here is a nicely fitted "tangent" for each side: the intersection points (corners) are outside
         the contour most likely (round corners).
 
-        -- positions: the indexes of elements of interest in "contours"
-        -- contours: the list of contours
-        -- length_ref: a reference used to parametrize thresholds
-        -- the shape of the image in which contours have been found
+        Args:
+            positions: ints
+                The indexes of elements of interest in 'contours'.
+            contours: list
+                A list of contours.
+            length_ref: int
+                A length reference used to parametrize thresholds.
+            shape: ints
+                The shape of the image in which contours have been found
 
+        Returns segments: list
+            The lines found in the desired contours.
         """
         ghost = np.zeros((shape[0], shape[1]), dtype=np.uint8)
         # colors = ((0, 0, 255), (255, 0, 0), (0, 255, 0), (255, 255, 255))
@@ -112,11 +144,10 @@ class BoardFinderAuto(board.BoardFinder):
         return segments
 
     def group_intersections(self, shape):
-        """
-        Store tangent intersections into rough groups (connectivity-based clustering idea).
-        The objective is to obtain 4 groups of intersections, providing estimators of the corners
-        location.
+        """ Store lines intersections points into rough groups (connectivity-based clustering).
 
+        The objective is to obtain 4 groups of intersections, as estimators of the corners location. Those groups
+        are updated in the 'groups_accu' attribute, hence the absence of return value.
         """
         length_ref = min(shape[0], shape[1])  # a reference length linked to the image
         sorted_lines = sorted(self.lines_accu, key=lambda x: x.theta)
@@ -140,13 +171,15 @@ class BoardFinderAuto(board.BoardFinder):
                             # create a new group for each lonely point, it may be joined with others later
                             self.groups_accu.append([p0])
                 else:
+                    # s2 is "too parallel" with s1: all possibly interesting intersections have been processed for s1.
                     break
 
     def updt_corners(self, length_ref):
-        """
-        If 4 groups have been found: compute the mean point of each group and update corners accordingly.
+        """ Compute the mean of each points group and update corners if 4 groups have been found.
         In any case clear accumulation structures to prepare for next detection round.
 
+        Returns found: bool
+            True if 4 corners have been detected, False otherwise.
         """
         found = False
         nb_corners = 4
