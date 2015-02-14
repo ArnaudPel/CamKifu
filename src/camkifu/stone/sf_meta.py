@@ -58,7 +58,7 @@ class SfMeta(camkifu.stone.StonesFinder):
         """
         # 0. if startup phase: initialize background model
         if self.total_f_processed < self.bg_init_frames:
-            self.display_bg_sampling(goban_img)
+            self.display_bg_sampling(goban_img.shape)
             return
         else:
             ref_stones = self.get_stones()

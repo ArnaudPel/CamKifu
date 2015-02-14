@@ -30,7 +30,7 @@ class SfContours(camkifu.stone.StonesFinder):
                 temp = self.draw_stones(stones)
                 self._show(np.maximum(canvas, temp))
         else:
-            self.display_bg_sampling(goban_img)
+            self.display_bg_sampling(goban_img.shape)
 
     def _learn(self):
         pass

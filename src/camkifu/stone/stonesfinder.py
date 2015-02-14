@@ -20,24 +20,98 @@ correc_size = 10
 
 
 class StonesFinder(camkifu.core.VidProcessor):
-    """
-    Abstract class providing a base structure for stones-finding processes.
-    It relies on the providing of a transform matrix to extract only the goban pixels from the global frame.
+    """ Abstract base structure for stones-finding processes.
 
+    Relies on the providing of a transform matrix that enables extracting goban pixels from the global frame.
+
+    Please note that interactions with the Goban (eg. checking emptiness of a location) may happen in a concurrent
+    way. Issues may arise from that fact. For example, the detection process (here) may ask for emptiness from the
+    stones finder thread, while the Goban status is being updated from the GUI event thread (either by processing an
+    earlier instruction issued by this stones finder, or a user action).
+
+    Features:
+        Submission of results:
+            Utility methods are provided that can help with the communication of results to the controller:
+                ¤ suggest(...)      - indicate that a new stone has been played.
+                ¤ remove(...)       - indicate that a stone has been removed from the Goban.
+                ¤ bulk_update(...)  - indicate that multiple stones have been played or removed.
+        Background learning:
+            A background model is automatically maintained by default. It provides the ability to do a
+            background/foreground segmentation. New frames are automatically submitted to it as soon as they are
+            computed, and the resulting foreground mask is available through self.get_foreground().
+        Lines detection:
+            A line detection feature has been added to help find Goban intersections that are most likely empty.
+            Since this detection is not perfect, it should be used as an probabilistic indicator: lines may not be
+            detected when they should, or sometimes lines over stones (at the tangent) may appear, although less
+            frequently.
+        Consistency checking:
+            In an attempt to validate the stones detection result by several different approaches, "constraints"
+            checking methods have been introduced. They may veto, accept or ignore a stones detection result based
+            on the extra data they use (lines detection, history, thickness). These implementations are here as an
+            example, although I am not satisfied with their actual value (As of 13/02/15).
+        Grid position learning:
+            StoneFinder relies on a PosGrid object to manage the location of each Goban intersection. When having
+            run lines detection on the current image, the results can be further used by computing the intersection
+            of each "cross" found in a given intersection area. By cross understand at least one horizontal and
+            one vertical line. This is handled by self.update_grid().
+        User corrections learning:
+            Detection may fail in several ways, like missing a stone or finding non-existing stones. While the first
+            case can be corrected manually without much trouble, the second is more tricky. Indeed, the stone that
+            has been wrongly detected and deleted must not be suggested again by the algorithms, that must hence learn
+            from their mistake. The current implementation is quite flawed, I've just thrown it there to remember
+            something ought to be done about it.
+        Data display (dev):
+            A few methods are offered to ease the display of data related to stones finding. For example things
+            about intersections benefit from some automation.
+
+    Attributes:
+        goban_img: ndarray
+            The current goban image.
+        canonical_shape: (int, int)
+            the shape of the image after transform (extraction of goban pixels only)
+        _posgrid: PosGrid
+            Holds the positions of each intersection of the grid.
+        mask_cache: ndarray
+            A mask that help keeping a disk around each intersection and blacking out other pixels.
+        zone_area: int
+            The area of a zone (non-zero pixels of the mask).
+        intersections: ndarray
+            Cache for the result of self.find_intersections().
+
+        bg_model: BackgroundSubtractor
+            Responsible for background learning and segmentation.
+        bg_init_frames: int
+            The number of frames that should be reserved for background learning at startup.
+
+        corrections: Queue
+            Corrections the user has recently made (fixing stones detection) that have not yet been learnt from.
+        saved_bg: ndarray
+            A background image used in the "user corrections" learning process.
+        deleted: dict
+            Locations under "deletion watch". keys: the locations, values: the number of samples left to do.
+            Note: each location is a tuple indicating an intersection row and column, in numpy coordinates frame.
+        nb_del_samples: int
+            The number of times a zone should be sampled when it has been deleted by user. For example, after the
+            user has deleted a wrongly detected stone, compute the mean of the pixel area around that intersection
+            over 50 frames.
     """
 
     def __init__(self, vmanager, learn_bg=True):
         """
-        learn_bg -- set to True to create and maintain a background model, which enables self.get_foreground().
+        Args:
+            vmanager: VManager
+                Used to get references to BoardFinder and Controller, as well as image queue, and frame reading.
+            learn_bg: bool
+                Set to True to create and maintain a background model, which enables self.get_foreground().
 
         """
         super().__init__(vmanager)
-        self.goban_img = None  # the current goban image
+        self.goban_img = None
         self.canonical_shape = (cvconf.canonical_size, cvconf.canonical_size)
         self._posgrid = PosGrid(cvconf.canonical_size)
         self.mask_cache = None
-        self.zone_area = None  # the area of a zone # (non-zero pixels of the mask)
-        self.intersections = None  # cache for the result of self.find_intersections()
+        self.zone_area = None
+        self.intersections = None
 
         # background-related attributes
         if learn_bg:
@@ -47,10 +121,20 @@ class StonesFinder(camkifu.core.VidProcessor):
         # (quite primal) "learning" attributes. see self._learn()
         self.corrections = queue.Queue(correc_size)
         self.saved_bg = np.zeros(self.canonical_shape + (3,), dtype=np.float32)
-        self.deleted = {}  # locations under "deletion watch". keys: the locations, values: the number of samples to do
+        self.deleted = {}
         self.nb_del_samples = 50
 
     def _doframe(self, frame):
+        """ Abstract implementation of frame processing by a stones finder.
+
+        Compute the image transform to isolate and "straighten up" the Goban's area if the board has been found.
+        Then call the default routines, and finally delegate the actual detection part to self._find() which is
+        abstract.
+
+        Args:
+            frame: ndarray
+                The image to process (where to find stones).
+        """
         transform = None
         self.intersections = None  # reset cache
         if self.vmanager.board_finder is not None:
@@ -72,9 +156,7 @@ class StonesFinder(camkifu.core.VidProcessor):
                 self._show(black)
 
     def ready_to_read(self):
-        """
-        Don't read frames if the board location is not known.
-
+        """ Indicate whether we are ready to process frames (eg. we're not if the board location is not known).
         """
         try:
             return super().ready_to_read() and self.vmanager.board_finder.mtx is not None
@@ -82,32 +164,30 @@ class StonesFinder(camkifu.core.VidProcessor):
             return False
 
     def _find(self, goban_img):
-        """
-        Detect stones in the (already) canonical image of the goban.
+        """ Abstract method. Detect stones in the (already) canonical image of the goban.
 
+        Args:
+            goban_img: ndarray
+                The already straightened up Goban image. It is expected to only contain the Goban pixels.
         """
         raise NotImplementedError("Abstract method meant to be extended")
 
     def _learn_bg(self):
-        """
-        Apply img to the background learning structure, and save the resulting foreground.
-
+        """ Apply the last frame read to the background model, and save the resulting foreground.
         """
         if hasattr(self, "bg_model"):
             learning = 0.01 if self.total_f_processed < self.bg_init_frames else 0.005
             self._fg = self.bg_model.apply(self.goban_img, learningRate=learning)
 
     def _learn(self):
-        """
-        Process user corrections queue (partial implementation).
+        """ Process user corrections queue to try to learn from it. Partial implementation.
 
         This partial implementation only supports a basic reaction to deletion. The idea is to try to "remember"
-        what each False positive (wrongly detected stone) zone look like when the user makes the correction (delete),
-        so that new suggestions by algorithms at this location rise an error as long as the pixels haven't changed
-        much in this zone.
+        what each False positive (wrongly detected stone) zone looked like when the user makes the correction (delete),
+        so that new suggestions by algorithms at this location rise an error if the pixels haven't changed much in
+        this zone.
 
         Other cases will raise an Exception for now, to show they exist but not reaction has been implemented.
-
         """
         # step one: process new user inputs
         unprocessed = []
@@ -129,7 +209,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         # step 2: sample all locations that still need it
         for (r, c), nb_left in self.deleted.items():
             if nb_left:
-                # only sample "calm" frames
+                # only sample "calm" frames if background segmentation is on
                 try:
                     fg = self.get_foreground()
                 except ValueError:
@@ -145,10 +225,17 @@ class StonesFinder(camkifu.core.VidProcessor):
             raise camkifu.core.CorrectionWarning(unprocessed, message="Unhandled corrections")
 
     def _check_dels(self, r: int, c: int):
+        """ Check that the given intersection has not been deleted by user recently.
+
+        Args:
+            r: int
+            c: int
+                The row and column of the intersection to check, in numpy coord system.
+        """
         try:
             nb_samples_left = self.deleted[(r, c)]
         except KeyError:
-            return  # this location is not under deletion watch
+            return  # all good, this location is not under deletion watch
         if 0 == nb_samples_left:  # only check when sampling has completed
             x0, y0, x1, y1 = self.getrect(r, c)
             diff = self.saved_bg[x0:x1, y0:y1] - self.goban_img[x0:x1, y0:y1]
@@ -164,28 +251,34 @@ class StonesFinder(camkifu.core.VidProcessor):
     def _window_name(self):
         return "camkifu.stone.stonesfinder.StonesFinder"
 
-    def suggest(self, color, x: int, y: int, doprint=True):
-        """
-        Suggest the add of a new stone to the goban.
-        -- color : in (E, B, W)
-        -- x, y : the coordinates
-        -- ctype : the type of coordinates frame (see Move._interpret()), defaults to 'np' (numpy)
+    def suggest(self, color, r: int, c: int, doprint=True):
+        """ Indicate to the controller the add of a new stone on the goban. May be processed asynchronously.
 
+        Args:
+            color: B or W
+                The color of the new stone to add.
+            r: int
+            c: int
+                The row and column of the intersection where to add the stone, in numpy coord system.
+            doprint: bool
+                Whether or not to print the move in the console.
         """
-        self._check_dels(x, y)
-        move = golib.model.Move('np', ctuple=(color, x, y))
+        self._check_dels(r, c)
+        move = golib.model.Move('np', ctuple=(color, r, c))
         if doprint:
             print(move)
         self.vmanager.controller.pipe("append", move)
 
     def remove(self, x, y):
-        """
+        """ Indicate to the controller the removal of a stone from the goban. May be processed asynchronously.
+
         Although allowing automated removal of stones doesn't seem to be a very safe idea given the current
         robustness of stones finders, here's an implementation.
 
-        x, y -- the location in numpy coordinates frame.
-        ctype -- the type of coordinates frame (see Move._interpret()), defaults to 'np' (numpy)
-
+        Args:
+            r: int
+            c: int
+                The row and column of the intersection where to remove the stone, in numpy coord system.
         """
         assert not self.is_empty(x, y), "Can't remove stone from empty intersection."
         move = golib.model.Move('np', ("", x, y))
@@ -193,9 +286,16 @@ class StonesFinder(camkifu.core.VidProcessor):
         self.vmanager.controller.pipe("delete", move.x, move.y)
 
     def bulk_update(self, tuples):
-        """
-        tuples  -- [ (color1, x1, y1), (color2, x2, y2), ... ]  a list of moves. set color to E to remove stone
+        """ Indicate to the controller a series of updates have happened on the goban. May be processed asynchronously.
 
+        Note: if a move points to an already occupied location but with a different color, the previous stone is
+        removed, then the new one is added. The color can't simply be changed due to consistency issues, notably
+        some previous kills may have to be invalidated and the history reworked accordingly.
+
+        Args:
+            tuples: [ (color1, r1, c1), (color2, r2, c2), ... ]
+                The list of update moves. A move with color E is interpreted as a removed stone.
+                r and c, the intersection row and column, are in numpy coord system.
         """
         moves = []
         del_errors = []
@@ -222,27 +322,40 @@ class StonesFinder(camkifu.core.VidProcessor):
             raise camkifu.core.DeletedError(del_errors, message=msg)
 
     def corrected(self, err_move: golib.model.Move, exp_move: golib.model.Move) -> None:
-        """
-        Entry point to provide corrections made by the user to stone(s) location(s) on the Goban. See _learn().
+        """ Indicate that a correction has been made by the user to a stone presence/location on the Goban.
 
+        Actual processing of corrections is expected to be done asynchronously on the StonesFinder thread.
+        See _learn().
+
+        Args:
+            err_move: Move
+                A move that has wrongly been detected by algorithms. It has been removed by user.
+            exp_move: Move
+                A move that has been missed by detection algorithms. It has been added by user.
+        Note: a relocation will for example consist of the providing of an err_move together with an exp_move.
         """
         try:
             self.corrections.put_nowait((err_move, exp_move))
         except queue.Full:
             print("Corrections queue full (%s), ignoring %s -> %s" % (correc_size, str(err_move), str(exp_move)))
 
-    def is_empty(self, x: int, y: int) -> bool:
-        """
-        Return true if the (x, y) goban position is empty (color = E).
+    def is_empty(self, r: int, c: int) -> bool:
+        """ Return True if the provided goban position is empty (color is E). Synchronized method.
 
+        Args:
+            x: int
+            y: int
+                The row and column of the intersection to check, in numpy coord system.
         """
-        return self.vmanager.controller.is_empty_blocking(y, x)
+        return self.vmanager.controller.is_empty_blocking(c, r)
 
     def _empties(self) -> (int, int):
-        """
-        Yields the unoccupied positions of the goban in naive order.
-        Note: this implementation allows for the positions to be updated by another thread during yielding.
+        """ Yield the unoccupied positions of the goban in naive order.
+        Note: this implementation allows for the positions to be updated concurrently to yielding.
 
+        Yields:
+            r, c: int, int
+                The row and column of the next empty intersection, in the numpy coordinates system.
         """
         for x in range(gsize):
             for y in range(gsize):
@@ -250,10 +363,14 @@ class StonesFinder(camkifu.core.VidProcessor):
                     yield y, x
 
     def _empties_spiral(self) -> (int, int):
-        """
-        Yields the unoccupied positions of the goban along an inward spiral.
-        Aims to help detect hand / arm appearance faster by analysing outer border(s) first.
+        """ Yield the unoccupied positions of the goban along an inward spiral.
 
+        Aims to help detect hand / arm appearance faster by analysing outer border(s) first.
+        Note: this implementation allows for the positions to be updated concurrently to yielding.
+
+        Yields:
+            r, c: int, int
+                The row and column of the next empty intersection, in the numpy coordinates system.
         """
         inset = 0
         while inset <= gsize / 2:
@@ -262,12 +379,16 @@ class StonesFinder(camkifu.core.VidProcessor):
             inset += 1
 
     def _empties_border(self, inset):
-        """
-        Yields the unoccupied positions of the goban along an inward spiral.
+        """ Yield unoccupied positions of the goban along a defined square.
 
-        inset -- the inner margin defining the start of the inward spiral [0=outer border -> gsize/2=center position].
-                 it always ends at the center of the goban.
+        Args:
+            inset: int
+                The inner margin defining the square along with to check for empty intersections.
+                Eg. if inset == 2, yield the empty positions on the third line of the Goban.
 
+        Yields:
+            r, c: int, int
+                The row and column of the next empty intersection, in the numpy coordinates system.
         """
         y = inset
         for x in range(inset, gsize - inset):
@@ -290,20 +411,23 @@ class StonesFinder(camkifu.core.VidProcessor):
                 yield y, x
 
     def getrect(self, r: int, c: int, cursor: float=1.0) -> (int, int, int, int):
-        """
-        Return the rectangle of pixels around the provided goban intersection (r, c).
+        """ Return the rectangle of pixels around the provided goban intersection (r, c).
+
         This method relies on self._posgrid.mtx to get the coordinates of the intersections (so they apply in an
         image of the same size as the canonical frame).
 
-        r -- the intersection row index
-        c -- the intersection column index
-        cursor -- must be float, has sense in the interval ]0, 2[
-                  0 -> the zone is restricted to the (r, c) point.
-                  2 -> the zone is delimited by the rectangle (r-1, c-1), (r+1, c+1).
-                  1 -> the zone is a rectangle of "intuitive" size, halfway between the '0' and '2' cases.
+        Args:
+            r: int
+            c: int
+                The intersection row and column, in numpy coordinates system.
+            cursor: float
+                Has sense in the interval ]0, 2[ as follows:
+                0 -> the zone is restricted to the (r, c) point.
+                2 -> the zone is delimited by the rectangle (r-1, c-1), (r+1, c+1).
+                1 -> the zone is a rectangle of "intuitive" size, halfway between the '0' and '2' cases.
 
-        return -- x0, y0, x1, y1  the rectangle
-
+        Returns x0, y0, x1, y1: int, int, int, int
+            The rectangle coordinates, as diagonal points.
         """
         assert isinstance(cursor, float)
         p = self._posgrid.mtx[r][c]
@@ -327,10 +451,17 @@ class StonesFinder(camkifu.core.VidProcessor):
         return x0, y0, x1, y1
 
     def getmask(self, depth=1) -> np.ndarray:
-        """
-        A boolean mask shaped in "cvconf.canonical_size" that has a circle around each goban intersection.
-        Multiply a frame by this mask to zero-out anything outside the circles.
+        """ Compute a boolean mask that isolates a circle around each goban intersection.
 
+        Multiply a Goban frame by this mask to zero-out anything outside the circles. This mask is shaped
+        in "cvconf.canonical_size".
+
+         Args:
+            depth: int
+                The size of the third dimension (== number of color channels).
+
+        Returns mask_cache: ndarray
+            The boolean mask.
         """
         if self.mask_cache is None or depth != (1 if len(self.mask_cache.shape) == 2 else self.mask_cache.shape[2]):
             print("initializing stones mask")
@@ -364,12 +495,17 @@ class StonesFinder(camkifu.core.VidProcessor):
 
     def get_stones(self):
         """
-        Return a copy of the current goban state, in the numpy coordinates system.
-
+        Returns stones: ndarray
+            A copy of the current goban state, in the numpy coordinates system.
         """
         return self.vmanager.controller.get_stones()
 
     def get_foreground(self):
+        """ Return the foreground of the last frame read if background segmentation is on, otherwise raise ValueError.
+
+        Returns fg: ndarray
+            The foreground mask.
+        """
         if hasattr(self, "_fg"):
             current, target = self.total_f_processed, self.bg_init_frames
             if current < target:
@@ -379,15 +515,22 @@ class StonesFinder(camkifu.core.VidProcessor):
             raise ValueError("This StonesFinder doesn't seem to be segmenting background. See self.__init__()")
 
     def find_intersections(self, img: np.ndarray, canvas: np.ndarray=None) -> np.ndarray:
-        """
-        Return a matrix indicating which intersections are likely to be empty.
+        """ Find which intersections are likely to be empty based on lines detection.
 
         The search is based on hough lines detection: if good lines are found inside the intersection zone, it is
-        very unlikely that a stone would be present.
+        very unlikely that a stone would be present. This method is also used to update the intersections coordinates
+        when "crosses" are found. By "cross" read at least one horizontal and one vertical line.
 
-        @todo additional objective: adjusting the position of the grid (some more work ahead for it to work) if a good
-        intersection of lines inside a zone is found
+        Args:
+            img: ndarray
+                The Goban image (in the canonical frame).
+            canvas: ndarray
+                An optional image onto which draw some results.
 
+        Returns grid: ndarray
+            A matrix containing the intersections positions (as per PosGrid). The positions where at least one line
+            has been found are indicated by negation (* -1). Furthermore, on top of being negated, for each "cross"
+            found the corresponding intersection coordinates are updated.
         """
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         thresh, _ = cv2.threshold(gray, 1, 1, cv2.THRESH_OTSU)
@@ -409,9 +552,18 @@ class StonesFinder(camkifu.core.VidProcessor):
         return grid
 
     def get_intersections(self, img, display=False) -> np.ndarray:
-        """
-        A cached wrapper of self.find_intersections()
+        """ A cached wrapper of self.find_intersections().
 
+        See self.find_intersections().
+
+        Args:
+            img: ndarray
+                The Goban image (in the canonical frame).
+            display: bool
+                True to display the empty intersections found on a new image.
+
+        Returns grid: ndarray
+            As per self.find_intersections().
         """
         if self.intersections is None:
             if display:
@@ -425,20 +577,18 @@ class StonesFinder(camkifu.core.VidProcessor):
         return self.intersections
 
     def stone_radius(self) -> float:
-        """
-        The approximation of the radius (in pixels) of a stone in the canonical frame.
+        """ The approximation of the radius (in pixels) of a stone in the canonical frame.
         Simple implementation based on self._posgrid.size.
 
-        @rtype float
+        Returns radius: float
         """
         return self._posgrid.size / gsize / 2
 
     def stone_boxarea_bounds(self) -> (float, float):
-        """
-        @return: minimum and maximum areas of a contour's bounding box, that may be candidate to be a stone.
-        These bounds are around the default estimated box area for a stone: (2 * self.stone_radius()) ** 2.
+        """ Compute the minimum and maximum areas of a contour's bounding box, that may be candidate to be a stone.
+        These bounds are based on the default estimated box area for a stone: (2 * self.stone_radius()) ** 2.
 
-        @rtype: (float, float)
+        Return min_area, max_area: float, float
         """
         radius = self.stone_radius()
         min_area = (4 / 3 * radius) ** 2
@@ -446,12 +596,26 @@ class StonesFinder(camkifu.core.VidProcessor):
         return min_area, max_area
 
     def check_against(self, stones: np.ndarray, reference: np.ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
-        """
-        Check that the newly found 'stones' array is coherent with the already existing 'reference' array.
-        'stones' and 'reference' can be subregions of the Goban, as long as they have the same shape.
+        """ Check that the newly found stones array is coherent with the already existing reference array.
+        Both new and old arrays can be subregions of the Goban, as long as they have the same shape.
 
-        Return -1, 0, 1 if the check is respectively refused, undetermined, or passed.
+        Args:
+            stones: ndarray
+                The newly found stones, in other words the result to check.
+            reference: ndarray
+                The already found stones, in other words the current status of the Goban.
+            rs: int - inclusive
+            re: int - exclusive
+                Row start and end indexes. Can be used to restrain check to a subregion.
+            cs: int - inclusive
+            ce: int - exclusive
+                Column start and end indexes. Can be used to restrain check to a subregion.
+            kwargs:
+                Although not used explicitly, allowing for keyword args enables multiple check methods to be called
+                indifferently. See self.verify().
 
+        Return status: int
+            -1, 0, or 1 if the check is respectively refused, undetermined, or passed.
         """
         refs = 0  # number of stones found in reference
         matches = 0  # number of matches with the references (non-empty only)
@@ -469,22 +633,29 @@ class StonesFinder(camkifu.core.VidProcessor):
         return 0  # undetermined
 
     def check_lines(self, stones: np.ndarray, img: np.ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
-        """
-        Check that the provided "stones" 2D array is coherent with lines detection in the image: no line should
-        be found in zones where a stone has been detected.
+        """ Check that the provided stones array is coherent with lines detection in the image.
 
-        A match is counted for the zone if it is empty (E) and at least one line has also been detected in that zone.
+        No line should be found in zones where a stone has been detected. A match is counted for the zone if it is
+        empty (E) and at least one line has also been detected in that zone.
 
-        stones -- a 2D array that can store the objects, used to record the stones found. It is created if not provided.
-        grid -- a 3D (or 2D) array that has negative values where lines have been found.
-        rs, re -- optional row start and end, can be used to restrain check to a subregion
-        cs, ce -- optional column start and end, can be used to restrain check to a subregion
+        Args:
+            stones: ndarray
+                The newly found stones, in other words the result to check.
+            img: ndarray
+                The Goban image where to find the lines.
+            rs: int - inclusive
+            re: int - exclusive
+                Row start and end indexes. Can be used to restrain check to a subregion.
+            cs: int - inclusive
+            ce: int - exclusive
+                Column start and end indexes. Can be used to restrain check to a subregion.
+            kwargs:
+                Allowing for keyword args enables multiple check methods to be called indifferently. See self.verify().
 
-        Return:
+        Return status: int
             1 if enough matches have been found,
            -1 if too many mismatches have been found,
             0 if data isn't sufficient to judge (eg. too few lines found, potentially caused by too few empty positions)
-
         """
         grid = self.get_intersections(img)
         lines = 0  # the number of intersections where lines have been detected
@@ -503,13 +674,22 @@ class StonesFinder(camkifu.core.VidProcessor):
         return 0  # undetermined
 
     def check_thickness(self, stones: np.ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
-        """
-        Check that the provided "stones" 2D array doesn't contain "big chunks" that wouldn't make sense in a regular
-        game of Go.
+        """ Check that the provided stones array doesn't contain "big chunks" that wouldn't make sense in a game of Go.
 
-        rs, re -- optional row start and end, can be used to restrain check to a subregion
-        cs, ce -- optional column start and end, can be used to restrain check to a subregion
+        Args:
+            stones: ndarray
+                The newly found stones, in other words the result to check.
+            rs: int - inclusive
+            re: int - exclusive
+                Row start and end indexes. Can be used to restrain check to a subregion.
+            cs: int - inclusive
+            ce: int - exclusive
+                Column start and end indexes. Can be used to restrain check to a subregion.
+            kwargs:
+                Allowing for keyword args enables multiple check methods to be called indifferently. See self.verify().
 
+        Return status: int
+            -1, 0, or 1 if the check is respectively refused, undetermined, or passed.
         """
         for color in (B, W):
             avatar = np.vectorize(lambda x: 1 if x is color else 0)(stones[rs:re, cs:ce].flatten())
@@ -521,13 +701,27 @@ class StonesFinder(camkifu.core.VidProcessor):
         return 0
 
     def check_flow(self, stones: np.ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
-        """
-        Check that newly added stones colors match expectations.
-        If multiple new stones : there should be at most one more stone of a color than the other color.
+        """ Check that newly added stones colors match expectations.
 
-        rs, re -- optional row start and end, can be used to restrain check to a subregion
-        cs, ce -- optional column start and end, can be used to restrain check to a subregion
+        If multiple new stones : there should be at most one more stone of a color than the other color. The use of
+        this check may prevent algorithms from catching up with previous failures to detect a certain color of stones,
+        since they won't be allowed to add multiple stones of the same color when they finally see them. In other
+        words this check is probably not such a good idea (As of 14/02/15).
 
+        Args:
+            stones: ndarray
+                The newly found stones, in other words the result to check.
+            rs: int - inclusive
+            re: int - exclusive
+                Row start and end indexes. Can be used to restrain check to a subregion.
+            cs: int - inclusive
+            ce: int - exclusive
+                Column start and end indexes. Can be used to restrain check to a subregion.
+            kwargs:
+                Allowing for keyword args enables multiple check methods to be called indifferently. See self.verify().
+
+        Return status: int
+            -1, 0, or 1 if the check is respectively refused, undetermined, or passed.
         """
         moves = []  # newly added moves
         for r in range(rs, re):
@@ -543,9 +737,24 @@ class StonesFinder(camkifu.core.VidProcessor):
             return 0 if abs(diff) <= 1 else -1
 
     def first_line_lonelies(self, stones: np.ndarray, reference: np.ndarray=None, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
-        """
-        Return all the stones on the first line that have no neighbour in a 2-lines thick square around them.
+        """ Find the stones on the first line that have no neighbour in a 2-lines-thick square around them.
 
+        Args:
+            stones: ndarray
+                The newly found stones, in other words the result to check.
+            reference:
+                The already found stones. Required because 'stones' may only contain newly detected stones.
+            rs: int - inclusive
+            re: int - exclusive
+                Row start and end indexes. Can be used to restrain check to a subregion.
+            cs: int - inclusive
+            ce: int - exclusive
+                Column start and end indexes. Can be used to restrain check to a subregion.
+            kwargs:
+                Allowing for keyword args enables multiple check methods to be called indifferently. See self.verify().
+
+        Returns lonelies: list
+            The lonely stones coordinates (r, c), in numpy coord system.
         """
         pos = set()
         for r in (rs, re):
@@ -569,9 +778,11 @@ class StonesFinder(camkifu.core.VidProcessor):
         return lonelies
 
     def _drawgrid(self, img: np.ndarray):
-        """
-        Draw a circle around each intersection of the goban, as they are currently estimated.
+        """ Draw a circle around each intersection of the goban, as they are currently estimated.
 
+        Args:
+            img: ndarray
+                The image on which to draw.
         """
         if self._posgrid is not None:
             for i in range(19):
@@ -580,9 +791,13 @@ class StonesFinder(camkifu.core.VidProcessor):
                     cv2.circle(img, (p[1], p[0]), 5, (255, 255, 0))
 
     def _drawvalues(self, img, values):
-        """
-        Display one value per goban position. Obviously values will soon overlap if they are longish.
+        """ Display one value per goban position on the image. Obviously values will soon overlap if they are longish.
 
+        Args:
+            img: ndarray
+                The image on which to draw.
+            values: 2D iterable
+                The values to draw. Must be of shape (gsize, gsize), in other words one value per intersection.
         """
         for row in range(gsize):
             for col in range(gsize):
@@ -590,14 +805,23 @@ class StonesFinder(camkifu.core.VidProcessor):
                 imgutil.draw_str(img, str(values[row, col]), x - 10, y + 2)
 
     def draw_stones(self, stones: np.ndarray, canvas: np.ndarray=None):
-        """
-        Dev method to see an array of stones in an image. It is a simpler alternative than suggesting them to the goban,
-        since there's no game logic involved (easier to update on the flight).
+        """ Dev method to display an array of stones in an image.
 
+        It is a simpler alternative than suggesting them to the goban, since there's no game logic involved
+        (easier to update on the flight to get an idea of what's going on).
+
+        Args:
+            stones: ndarray
+                The stones to display. Expected to be of shape (gsize, gsize).
+            canvas: ndarray
+                The image on which to draw the stones. If not provided, a blank (actually, brown) canvas is created.
+
+        Returns canvas: ndarray
+            The updated image.
         """
         if canvas is None:
             canvas = np.zeros((self._posgrid.size, self._posgrid.size, 3), dtype=np.uint8)
-        canvas[:] = (65, 100, 128)
+            canvas[:] = (65, 100, 128)
         for x in range(gsize):
             for y in range(gsize):
                 if stones[x][y] is B:
@@ -612,10 +836,17 @@ class StonesFinder(camkifu.core.VidProcessor):
         return canvas
 
     def display_intersections(self, grid, img):
-        """
-        Dev method to see how the intersection analysis is doing.
-        There's been some care given to line and column visual differentiation, hope it makes sens :)
+        """ Dev method showing how the intersection analysis is doing, in a dedicated window.
 
+        The intersections that have been detected as empty have a circle, and those that have been updated as well
+        have an additional black border. Also, there's been some care given to line and column visual differentiation,
+        hope it makes sens :)
+
+        Args:
+            grid: ndarray
+                The intersections location grid, as returned by self.find_intersections().
+            img: ndarray
+                The image on which to draw.
         """
         for i in range(grid.shape[0]):
             for j in range(grid.shape[1]):
@@ -629,6 +860,8 @@ class StonesFinder(camkifu.core.VidProcessor):
 
     @staticmethod
     def get_display_color(i, j):
+        """ Compute a color for the i, j intersection. To be used in display_intersections()
+        """
         factor = 0.5 if i % 2 else 1
         blue = 40 / factor
         green = (230 if j % 2 else 10) * factor
@@ -636,37 +869,41 @@ class StonesFinder(camkifu.core.VidProcessor):
         return blue, green, red
 
     def _show(self, img, name=None, latency=True, thread=False, loc=None, max_frequ=2):
-        """
-        Override to take control of the location of the window of this stonesfinder
-
+        """ Override to take control of the location of the window of this stonesfinder.
         """
         if loc is None:
             from camkifu.config.cvconf import sf_loc
             loc = sf_loc
         super()._show(img, name, latency, thread, loc=loc, max_frequ=max_frequ)
 
-    def display_bg_sampling(self, goban_img):
+    def display_bg_sampling(self, shape):
+        """ Display a "message" image of the provided shape, indicating the background sampling is running.
         """
-        Display a "message" image indicating the background sampling is running.
-
-        """
-        black = np.zeros((goban_img.shape[0], goban_img.shape[1]), dtype=np.uint8)
+        black = np.zeros((shape[0], shape[1]), dtype=np.uint8)
         message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
         imgutil.draw_str(black, message)
         self._show(black)
 
 
 def update_grid(lines, box, result_slot):
-    """
-    Analyse the lines, in the context of the zone:
+    """ Analyse the lines found for the intersection defined by 'box', to determine if it is empty.
+
+    Negative result values indicate that the zone (probably) contains no stone. The negative values may have been
+    updated as well with new coordinates if a "cross" has benn found.
+
+    Precisely:
         - if there's only one valid line, or too many lines, mark the zone as empty (negate result_slot).
         - if there is a decent (1 < x < 5) number of lines, compute the center of mass of their intersections
           that are located inside the zone (including a safety margin). then update result_slot accordingly
-          with the new values, negated as well to indicate the zone is probably empty.
+          with the new coordinates (negated).
 
-    Short version : negative values indicate that the zone (probably) contains no stone. The negative values
-    may have been updated as well.
-
+    Args:
+        lines: iterable
+            As returned by cv2.HoughLinesP().
+        box: (int, int, int, int)
+            (x0, y0, x1, y1) - The rectangle delimiting the intersection in which the lines have been found.
+        result_slot: ndarray
+            The part of the locations grid corresponding to the current intersection.
     """
     margin = min(box[2] - box[0], box[3] - box[1]) / 7
     # step one: only retain lines that are either vertical or horizontal enough, and centered
@@ -694,7 +931,7 @@ def update_grid(lines, box, result_slot):
     if 1 < len(segments) < 5:
         x_sum = 0
         y_sum = 0
-        number = 0
+        count = 0
         for seg1 in segments:
             for seg2 in segments:
                 if seg1 is not seg2:
@@ -704,23 +941,29 @@ def update_grid(lines, box, result_slot):
                         if imgutil.within_margin(p, box, margin):
                             x_sum += p[0]
                             y_sum += p[1]
-                            number += 1
-        if 0 < number:
-            result_slot[0] = - x_sum / number
-            result_slot[1] = - y_sum / number
+                            count += 1
+        if 0 < count:
+            result_slot[0] = - x_sum / count
+            result_slot[1] = - y_sum / count
 
 
 class PosGrid(object):
-    """
-    Store the location of each intersection of the goban, in "numpy coordinates frame" format.
+    """ Store the location of each intersection of the goban, in numpy coordinates system.
 
-    -- size : the length in pixels of one side of the goban canonical frame (supposed to be a square for now).
-
+    Attributes:
+        size: int
+            The length in pixels of one side of the goban canonical frame (supposed to be a square for now).
+        mtx: ndarray
+            The pixel position of each intersection of the goban.
+        adjust_vect: [x, y]
+            An accumulator of adjustments that should be made to the overall grid position.
+        adjust_contribs: int
+            The number of accumulations applied to 'adjust_vect' so far (since last reset).
     """
 
     def __init__(self, size):
         self.size = size
-        self.mtx = np.zeros((gsize, gsize, 2), dtype=np.int16)  # stores the pixel position of each intersection o the goban
+        self.mtx = np.zeros((gsize, gsize, 2), dtype=np.int16)
         self.adjust_vect = np.zeros(2, dtype=np.float32)
         self.adjust_contribs = 0
 
@@ -738,12 +981,14 @@ class PosGrid(object):
                 self.mtx[i][j][1] = (yleft * (gsize - 1 - i) + yright * i) / (gsize - 1)
 
     def closest_intersection(self, point):
-        """
-        Find the closest intersection from the given (x,y) point of the canonical image (goban image).
-        Note : point coordinates are expected in numpy coordinates system.
+        """ Find the closest intersection from the given (x,y) point of the canonical image (goban image).
 
-        Return the closest goban row and column, both in [0, gsize[  ([0, 18[), also in numpy coordinates system.
+        Args:
+            point: (int, int)
+                A location in the image, in numpy coordinates system.
 
+        Returns intersection: (int, int)
+            The closest goban row and column, in numpy coordinates system.
         """
         # a smarter version would use the fact that self.learn() shifts the whole grid to store and apply the offset
         # over time, and then return the hook initialization as below. yet that's a more generic implementation.
@@ -768,11 +1013,16 @@ class PosGrid(object):
         return target[0], target[1]
 
     def learn(self, grid, rate=0.2):
-        """
-        Update the current grid positions: compute the mean diff vector between the current mtx and the provided grid.
-        Then shift all the positions of the current grid by this vector. The diff vector is multiplied by factor before
-        being applied.
+        """ Update the current intersections locations with the provided grid.
 
+        Compute the mean diff vector between the provided grid and the current mtx. Then shift all the positions of
+        the current grid by this vector.
+
+        Args:
+            grid: ndarray
+                An updated version of self.mtx
+            rate: float
+                A factor used to scale the adjustment vector before it is applied.
         """
         assert 0 < rate <= 1  # if 0, why call ?
         diff = grid - self.mtx
