@@ -9,18 +9,35 @@ __author__ = 'Arnaud Peloquin'
 
 
 class SfClustering(camkifu.stone.StonesFinder):
+    """ Stones finder implementation based on k-means pixel clustering.
+
+    Has the ability to be used as a "standalone" finder, but as it is not designed to work in low stones-density
+    context, it is put to better use when combined with other approaches. See SfMeta.
+
+    Attributes:
+        accu: ndarray
+            Store a weighted sum of several successive Goban frames, in order to run the detection on an average image.
+    """
 
     def __init__(self, vmanager):
         super().__init__(vmanager=vmanager)
         self.accu = None
 
     def _find(self, goban_img):
+        """ Accumulate Goban frames, run stones detection every 3 images, and submit a bulk update accordingly.
+
+        Note: SfMeta is using this class abilities, but it does via find_stones (thus bypassing this method).
+
+        Args:
+            goban_img: ndarray
+                The already straightened up Goban image. It is expected to only contain the Goban pixels.
+        """
         gframe = goban_img
         if self.accu is None:
             self.accu = gframe.astype(np.float32)
         else:
             cv2.accumulateWeighted(gframe, self.accu, 0.2)
-        if self.accu is not None and not self.total_f_processed % 3:
+        if not self.total_f_processed % 3:
             rs, re = 0, 19  # row start, row end
             cs, ce = 6, 13   # column start, column end
             stones = self.find_stones(self.accu, rs, re, cs, ce)
@@ -32,29 +49,55 @@ class SfClustering(camkifu.stone.StonesFinder):
                 self.bulk_update(moves)
 
     def find_stones(self, img: np.ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
-        """
-        Return a matrix containing the detected stones in the desired subregion of the image.
+        """ The stones detection main algorithm, which is based on k-means pixel clustering.
 
-        The three colors (E, B, W) must be present in the image for this statistical method to work.
-        In case of failure, return None to indicate the stones' density was too low (or something failed).
+        Note: the three colors (E, B, W) must be present in the image for this statistical method to work.
 
+        Args:
+            img: ndarray
+                The Goban image.
+            rs: int - inclusive
+            re: int - exclusive
+                Row start and end indexes. Can be used to restrain check to a subregion.
+            cs: int - inclusive
+            ce: int - exclusive
+                Column start and end indexes. Can be used to restrain check to a subregion.
+            kwargs:
+                Allowing for keyword args enables multiple find methods to be called indifferently. See SfMeta.
+
+        Returns stones: ndarray
+            A matrix containing the detected stones in the desired subregion of the image,
+            or None if the result could not be trusted or something failed.
         """
         if img.dtype is not np.float32:
             img = img.astype(np.float32)
         ratios, centers = self.cluster_colors(img, rs=rs, re=re, cs=cs, ce=ce)
         stones = self.interpret_ratios(ratios, centers, r_start=rs, r_end=re, c_start=cs, c_end=ce)
         if not self.check_density(stones):
-            return None  # don't detect anything
+            return None  # don't trust this result
         return stones
 
     def cluster_colors(self, img: np.ndarray, rs=0, re=gsize, cs=0, ce=gsize) -> (np.ndarray, list):
-        """
-        Return for each analysed intersection the percentage of B, W or E found by pixel color clustering (BGR value).
+        """ Compute for each intersection the percentage of B, W or E found by pixel color clustering (BGR value).
         Computations based on the attribute self.accu and cv2.kmeans (3-means).
 
         If a subregion only of the image is analysed (as per the arguments), the returned "ratios" array is still of
         global size (gsize * gsize), but the off-domain intersections are set to 1% goban and 0% other colors.
 
+        Args:
+            img: ndarray
+                The Goban image.
+            rs: int - inclusive
+            re: int - exclusive
+                Row start and end indexes. Can be used to restrain check to a subregion.
+            cs: int - inclusive
+            ce: int - exclusive
+                Column start and end indexes. Can be used to restrain check to a subregion.
+
+        Returns ratios, centers: ndarray, list
+            The matrix of ratios. Its third dimension is used to store percentage of colors in each Goban intersection.
+            The list of k-means centers (greyscale colors) that must be used to read the third dimension of the ratios
+            matrix (which percentage is associated to which color).
         """
         x0, y0, _, _ = self.getrect(rs, cs)
         _, _, x1, y1 = self.getrect(re-1, ce-1)
@@ -76,7 +119,7 @@ class SfClustering(camkifu.stone.StonesFinder):
             labels *= self.getmask()[x0:x1, y0:y1]
             # store each label percentage, over each intersection. Careful, they are not sorted, refer to "centers"
             ratios = np.zeros((gsize, gsize, 3), dtype=np.uint8)
-            ratios[:, :, centers_val.index(sorted(centers_val)[1])] = 1  # initialize with goban
+            ratios[:, :, centers_val.index(sorted(centers_val)[1])] = 1  # initialize 'E' channel to 1%
             for x in range(rs, re):
                 for y in range(cs, ce):
                     a0, b0, a1, b1 = self.getrect(x, y)
@@ -89,14 +132,23 @@ class SfClustering(camkifu.stone.StonesFinder):
             return ratios, centers
 
     def interpret_ratios(self, ratios, centers, r_start=0, r_end=gsize, c_start=0, c_end=gsize) -> np.ndarray:
-        """
-        Interpret clustering results to retain one color per zone.
-        ratios -- a 3D matrix storing for each zone the percentage of each "center" found in that zone.
-        centers -- gives the order in which percentages are stored in "ratios". Should be a 1D array of size 3,
-                   for colors B, W and E.
+        """ Interpret clustering results to retain one color per zone.
 
-        Return "stones", a 2D array containing for each zone either B, W or E.
+        Args:
+            ratios: ndarray
+                3D matrix storing for each zone the percentage of each "center" found in that zone.
+            centers: list
+                Gives the order in which percentages are stored in "ratios". Should be a 1D array of size 3,
+                for colors B, W and E.
+            r_start: int - inclusive
+            r_end: int - exclusive
+                Row start and end indexes. Can be used to restrain check to a subregion.
+            c_start: int - inclusive
+            c_end: int - exclusive
+                Column start and end indexes. Can be used to restrain check to a subregion.
 
+        Return stones: ndarray
+            Indicate the color found for each zone (B, W or E).
         """
         # 1. map centers to colors
         assert len(centers) == 3
@@ -119,10 +171,7 @@ class SfClustering(camkifu.stone.StonesFinder):
         return stones
 
     def check_density(self, stones):
-        """
-        Return True if the density of the provided stones is deemed enough for a k-means (3-means) to make any sense,
-        else False.
-
+        """ Return True if the stones density is deemed enough for a 3-means clustering to make sense.
         """
         # noinspection PyTupleAssignmentBalance
         vals, counts = np.unique(stones, return_counts=True)
