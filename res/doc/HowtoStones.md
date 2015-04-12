@@ -41,15 +41,13 @@ sfinders = [
 ]
 ```
 
-Alright, it should be good to go ! Oups, no, forgot the label, which provides the display name of our finder for the GUI. So here is the complete minimal implementation.
+Alright, it should be good to go ! So here is the complete minimal implementation.
 
 ```python
 from camkifu.core.imgutil import draw_str
 from camkifu.stone.stonesfinder import StonesFinder
 
 class StonesFinderTuto(StonesFinder):
-
-    label = "Stones Tuto"
 
     def _find(self, goban_img):
         draw_str(goban_img, "Hello stones finding tutorial !")
@@ -171,4 +169,4 @@ def _find(self, goban_img):
     self._show(self.canvas)
 ```
 
-Alright.
+That's it for this tuto !

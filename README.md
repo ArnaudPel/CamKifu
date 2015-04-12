@@ -8,7 +8,9 @@ As of 11/11/14, the main value of this software is to provide a testing framewor
 **This project depends on:**
 
 - Golib. See below
-- [OpenCV 3](http://opencv.org/) (python 3.4 + numpy)
+- [OpenCV 3](http://opencv.org/)
+- [Numpy 1.9](http://www.numpy.org/)
+- [Python 3](https://www.python.org/downloads/)
 
 ## Current Features (Dec. 2014)
 - Automatic detection of the board (+ manual detection available in case of failure)

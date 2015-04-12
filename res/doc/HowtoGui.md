@@ -1,6 +1,6 @@
 # Camkifu GUI Demo
 
-This tutorial is an insight on how the GUI code has been structured so far. Acknowledging the great amount of intelligence inside the coding community, I recognize that all this can most likely be improved, made more graceful. So, again, any improvement suggestion or work is of course welcome with humility. Especially in the area of setting method references from outside (proxy kinda thing)
+This tutorial is an insight on how the GUI code has been structured so far. Acknowledging the great amount of intelligence inside the coding community, I recognize that all this can definitively be improved, made more graceful. So, again, any improvement suggestion or contribution is of course welcome with humility. Especially in the area of setting method references from outside (proxy kinda thing) which I realize now is not a good practice.
 
 
 ## Communication GUI -> Vision

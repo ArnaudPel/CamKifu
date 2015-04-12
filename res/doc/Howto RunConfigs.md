@@ -1,6 +1,15 @@
-# HOW-TO : RUN CONFIGURATIONS
+
+# HOW-TO : RUN CONFIGURATIONS
 
 This tutorial aims at presenting the different runnable scripts available. Most of the usage information provided below can be obtained by using the `--help` command line argument
+
+## Foreword
+
+Let us have a quick reminder of a few setup information, that is also expressed in the README file. I know, I should use something like `setuptools` to express all thoses dependencies, unfortunately I haven't looked into that yet.
+
+This project has been developed with [Python 3.4.2](https://www.python.org/downloads/) and [OpenCV 3.0.0-beta](http://opencv.org/downloads.html). Numpy 1.9.2 has been used as well. 
+
+The `Camkifu` project depends on the `Golib` project. Since I am using the delightful [Pycharm CE](https://www.jetbrains.com/pycharm/download/index.html), I have imported both source directories as separate projects, and declared the dependency via `Preferences | Project Dependencies`.
 
 ## Golib
 
@@ -20,7 +29,7 @@ Example:
 $ python3 /Path/To/glmain.py --sgf /Path/To/mygame.sgf
 ```
 
-## Camkifu
+## Camkifu
 
 The default "vision" runnable is in Camkifu. The current implementation is multi-threaded (as per `VManager`). 
 

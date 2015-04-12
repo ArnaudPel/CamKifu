@@ -4,22 +4,33 @@ Duality arises from Unity, -- But do not be attached to this Unity
 to enable automatic ssh server startup on Jack :
 sudo mv /etc/init/ssh.conf.disabled /etc/init/ssh.conf
 
-links to similar projects : http://remi.coulom.free.fr/kifu-snap/
+links to similar projects : [http://remi.coulom.free.fr/kifu-snap/]
 
 
 ## VISION
-- board finder auto : takes for ever when image from Room 1.mov is pyrdowned. most likely because it finds too many lines. investigate
-- board finder auto : save background and re-run only if the image is "disturbed" for too long ? Only after several converging detections maybe
-- board finder auto : enable manual corrections, which should then disable automatic changes (at least for the corrected corner(s))
-- board finder auto : try to make out the vertical side of the goban in front, it HAS to be excluded
-- board finder auto : try to detect black blades around the canonical frame, and relocate accordingly.
-- board finder auto : create a tester with randomly generated images (lines) to see to what limits it can be brought to
-- board finder auto : try to separate image in a few clusters (4-5), and look for one taking the middle of the screen (or 3 taking the middle for advanced games)
+
+Ideas that have yet to make it to this world (or be discarded)
+
+### Board finder auto
+
+- takes for ever when `Room 1.mov` is pyrdowned. most likely because bf finds too many lines. investigate
+- save background and re-run only if the image is "disturbed" for too long ? Only after several converging detections maybe
+- enable manual corrections, which should then disable automatic changes (at least for the corrected corner(s))
+- try to make out the vertical side of the goban at the front, it HAS to be excluded
+- try to detect black blades around the canonical frame, and relocate accordingly
+- create a tester with randomly generated images (lines) to see to what limits bf_auto can be brought to
+- try to separate all image pixels in a few color clusters (4-5), and look for one taking the middle of the screen (or 3 for advanced games)
+
+### Contours analysis
+
+- it would be interesting to get an idea, along the contour pixel, where's the interior and where is the exterior, even when contours are not closed. Maybe doable by drawing two contours "enclosing" the initial contour, and computing the length of each. the shortest is interior, and the longest is exterior.
+- not closed contours : try to fill them with enclosed circles (stack them in rows and columns)
 
 
 ## BEFORE PYTHON PUBLISH:
 
 - shoot in-code todos
+- remove explicit extensions of object class - look for (object)
 - CODE REVIEW
     * documentation
         - inspired from [google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html#Comments) and numpy's.
@@ -27,6 +38,17 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
         - create missing doc
         - check and fix comments
         - add messages to assertions  `assert cond() , "message"`
+    * documentation - completed (first pass):
+        - camkifu
+            board [bf_auto.py, bf_manual.py, boardfinder.py]  OK
+            config
+            core [exceptions.py, imgutil.py, video.py, vmanager.py] OK
+            stone [sf_clustering.py, sf_contours.py, sf_meta.py, sf_tuto.py, stonesfinder.py]  OK
+            vgui
+        - golib
+            config
+            gui
+            model
 - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
 - license
 - clean up and mark down this file :)
@@ -34,13 +56,13 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 
 ## ON PYTHON PUBLISH:
 
-- tutos on how to extend the code (minial board and stones finder, how to communicate to the GUI)
 - links to openCV install
-- links to PyCharm CE
-- jetbrains has a banner generator. can we set one on github ?
-- on contour analysis:
-    * it would be interesting to get an idea, along the contour pixel, where's the interior and where is the exterior, even when contours are not closed. Maybe doable by drawing two contours "enclosing" the initial contour, and computing the length of each. the shortest is interior, and the longest is exterior.
-    * not closed contours : try to fill them with enclosed circles (stack them in rows and columns)
+- set issue tracker
+- convert this file into milestones
+- add myself to:
+    * http://stackoverflow.com/q/5742140/777285  (+ crawl from there)
+    * kgs and igs profiles
+- hammer keywords online (go, weiqi, baduk, igo, camera, recording, video) to be found
 
 
 ## OPENCV 3 BETA / Random IDEAS :
@@ -60,22 +82,11 @@ links to similar projects : http://remi.coulom.free.fr/kifu-snap/
 - make vision values as dynamic as possible (frame size, ...)
 
 
-## ON CPP PUBLISH:
-
-- links to openCV install
-- set issue tracker
-- convert this file into milestones
-- add myself to:
-    * http://stackoverflow.com/q/5742140/777285  (+ crawl from there)
-    * kgs and igs profiles
-- hammer keywords online (go, weiqi, baduk, igo, camera, recording, video) to be found
-
-
 ## CODE ROADMAP FOR COMMUNITY :
 
 Please note that a "Fatal Python error: PyEval_RestoreThread: NULL tstate" can occur from time to time and crash the
 interpreter itself. It occurs when using the GUI. It seems to be originating in the fact that openCV images have to
-be displayed on the main thread, also required by Tkinter. I have dropped the case after several unsuccessful tries,
+be displayed on the main thread, also required by Tkinter. I have dropped the case after several unsuccessful tries,
 yet if this problem becomes a pain, try to display fewer images per second and it should soothe.
 
 
@@ -108,7 +119,7 @@ yet if this problem becomes a pain, try to display fewer images per second and i
 
 - play with the ton of parameters used locally in cv2 (blurr kernels, iterations, ..., canny thresholds)
 - stones finder: adjusting grid with lines detection results seems to lower the number of "crosses" found later by the same lines detection. Re-check this method altogether.
-- sfmeta : check some constraints in warmup phase ?
+- sfmeta : check some constraints in warmup phase ?
 - if the angle between the camera and the board is important, stones of the front line are often detected one line higher than expected. Investigate more and see to adapt the repartition of the mask ? Some sort of vertical gradient of size or location. The former will imply the introduction of a structure to store all zones areas, at least one per line.
 - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
 - if board detected at a new location during a game, invalidate all moves found since previous detection (stones buffer)
