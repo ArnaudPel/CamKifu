@@ -14,7 +14,7 @@ from camkifu.core import imgutil
 __author__ = 'Arnaud Peloquin'
 
 
-class VidProcessor(object):
+class VidProcessor:
     """ Abstract base class for periodic video processing.
 
     Periodically read frames from the vmanager, and pass them down to the abstract _doframe() method.

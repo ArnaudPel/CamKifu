@@ -368,7 +368,7 @@ def draw_contours_multicolor(img, contours):
         cv2.drawContours(img, contours, i, (b, g, r))
 
 
-class BoundingBox(object):
+class BoundingBox:
     """ Associate a contour with its bounding rectangle (rotated to fit).
 
     Attributes:
@@ -396,7 +396,7 @@ class BoundingBox(object):
         return "BoundingBox: {:.2f} square pixels".format(self.area)
 
 
-class EnclosingCircle(object):
+class EnclosingCircle:
     """ Associate a contour with its minimum enclosing circle (rotated to fit).
 
     Attributes:

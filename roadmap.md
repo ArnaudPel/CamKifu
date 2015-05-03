@@ -7,13 +7,13 @@ sudo mv /etc/init/ssh.conf.disabled /etc/init/ssh.conf
 links to similar projects : [http://remi.coulom.free.fr/kifu-snap/]
 
 
-## VISION
+## COMPUTER VISION
 
-Ideas that have yet to make it to this world (or be discarded)
+Things to investigate, do, or discard.
 
 ### Board finder auto
 
-- takes for ever when `Room 1.mov` is pyrdowned. most likely because bf finds too many lines. investigate
+- takes forever when `Room 1.mov` is pyrdowned. most likely because bf finds too many lines. investigate
 - save background and re-run only if the image is "disturbed" for too long ? Only after several converging detections maybe
 - enable manual corrections, which should then disable automatic changes (at least for the corrected corner(s))
 - try to make out the vertical side of the goban at the front, it HAS to be excluded
@@ -30,7 +30,6 @@ Ideas that have yet to make it to this world (or be discarded)
 ## BEFORE PYTHON PUBLISH:
 
 - shoot in-code todos
-- remove explicit extensions of object class - look for (object)
 - CODE REVIEW
     * documentation
         - inspired from [google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html#Comments) and numpy's.

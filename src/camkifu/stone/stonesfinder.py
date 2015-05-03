@@ -947,7 +947,7 @@ def update_grid(lines, box, result_slot):
             result_slot[1] = - y_sum / count
 
 
-class PosGrid(object):
+class PosGrid:
     """ Store the location of each intersection of the goban, in numpy coordinates system.
 
     Attributes:

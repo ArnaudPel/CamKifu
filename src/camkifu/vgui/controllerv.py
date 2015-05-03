@@ -295,7 +295,7 @@ class ControllerV(golib.gui.Controller):
         return super().__setattr__(name, value)
 
 
-class Pause(object):
+class Pause:
     """
     A toggle that can be used in lambda functions.
 
