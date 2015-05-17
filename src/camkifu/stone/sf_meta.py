@@ -11,8 +11,6 @@ from camkifu.stone.sf_clustering import SfClustering
 from camkifu.stone.sf_contours import SfContours
 
 
-__author__ = 'Arnaud Peloquin'
-
 # possible states of a region. watch indicate no active search need to be performed
 Warmup = "warmup"
 Search = "search"

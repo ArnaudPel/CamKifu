@@ -3,8 +3,6 @@ import time
 from camkifu.board import bf_manual
 import camkifu.core
 
-__author__ = 'Arnaud Peloquin'
-
 
 class VManagerSeq(camkifu.core.VManagerBase):
     """

@@ -11,9 +11,6 @@ from camkifu.config import cvconf
 from camkifu.core import imgutil
 
 
-__author__ = 'Arnaud Peloquin'
-
-
 class VidProcessor:
     """ Abstract base class for periodic video processing.
 

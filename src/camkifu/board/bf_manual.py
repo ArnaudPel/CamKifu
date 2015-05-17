@@ -6,9 +6,6 @@ import numpy as np
 from camkifu import board
 
 
-__author__ = 'Arnaud Peloquin'
-
-
 class BoardFinderManual(board.BoardFinder):
     """ Let the user indicate the corners of the Goban manually, by clicking on the image.
 

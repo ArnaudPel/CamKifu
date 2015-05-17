@@ -2,8 +2,6 @@ import numpy as np
 import golib.gui
 import test.objects
 
-__author__ = 'Arnaud Peloquin'
-
 
 class ControllerVDev(golib.gui.ControllerBase):
     """

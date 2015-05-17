@@ -8,8 +8,6 @@ from camkifu.core import imgutil
 import camkifu.stone
 from golib.config.golib_conf import gsize, B, W, E
 
-__author__ = 'Arnaud Peloquin'
-
 
 class SfContours(camkifu.stone.StonesFinder):
     """ Stones finder implementation based on contours analysis.

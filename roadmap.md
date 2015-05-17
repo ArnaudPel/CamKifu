@@ -29,7 +29,6 @@ Things to investigate, do, or discard.
 
 ## BEFORE PYTHON PUBLISH:
 
-- remove __author__ at least in classes (this kind of ego-centric approach will not foster contributions)
 - CODE REVIEW
     * documentation
         - inspired from [google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html#Comments) and numpy's.

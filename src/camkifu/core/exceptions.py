@@ -1,4 +1,3 @@
-__author__ = 'Arnaud Peloquin'
 
 
 class ControllerWarning(Warning):

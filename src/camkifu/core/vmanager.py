@@ -9,9 +9,6 @@ import camkifu.core.video
 from camkifu.config import cvconf
 
 
-__author__ = 'Arnaud Peloquin'
-
-
 class VManagerBase(threading.Thread):
     """ Abstract vision manager, responsible for creating and coordinating video processors.
 

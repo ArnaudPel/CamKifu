@@ -1,4 +1,3 @@
-__author__ = 'Arnaud Peloquin'
 
 from test.objects.controllerv_test import ControllerVDev, ControllerVTest
 from test.objects.vmanager_test import VManagerSeq, ProcessKiller

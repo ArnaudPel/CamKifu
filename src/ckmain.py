@@ -12,14 +12,11 @@ import camkifu.core
 from camkifu.core import imgutil
 import camkifu.vgui
 
-__author__ = 'Arnaud Peloquin'
-
 
 """
 Application entry point.
 
 """
-
 
 def configure(win):
     xstart = gc.glocation[0] + win.winfo_reqwidth() + gc.rwidth * gc.gsize + 20

@@ -7,8 +7,6 @@ import cv2
 
 from golib.config import golib_conf
 
-__author__ = 'Arnaud Peloquin'
-
 
 def connect_clusters(groups, dist):
     """ Do one connectivity-based clustering pass.

@@ -1,8 +1,6 @@
 from golib.config import golib_conf
 
 
-__author__ = 'Arnaud Peloquin'
-
 """
 Vision-related configuration.
 

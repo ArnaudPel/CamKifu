@@ -8,9 +8,6 @@ from camkifu import board
 from camkifu.core import imgutil
 
 
-__author__ = 'Arnaud Peloquin'
-
-
 class BoardFinderAuto(board.BoardFinder):
     """ Automatically detect the board location in an image.
 

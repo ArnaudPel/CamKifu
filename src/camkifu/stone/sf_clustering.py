@@ -5,9 +5,6 @@ import camkifu.stone
 from golib.config.golib_conf import gsize, W, B, E
 
 
-__author__ = 'Arnaud Peloquin'
-
-
 class SfClustering(camkifu.stone.StonesFinder):
     """ Stones finder implementation based on k-means pixel clustering.
 

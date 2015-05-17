@@ -9,9 +9,6 @@ from camkifu.core import imgutil
 from camkifu.config import cvconf
 
 
-__author__ = 'Arnaud Peloquin'
-
-
 class BoardFinder(camkifu.core.VidProcessor):
     """ Abstract class providing common features that may be used by board-finding algorithms.
 

@@ -11,15 +11,12 @@ import test.objects
 from test.objects import kifu_checker
 
 
-__author__ = 'Arnaud Peloquin'
-
 """
 Test the default configuration of BoardFinder / StonesFinder on a recorded game (video file), and compare
 moves found with an associated reference SGF. This script is useful to test a global configuration, as errors
 can originate from board or stones algorithms indifferently.
 
 """
-
 
 def set_title(root2, video, vmanager):
     """

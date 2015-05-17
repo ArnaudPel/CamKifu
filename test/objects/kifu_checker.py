@@ -5,9 +5,6 @@ import tkinter.constants
 import golib.model
 
 
-__author__ = 'Arnaud Peloquin'
-
-
 class KifuChecker(golib.model.Kifu):
     """
     A Kifu holding another (reference) Kifu.

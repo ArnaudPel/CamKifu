@@ -13,9 +13,6 @@ from camkifu.config import cvconf
 from golib.config.golib_conf import gsize, E, B, W
 
 
-__author__ = 'Arnaud Peloquin'
-
-
 correc_size = 10
 
 

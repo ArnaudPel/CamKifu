@@ -6,8 +6,6 @@ import golib.gui
 import camkifu.core
 
 
-__author__ = 'Arnaud Peloquin'
-
 commands_size = 10
 
 

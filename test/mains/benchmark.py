@@ -8,8 +8,6 @@ import camkifu.core
 import test.objects
 
 
-__author__ = 'Arnaud Peloquin'
-
 """
 Script that helps with running successive detection tests in one go. To be called on a directory containing
 video files and reference sgf files.

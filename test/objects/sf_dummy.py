@@ -2,8 +2,6 @@ import golib.model
 import camkifu.stone
 from test import devconf
 
-__author__ = 'Arnaud Peloquin'
-
 
 class DummyFinder(camkifu.stone.StonesFinder):
     """
