@@ -59,6 +59,9 @@ class ControllerVTest(ControllerVDev):
         self.init_kifu(mv_bounds)
         self.ignored_instruct = set()
 
+        self.api["video_progress"] = self.print_progress
+        self.last_progress = 0
+
     def init_kifu(self, move_bounds):
         if move_bounds:
             log_ref = self.log  # silence log, in order not to have all the skipped moves printed
@@ -75,3 +78,8 @@ class ControllerVTest(ControllerVDev):
             if instruction not in self.ignored_instruct:
                 print("Unsupported instruction: \"{}\", ignoring.".format(instruction))
                 self.ignored_instruct.add(instruction)
+
+    def print_progress(self, progress):
+        if 20 <= progress - self.last_progress:
+            print("{0}: {1:.0f}%".format(self.video, progress))
+            self.last_progress = progress
