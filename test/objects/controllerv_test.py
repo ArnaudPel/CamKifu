@@ -31,7 +31,7 @@ class ControllerVDev(golib.gui.ControllerBase):
         Put the move in the current Rule object, then append it to the kifu.
 
         """
-        move.number = self.current_mn + 1
+        move.number = self.head + 1
         self.rules.put(move)
         self._append(move)
 
@@ -65,8 +65,8 @@ class ControllerVTest(ControllerVDev):
             log_ref = self.log  # silence log, in order not to have all the skipped moves printed
             self.log = lambda _: None
             # transfer skipped reference moves to the working structure for consistency
-            while self.current_mn < move_bounds[0] - 1:
-                self.cvappend(self.kifu.ref.getmove_at(self.current_mn + 1))
+            while self.head < move_bounds[0] - 1:
+                self.cvappend(self.kifu.ref.getmove_at(self.head + 1))
             self.log = log_ref
 
     def pipe(self, instruction, *args):

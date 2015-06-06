@@ -6,14 +6,17 @@ import golib.gui
 import camkifu.core
 
 
+# size of the command queue
 commands_size = 10
 
 
 def promptdiscard(meth):
-    """
-    ControllerV Method decorator. Prompt the user with a "discard changes / cancel" dialog when doing an operation
-    that may compromise unsaved changes in the current game record (eg. changing video input).
+    """ ControllerV Method decorator. Prompt the user with a "discard changes / cancel" dialog.
+    Use when doing an operation that may compromise unsaved changes in the game record (eg. changing video input).
 
+    Arg:
+        meth: callable
+            The method to decorate.
     """
     def wrapper(*args, **kwargs):
         self = args[0]
@@ -30,9 +33,21 @@ def promptdiscard(meth):
 
 # noinspection PyMethodMayBeStatic
 class ControllerV(golib.gui.Controller):
-    """
-    Extension of the default GUI controller, adding the handling of Vision threads.
+    """ Extension of the default GUI controller adding the handling of Vision threads.
 
+    Attributes:
+        queue: Queue
+            The commands that have been received and wait for execution.
+        video: int / str
+            The video input description as used by openCV: integer or file path
+        bounds: (int, int)
+            The video start and end position as used by openCV.
+        input:
+            The UI component collecting user input.
+        api: dict
+            The commands exposed by this Controller.
+        paused: Paused
+            A toggle
     """
 
     def __init__(self, user_input, display, sgffile=None, video=0, bounds=(0, 1)):
@@ -41,13 +56,14 @@ class ControllerV(golib.gui.Controller):
         self.video = video
         self.bounds = bounds
 
-        # commands from background that have to be executed on the GUI thread.
+        # ensure the commands are executed by the proper GUI thread
         self.input.bind("<<execute>>", self._cmd)
 
         try:
+            # setup the UI response to known commands
             self.input.commands["next"] = lambda: self.next()  # lambda needed to bind method externally at runtime
-            self.input.commands["on"] = lambda: self._on()  # lambda needed (same reason)
-            self.input.commands["off"] = lambda: self._off()  # lambda needed (same reason)
+            self.input.commands["on"] = lambda: self._on()     # lambda needed (same reason)
+            self.input.commands["off"] = lambda: self._off()   # lambda needed (same reason)
             self.input.commands["run"] = self._run
             self.input.commands["pause"] = lambda: self._pause(self.paused.true())
             self.input.commands["vidfile"] = self._openvideo
@@ -58,6 +74,7 @@ class ControllerV(golib.gui.Controller):
             self.log(ae)
 
         self.api = {
+            # expose more commands for video manager / vision threads
             "append": self._cvappend,
             "delete": lambda x, y: self._delete(y, x, learn=False),  # NB: (x,y) inversion ! Call with numpy coordinates
             "bulk": self._bulk_update,
@@ -72,14 +89,14 @@ class ControllerV(golib.gui.Controller):
         if sgffile is not None:
             self._goto(722)  # get kifu ready to ramble
 
-        self.paused = Pause()
+        self.paused = Pause(False)
 
     def pipe(self, instruction, *args):
-        """
-        Send an instruction to this controller, that will be treated asynchronously.
-        instruction -- a callable.
-        args -- the arguments to to pass on "instruction" call.
+        """ Send an instruction to this controller, that will be treated asynchronously.
 
+        Args:
+            instruction: callable
+            args: the arguments to pass to "instruction".
         """
         if self.input.closed:
             raise camkifu.core.ControllerWarning("Target User Interface has been closed.")
@@ -94,16 +111,13 @@ class ControllerV(golib.gui.Controller):
             self.input.event_generate("<<execute>>")
 
     def _cmd(self, event):
-        """
-        Try to empty the commands queue (filled by pipe()).
-        This method will not execute more than a fixed number of commands, in order to prevent
-        infinite looping. Such infinite looping could occur if this method fails to keep up with
-        other threads piping commands.
+        """ Try to empty the commands queue.
 
+        This method will not execute more than a fixed number of commands, in order to prevent infinite looping.
+        Such infinite looping could occur if this method fails to keep up with other threads piping commands.
         Keeping flow smooth is paramount here, as this is likely to be run on the main (GUI) thread.
 
         See self.api for the list of executable commands.
-
         """
         try:
             count = 0
@@ -121,67 +135,53 @@ class ControllerV(golib.gui.Controller):
             pass
 
     def get_stones(self) -> np.ndarray:
-        """
-        Return a copy of the current goban state, in the numpy coordinates system.
-
+        """ Return a copy of the current goban state, in the numpy coordinates system.
         """
         with self.rlock:
             return np.array(self.rules.stones, dtype=object).T
 
     def _on(self):
-        """
-        To be set from outside (eg. by Vision Manager).
-        Turn on vision machinery if it is not running.
-
+        """ Turn on vision processing if it is not running. To be set from outside (eg. by Vision Manager).
         """
         pass
 
     def _off(self):
-        """
-        To be set from outside (eg. by Vision Manager).
-        Turn off vision machinery if it is running.
-
+        """ Turn off vision processing if it is running. To be set from outside (eg. by Vision Manager).
         """
         pass
 
     def _pause(self, boolean):
-        """
-        To be set from outside (eg. by Vision Manager).
-        Pause if boolean is True, else resume.
-
+        """ Pause if boolean is True, else resume. To be set from outside (eg. by Vision Manager).
         """
         pass
 
     def corrected(self, err_move, exp_move):
-        """
-        To be set from outside (eg. by Vision Manager).
-        The user has made a manual modification to the Goban.
+        """ The user has made a manual modification to the Goban. To be set from outside (eg. by Vision Manager).
 
+        Args:
+            err_move: Move
+                The move that was deleted by the user. May be null if the correction is an add.
+            exp_move: Move
+                The move that was added by the user. May be null if the correction is a delete.
         """
         pass
 
     def next(self):
-        """
-        To be set from outside (eg. by Vision Manager).
-        The user has clicked "Next".
-
+        """ The user has clicked "Next". To be set from outside (eg. by Vision Manager).
         """
         pass
 
     def vidpos(self, new_pos):
-        """
-        To be set from outside (eg. by Vision Manager).
-        The user has set a new video position.
+        """ The user has set a new video position. To be set from outside (eg. by Vision Manager).
 
-        new_pos -- the video progress to set (in %).
-
+        Arg:
+            new_pos: float
+                The video progress to set (in %).
         """
         pass
 
     def _run(self):
-        """
-        Ask vision processes to run / resume.
-
+        """ Ask vision processes to run / resume.
         """
         if self.at_last_move():
             self._pause(self.paused.false())
@@ -201,35 +201,33 @@ class ControllerV(golib.gui.Controller):
         self.display.select_sf(label)
 
     def _prompt_new_kifu(self):
-        """
-        To be called when the current Kifu must imperatively be replaced.
-        For example, if the video input has changed, there isn't much sense in keeping the same SGF.
+        """ To be called when the current Kifu must imperatively be replaced.
 
+        For example, if the video input has changed, there isn't much sense in keeping the same SGF.
         """
         if not self._opensgf():
             self._newsgf()
 
     def _cvappend(self, move):
+        """ Append the provided move to the current game. Implementation dedicated to automated detection.
         """
-        Append the provided move to the current game. Implementation dedicated to automated detection.
-
-        """
-        move.number = self.current_mn + 1
+        move.number = self.head + 1
         self.rules.put(move)
         self._append(move)
 
     def _mouse_release(self, event):
-        """ Method override to add correction event. """
+        """ Method override to introduce a correction event.
+        """
         move = super()._mouse_release(event)
         if move is not None:
             self.corrected(None, move)
 
-    def _delete(self, x, y, learn=True):
-        """
-        Method override to introduce a correction event, passed down to stones finder.
+    def _delete(self, x: int, y: int, learn: bool=True):
+        """ Method override to introduce a correction event.
 
-        learn -- True to pass this correction down to the listeners, False to do it silently.
-
+        Arg:
+            learn: bool
+                True to pass this correction down to the listeners, False to do it silently.
         """
         move = super()._delete(x, y)
         if learn and move is not None:
@@ -237,31 +235,30 @@ class ControllerV(golib.gui.Controller):
         return move
 
     def _drag(self, event):
-        """ Method override to add correction event. """
+        """ Method override to introduce a correction event.
+        """
         moves = super()._drag(event)
         if moves is not None:
             self.corrected(*moves)
 
     def _opensgf(self):
-        """ Method override to pause vision threads during long GUI operations. """
+        """ Method override to pause vision threads during long GUI operations.
+        """
         self._pause(True)
         opened = super()._opensgf()
         self._pause(False)
         return opened
 
     def _save(self):
-        """ Method override to pause vision threads during long GUI operations. """
+        """ Method override to pause vision threads during long GUI operations.
+        """
         self._pause(True)
         super()._save()
         self._pause(False)
 
     @promptdiscard
     def _openvideo(self):
-        """
-        Change the video source to a file selected by user, that should be processed by detection algorithms.
-        This is likely to discard the previous video source being processed (up to the video manager to take that
-        change into account).
-
+        """ Change the video source to a file selected by user.
         """
         vidfile = self.display.promptopen()
         if len(vidfile):
@@ -270,33 +267,28 @@ class ControllerV(golib.gui.Controller):
 
     @promptdiscard
     def _openlive(self):
-        """
-        Open the live camera, that should be processed by detection algorithms.
-        This is likely to discard the previous video source being processed.
-
+        """ Change the video source to the live camera.
         """
         self.video = 0
 
     def __setattr__(self, name, value):
-        """ Method override to pause vision threads when browsing previous moves. """
+        """ Method override to pause vision threads when browsing previous moves.
+        """
 
         # watch "current move number" field, and stop vision when user is browsing previous moves.
-        if name == "current_mn" and value is not None:
+        if name == "head" and value is not None:
             try:
                 if value < self.kifu.lastmove().number:
                     self._pause(True)  # don't update Pause object here
                 else:
-                    self._pause(self.paused.__bool__())
+                    self._pause(self.paused)
             except AttributeError:
                 pass  # most likely last_move() has returned null
-
         return super().__setattr__(name, value)
 
 
 class Pause:
-    """
-    A toggle that can be used in lambda functions.
-
+    """ A toggle that can be used in lambda functions.
     """
     def __init__(self, paused=False):
         self.paused = paused

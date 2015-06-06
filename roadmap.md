@@ -29,6 +29,7 @@ Things to investigate, do, or discard.
 
 ## BEFORE PYTHON PUBLISH:
 
+- remove mistakenly added unsecable spaces (search and replace in whole project)
 - CODE REVIEW
     * documentation
         - inspired from [google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html#Comments) and numpy's.
@@ -42,13 +43,13 @@ Things to investigate, do, or discard.
             config
             core [exceptions.py, imgutil.py, video.py, vmanager.py] OK
             stone [sf_clustering.py, sf_contours.py, sf_meta.py, sf_tuto.py, stonesfinder.py]  OK
-            vgui
+            vgui [controllerv.py, ]
         - golib
             config
             gui
-            model [rules.py, ]
+            model [exceptions.py, kifu.py, move.py, rules.py,] OK
 - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
-- license
+- license, instructions here: http://www.gnu.org/licenses/gpl-howto.html
 - clean up and mark down this file :)
 
 
