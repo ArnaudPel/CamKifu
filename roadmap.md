@@ -49,7 +49,7 @@ Things to investigate, do, or discard.
             gui
             model [exceptions.py, kifu.py, move.py, rules.py,] OK
 - create a setup to install Golib in the default "site-packages" location (or redirect from CK !)
-- license, instructions here: http://www.gnu.org/licenses/gpl-howto.html
+- cleanup readme files
 - clean up and mark down this file :)
 
 
