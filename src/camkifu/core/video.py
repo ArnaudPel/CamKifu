@@ -27,7 +27,7 @@ class VidProcessor:
             terminates, and if something went wrong.
         bindings: dict
             Keyboard binding to methods, that will be used together with cv2.waitKey()
-        key: a char
+        key: a char
             The last key returned by cv2.waitKey()
         total_f_processed: int
             The total number of frames successfully passed down to _doframe() since the beginning .
@@ -47,14 +47,14 @@ class VidProcessor:
 
         own_images: dict
             The images that have been sent to display and not destroyed yet.
-        last_shown: defaultdict
+        last_shown: defaultdict
             Map image name to the last time it has been displayed.
         ignored_show: defaultdict
             Map image name to the number of times it has been ignored since last_shown.
         metadata: defaultdict
             Metadata to print on the next image. The structure is a dict because some images may not be shown, so
             data may have to be aggregated / overwritten.
-            Usage : for k, v in metadata.items(): k.format(v)  # one key per row
+            Usage : for k, v in metadata.items(): k.format(v)  # one key per row
     """
 
     def __init__(self, vmanager):
@@ -142,7 +142,7 @@ class VidProcessor:
 
         Extension point that can be used if a VidProcessor is waiting for something and will ignore frames passed down
         to it via self._doframe(). Can spare useless frame consumption. This indication is crucial for file read
-        synchronization : other threads will not be kept waiting on self if it doesn't ready any frame.
+        synchronization : other threads will not be kept waiting on self if it doesn't ready any frame.
 
         Return: bool
         """
@@ -230,14 +230,14 @@ class VidProcessor:
         Args:
             img: ndarray
                 The image on which to print the data.
-            name: str
+            name: str
                 The name of the image.
             latency: bool
                 True if latency information should be printed.
             thread: bool
                 True if current thread information should be printed.
         """
-        # step 1 : draw default metadata, starting at the top of image
+        # step 1 : draw default metadata, starting at the top of image
         try:
             # line 1
             frame_idx = int(round(self.vmanager.capt.get(cv2.CAP_PROP_POS_FRAMES)))
@@ -280,7 +280,7 @@ class VidProcessor:
                 exists, it is updated.
             thread: bool
                 Print current thread name on the image.
-            loc: (int, int)
+            loc: (int, int)
                 The location of the window on the screen.
             max_frequ: float
                 The max number of images displayed per second, when running with GUI (otherwise ignored). If this

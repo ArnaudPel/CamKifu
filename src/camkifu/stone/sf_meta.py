@@ -29,12 +29,12 @@ class SfMeta(camkifu.stone.StonesFinder):
     In order to filter out some false positives, a buffer of recent detection results is maintained. A stone is
     successfully detected if it is "sufficiently present" in that short-lived history.
 
-    Note: because of background sampling and consistency checking (among others), this class is stateful. This
+    Note: because of background sampling and consistency checking (among others), this class is stateful. This
     means things may easily break if the movie is rolled back (using the slider), or another movie is played
     without reseting this finder.
 
     Args:
-        cluster: StonesFinder
+        cluster: StonesFinder
             Delegate preferred for mid to high density (stonewise) areas.
         contour: StonesFinder
             Delegate preferred for low density (stonewise) areas.
@@ -77,7 +77,7 @@ class SfMeta(camkifu.stone.StonesFinder):
         -> dynamically assign one finder per region, periodically trying to introduce clustering where it's not assigned
 
         """
-        # 0. if startup phase: let background model get initialized (see StonesFinder._doframe())
+        # 0. if startup phase: let background model get initialized (see StonesFinder._doframe())
         if self.total_f_processed < self.bg_init_frames:
             self.display_bg_sampling(goban_img.shape)
             return
@@ -141,11 +141,11 @@ class Region():
     Attributes:
         sf: StonesFinder
             Provides access to stones finder util methods.
-        rs, re, cs, ce: int, int, int, int
+        rs, re, cs, ce: int, int, int, int
             The row and column boundaries (in terms of Goban intersections) where this Region should search stones.
-        histo: int
+        histo: int
             The length of the (short-lived) history used to filter out false positives.
-        finder: StonesFinder
+        finder: StonesFinder
             The delegate currently responsible for stones detection in this region.
         states: CyclicBuffer
             A cyclic history of the latest states this Region was in.
@@ -246,7 +246,7 @@ class Region():
     def try_clustering(self, img, refs) -> None:
         """ Set "clustering finder" as the current finder of this region if it returns valid results.
 
-        Motivation: once a region is dense enough, the clustering algorithm seems much more trustworthy
+        Motivation: once a region is dense enough, the clustering algorithm seems much more trustworthy
         than contours analysis. So it should be tried often, in order to know as soon as possible when it
         becomes pertinent to use it.
         """
@@ -289,7 +289,7 @@ class Region():
             id_: str
                 An optional identifier to add to the beginning of printed messages.
 
-        Returns passed: int
+        Returns passed: int
             The sum of constraint scores, or -1 if a constraint has vetoed.
         """
         passed = 0
@@ -310,10 +310,10 @@ class Region():
         recent history enables to only submit results that are recurrent, thus less likely to be pollution.
 
         Args:
-            cb: CyclicBuffer
+            cb: CyclicBuffer
                 The "recent history" in which to detect valid new moves.
 
-        Returns: None
+        Returns: None
             Submit directly to the controller.
         """
         assert len(cb.buffer.shape) == 3
@@ -349,7 +349,7 @@ class Region():
 
         In case of agitation, the state of this Region is updated in order to trigger future search(es).
 
-        Returns agitated: bool
+        Returns agitated: bool
             True if the region is "calm" (not much active foreground), else False.
         """
         try:
@@ -398,7 +398,7 @@ class Region():
             ref_stones: ndarray
                 The stones found so far (the whole goban), used to determine a reference population.
 
-        Returns: bool
+        Returns: bool
         """
         current_pop = self.get_population(ref_stones[self.rs:self.re, self.cs:self.ce])
         if current_pop < 4:

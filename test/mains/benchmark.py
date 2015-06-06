@@ -29,7 +29,7 @@ def list_bench(refdir, vid_dir) -> dict:
     vid_dir -- the directory containing the video files
 
     """
-    # step 0: arrange paths
+    # step 0: arrange paths
     if not vid_dir.endswith("/"):
         vid_dir += "/"
     if refdir is None:
@@ -37,7 +37,7 @@ def list_bench(refdir, vid_dir) -> dict:
     elif not refdir.endswith("/"):
         refdir += "/"
 
-    # step 1: list video candidates (all files that are not sgf)
+    # step 1: list video candidates (all files that are not sgf)
     vid_files = []
     for f in os.listdir(vid_dir):
         if not f.endswith('.sgf'):
@@ -62,7 +62,7 @@ def list_bench(refdir, vid_dir) -> dict:
             if not matched:
                 unmatched.append(ntpath.basename(sgf))
     if len(unmatched):
-        print("Benchmark warning: unmatched reference files {}".format(unmatched))
+        print("Benchmark warning: unmatched reference files {}".format(unmatched))
     return bench
 
 

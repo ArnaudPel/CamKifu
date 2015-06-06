@@ -29,7 +29,6 @@ Things to investigate, do, or discard.
 
 ## BEFORE PYTHON PUBLISH:
 
-- remove mistakenly added unsecable spaces (search and replace in whole project)
 - CODE REVIEW
     * documentation
         - inspired from [google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html#Comments) and numpy's.

@@ -69,7 +69,7 @@ def draw_str(dst, s, x=None, y=None):
     """ Print a white string with a black shadow on the image. (Thank you opencv python samples)
 
     Args:
-        dst: ndarray
+        dst: ndarray
             The image on which to draw.
         x: int
             Horizontal offset from left, in pixels. Defaults to a value that tries to center the str.
@@ -332,7 +332,7 @@ def around(x, y, margin, xmin=None, xmax=None, ymin=None, ymax=None):
             The center around which positions should be enumerated. Is excluded from the enumeration.
         margin:
             Defines the side of the square that will be enumerated. Its side is (margin * 2 + 1).
-        xmin, xmax, ymin, ymax: int, int, int, int
+        xmin, xmax, ymin, ymax: int, int, int, int
             Additional limits to the row(s) or column(s) enumerated (making the enumeration a rectangle).
 
     Yield: Each position as described above.
@@ -374,7 +374,7 @@ class BoundingBox:
             The contour as computed by openCV.
         pos: int
             Arbitrary index that can be set to remember the position of this contour in a structure.
-        box: tuple
+        box: tuple
             The bounding rectangle of the contour, as computed by openCV.
         area: int
             The area of the bounding rectangle.
@@ -402,7 +402,7 @@ class EnclosingCircle:
             The contour as computed by openCV.
         pos: int
             Arbitrary index that can be set to remember the position of this contour in a structure.
-        circle: tuple
+        circle: tuple
             The min enclosing circle of the contour, as computed by openCV.
         area: int
             The area of the enclosing circle.
@@ -505,8 +505,8 @@ class CyclicBuffer():
     Probably not intuitive (or optimal) in its design, but does the job for now.
 
     Attributes:
-        size: int
-            The size of the cycle: the number of ndarrays that can be buffered.
+        size: int
+            The size of the cycle: the number of ndarrays that can be buffered.
         buffer: ndarray
             The stucture containing the currently buffered values, as well as default values in the channels that
             haven't been taken yet.
@@ -530,7 +530,7 @@ class CyclicBuffer():
     >>> print(cb[:])
     [[42  1]
      [ 1 42]]
-    >>> cb.increment()  # increment cycle index : point to the next buffered array
+    >>> cb.increment()  # increment cycle index : point to the next buffered array
     >>> cb[0, 1] = 19  # update current array (now different from above)
     >>> print(cb[:])
     [[ 1 19]
@@ -541,7 +541,7 @@ class CyclicBuffer():
     <BLANKLINE>
      [[ 1  1]
       [42  1]]]
-    >>> cb.increment()  # increment cycle index : a cycle has completed, so the buffer points on the first array again
+    >>> cb.increment()  # increment cycle index : a cycle has completed, so the buffer points on the first array again
     >>> cb[:] = 99
     >>> print(cb.buffer[:])
     [[[99  1]
@@ -581,7 +581,7 @@ class CyclicBuffer():
             item: slice
                 A slice as used when querying this CyclicBuffer.
 
-        Returns buff_item: tuple
+        Returns buff_item: tuple
             The converted slice.
         """
         buff_item = item if isinstance(item, tuple) else (item, )

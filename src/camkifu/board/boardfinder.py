@@ -20,7 +20,7 @@ class BoardFinder(camkifu.core.VidProcessor):
             Contains the corners that have been found so far.
         transform_dst: ndarray
             Provides the dimensions of the receiver array in perspective transform.
-        mtx: ndarray
+        mtx: ndarray
             The perspective transform matrix, that should be used by stones finder to straighten up the goban img.
     """
 
@@ -50,7 +50,7 @@ class BoardFinder(camkifu.core.VidProcessor):
     def _detect(self, frame):
         """ Process the provided frame to find goban corners in it, and update the 'corners' attribute.
 
-        Returns detected: bool
+        Returns detected: bool
             True to indicate that the Goban has been located successfully (all 4 corners have been located).
         """
         raise NotImplementedError("Abstract method meant to be extended")
@@ -74,7 +74,7 @@ class GobanCorners():
             what's actually used in the transform matrix computation.
         frame: ndarray
             The last frame processed. Used to get an idea of the sizes to expect.
-        _points: list
+        _points: list
             The corner points detected so far.
     """
     def __init__(self, points=None):
@@ -104,7 +104,7 @@ class GobanCorners():
             if imgutil.norm(pt, point) < closest[0]:
                 closest = (imgutil.norm(pt, point), i)
         if len(self._points) < 4:
-            # security: don't append the provided point if it is too close to another:
+            # security: don't append the provided point if it is too close to another:
             # the board is supposed to take a minimal amount of space in the image.
             if closest[1] is None or self.frame is None or min(*self.frame.shape[0:2]) / 5 < closest[0]:
                 self._points.append(point)

@@ -66,7 +66,7 @@ Any advice regarding architecture improvement will be received with keen interes
 
 I want to acknowledge the fact that this project has little to do with me. It is the work of millions of people.
 
-- From the food I eat to the computer I've been using to learn and code all those years. A big global thanks and compationate thought to the people who have / are suffering in the world so that some of us may enjoy the grace of sitting in front of a computer most of the day.
+- From the food I eat to the computer I've been using to learn and code all those years. A big global thanks and compationate thought to the people who have / are suffering in the world so that some of us may enjoy the grace of sitting in front of a computer most of the day.
 - Focusing now on the developer community, thanks to all the designers, programmers, prophets that have made so many systems, languages and great libraries available to us. Python contributors, OpenCV contributors, Stackoverflow, thanks a lot.
 - Finaly, I can't help but word a special thanks to the Jetbrains team, who built such awesome friends as Pycharm and Intellij Idea. I often wonder at what a proper job they've been doing so far at making coding an even more thrilling thing than it is by essence. Love you guys.
  

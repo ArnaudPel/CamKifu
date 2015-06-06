@@ -26,7 +26,7 @@ class SfContours(camkifu.stone.StonesFinder):
     def _find(self, goban_img: np.ndarray):
         """ Wait for background initialization, then run stones detection and display results without submitting them.
 
-        Note: SfMeta is using this class abilities, but it does via find_stones (thus bypassing this method).
+        Note: SfMeta is using this class abilities, but it does via find_stones (thus bypassing this method).
 
         Args:
             goban_img: ndarray
@@ -53,7 +53,7 @@ class SfContours(camkifu.stone.StonesFinder):
             ¤ On foreground mask, to try to find a newly put stone.
 
         A mask is created by drawing the convex hull of each contour on a black image. After having applied this
-        mask on the original image, each intersection pixels are summed and analysed: if there are enough non-zero,
+        mask on the original image, each intersection pixels are summed and analysed: if there are enough non-zero,
         a color is determined for that intersection based on neighbour intersections comparison.
 
         Args:
@@ -129,7 +129,7 @@ class SfContours(camkifu.stone.StonesFinder):
     def find_color(r, c, zones: np.ndarray, stones: np.ndarray):
         """ Compare the (r, c) intersection's zone with its neighbours to determine its color (B, W, or E).
 
-        Note: 'stones' is used both as data and result slot.
+        Note: 'stones' is used both as data and result slot.
 
         Args:
             r: int
@@ -169,11 +169,11 @@ class SfContours(camkifu.stone.StonesFinder):
                                 neigh_stone = stones[r + i, c + j]
                                 if neigh_stone not in (B, W):
                                     continue
-                                # less than 10% difference relatively to smallest val : ally stone
+                                # less than 10% difference relatively to smallest val : ally stone
                                 if abs(diff) < min_val * 0.1:
                                     colors.add(neigh_stone)
                                     added += 1
-                                # at least 100% difference relatively to smallest val : enemy stone
+                                # at least 100% difference relatively to smallest val : enemy stone
                                 elif min_val < abs(diff):
                                     colors.add(B if neigh_stone is W else (W if neigh_stone is B else E))
                                     added += 1
@@ -220,7 +220,7 @@ class SfContours(camkifu.stone.StonesFinder):
             canvas: ndarray
                 An optional image where to draw some search results.
 
-        Return filtered: list
+        Return filtered: list
             The interesting contours that could be found in the foreground mask.
         """
         sub_fg = self.get_foreground()[x0:x1, y0:y1]
@@ -231,7 +231,7 @@ class SfContours(camkifu.stone.StonesFinder):
         filtered = []
         ghost = np.zeros(sub_fg.shape, dtype=np.uint8)
         for cont in contours:
-            # compute the distance matrix for each pixel: the higher the value, the further the pixel from the contour
+            # compute the distance matrix for each pixel: the higher the value, the further the pixel from the contour
             cv2.drawContours(ghost, [cont], 0, (255, 0, 255))
             ry0, rx0, dy, dx = cv2.boundingRect(cont)  # contour region (not rotated rectangle)
             negative = np.empty((dx, dy), dtype=np.uint8)
@@ -259,7 +259,7 @@ class SfContours(camkifu.stone.StonesFinder):
             canvas: ndarray
                 An optional image where to draw the contours retained.
 
-        Returns filtered: list
+        Returns filtered: list
             The interesting contours that could be found in the foreground mask.
         """
         # try to remove some pollution to keep nice blobs

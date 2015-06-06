@@ -36,7 +36,7 @@ class ControllerV(golib.gui.Controller):
     """ Extension of the default GUI controller adding the handling of Vision threads.
 
     Attributes:
-        queue: Queue
+        queue: Queue
             The commands that have been received and wait for execution.
         video: int / str
             The video input description as used by openCV: integer or file path

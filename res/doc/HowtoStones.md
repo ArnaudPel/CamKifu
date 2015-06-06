@@ -1,4 +1,4 @@
-# HOW-TO : STONES FINDER
+# HOW-TO : STONES FINDER
 Before reading further, you may be intersted in having a look at `Howto VidProcessor.md`.
 
 This part aims at demonstrating how to create and integrate a new stones detection algorithm frorm scratch. After the minimal version has been put together, a tour of util functions around stones finding is offered.
@@ -128,7 +128,7 @@ def _find(self, goban_img):
 
 Note that by default, the values returned by `getrect` are merely calculated by dividing the image in 19 by 19 (`gsize * gsize`) zones without any analysis. As explained above, the default (most simple) approach places entire trust in the board finding feature.
 
-## 3. Other misc. goodies
+## 3. Other misc. goodies
 
 Things that had seemed to make sense at some point, but may not anymore.
 

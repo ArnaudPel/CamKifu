@@ -36,7 +36,7 @@ class VManagerSeq(camkifu.core.VManagerBase):
     def goto_detect(self):
         print("requesting return to board detection state")
         self.state = VManagerSeq.states[0]
-        # special for manual board finder : it must not be killed although it has got a board location, to allow for
+        # special for manual board finder : it must not be killed although it has got a board location, to allow for
         # user to correct as many points as needed. See self.init_bf() for the key binding giving the 'ok' signal.
         self.bf_locked = isinstance(self.board_finder, bf_manual.BoardFinderManual)
         self.stones_finder.interrupt()

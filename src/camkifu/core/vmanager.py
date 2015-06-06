@@ -15,22 +15,22 @@ class VManagerBase(threading.Thread):
     Attributes:
         controller: Controller
             A controller that can handle instructions coming from vision ('append', 'delete', 'bulk')
-        imqueue: Queue
+        imqueue: Queue
             Contains the images to be displayed.
 
-        capt: VideoCapture
+        capt: VideoCapture
             Responsible for handling the reading of frames from video input.
         current_video: int or str
             The current video input descriptor, can be an int to define a device, or a file path to a video.
             See cv2.VideoCapture()
 
-        bf_class: type
+        bf_class: type
             The current board finder class that should be used to detect the Goban on the global images.
         sf_class: type
             The current stones finder class that should be used to detect the stones from the canonical (Goban) image.
         board_finder: BoardFinder
             The current video processor instance responsible for board detection, should be of type 'bf_class'.
-        stones_finder: StonesFinder
+        stones_finder: StonesFinder
             The current video processor instance responsible for stones detection, should be of type 'sf_class'.
 
         full_speed: bool
@@ -438,7 +438,7 @@ class CaptureReaderBase:
             Expected to quack like cv2.VideoCapture (object from which actual read() calls will be consumed).
         vmanager: VManager
             The owner of the VidProcessors to synchronize.
-        fps: int
+        fps: int
             The number of frames per second that should be read from video files (i.e. potentially skip some frames).
 
     """
@@ -533,7 +533,7 @@ class CaptureReader(CaptureReaderBase):
         Serve the caller immediately if it hasn't received the current frame already, or wait until all active threads
         have been served the current thread before consuming and returning the next frame.
 
-        Note : this method is designed to be called concurrently. Precisely, self.served is supposed to be
+        Note : this method is designed to be called concurrently. Precisely, self.served is supposed to be
         cleared by the last served thread while others are waiting in this method's "sleep" loop.
 
         Args:
@@ -623,6 +623,6 @@ def videocapture_skipped_frames(video="/Path/To/movie.mov"):
         prev = x
         count += 1
     print("total (cv2 property) - observed count = {}".format(total - count))
-    print("sum of differences: {}".format(sum(diffs)))
+    print("sum of differences: {}".format(sum(diffs)))
     print("skipped frames:")
     print(pos)

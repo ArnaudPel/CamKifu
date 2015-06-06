@@ -1,9 +1,9 @@
-# HOW-TO : VIDEO PROCESSORS
+# HOW-TO : VIDEO PROCESSORS
 
 This tutorial is an insight on how the code dealing with video processing has been organized. In one sentence, the `VManager` class is responsible for creating and managing instance(s) of `BoardFinder` and `StonesFinder`, which both extend the `VipProcessor` base class.
 
-## Coordinates systems
-A special care has to be observed regarding how matrices indices are used, since `numpy` and `opencv` do not use the same coordinates system. Usually there is as little fiddling with that as can be, but  conversions do occur here and there in the project.
+## Coordinates systems
+A special care has to be observed regarding how matrices indices are used, since `numpy` and `opencv` do not use the same coordinates system. Usually there is as little fiddling with that as can be, but  conversions do occur here and there in the project.
  
 If needs be, here's a visual example of the two different logics
  
@@ -25,7 +25,7 @@ Although Python mulit-threading seems not to be parallel in essence because of t
  
 ## Goodies
 
-### Metadata display
+### Metadata display
 
 A `VidProcessor` has the ability to accumulate strings (lines), and draw them on the next image passed to `_show()`. The positionning of the lines is handled automatically, starting at the bottom left of the image. The data is cleared right after `self._show()` has been called, so it has to be refilled for each image to be shown.
 

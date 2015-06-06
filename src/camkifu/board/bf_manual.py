@@ -42,7 +42,7 @@ class BoardFinderManual(board.BoardFinder):
         Args:
             The frame to process, which is actually sent to display for the user to do the work ;)
 
-        Returns detected: bool
+        Returns detected: bool
             True to indicate that the Goban has been located successfully (all 4 corners have been located).
         """
         cv2.setMouseCallback(self._window_name(), self.onmouse)

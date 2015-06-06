@@ -19,7 +19,7 @@ class BoardFinderAuto(board.BoardFinder):
     Attributes:
         lines_accu: list
             Accumulator of lines detected as probable Goban sides (any of the 4 sides).
-        groups_accu: list
+        groups_accu: list
             Accumulator of points that are candidates identifiers of Goban corners. They are obtained by
             intersecting the accumulated lines described above. They are grouped together when being close enough to
             each other, and a positive detection can be triggered if 4 groups stand out.
@@ -62,10 +62,10 @@ class BoardFinderAuto(board.BoardFinder):
         the detection is deemed unsuccessful and cleared for another pass.
 
         Args:
-            frame: ndarray
+            frame: ndarray
                 The image to search.
 
-        Returns detected: bool
+        Returns detected: bool
             True to indicate that the Goban has been located successfully (all 4 corners have been located).
         """
         length_ref = min(frame.shape[0], frame.shape[1])  # a reference length linked to the image
@@ -106,15 +106,15 @@ class BoardFinderAuto(board.BoardFinder):
         """ Use houghlines to find big lines in the contours.
 
         Another approach could have used cv2.approxPolyDP(), but it fits the polygon points inside the contour, whereas
-        what is needed here is a nicely fitted "tangent" for each side: the intersection points (corners) are outside
+        what is needed here is a nicely fitted "tangent" for each side: the intersection points (corners) are outside
         the contour most likely (round corners).
 
         Args:
             positions: ints
                 The indexes of elements of interest in 'contours'.
-            contours: list
+            contours: list
                 A list of contours.
-            length_ref: int
+            length_ref: int
                 A length reference used to parametrize thresholds.
             shape: ints
                 The shape of the image in which contours have been found
@@ -175,13 +175,13 @@ class BoardFinderAuto(board.BoardFinder):
         """ Compute the mean of each points group and update corners if 4 groups have been found.
         In any case clear accumulation structures to prepare for next detection round.
 
-        Returns found: bool
+        Returns found: bool
             True if 4 corners have been detected, False otherwise.
         """
         found = False
         nb_corners = 4
         if len(self.groups_accu) == nb_corners:
-                # step 1 : compute center of mass of each group
+                # step 1 : compute center of mass of each group
                 centers = []
                 for group in self.groups_accu:
                     x, y = 0, 0
@@ -192,7 +192,7 @@ class BoardFinderAuto(board.BoardFinder):
                 # step 2 : run some final checks on the resulting corners
                 found = True
                 centers = imgutil.get_ordered_hull(centers)  # so that the sides length can be calculated
-                #   - check 1: each side must be of a certain length
+                #   - check 1: each side must be of a certain length
                 for i in range(len(centers)):
                     if imgutil.norm(centers[i-1], centers[i]) < length_ref / 3:
                         found = False
@@ -201,7 +201,7 @@ class BoardFinderAuto(board.BoardFinder):
                 update = True if self.corners.hull is None else False
                 if found and not update:
                     for i in range(nb_corners):
-                        # hypothesis : both current and newly detected corners have been spacially sorted
+                        # hypothesis : both current and newly detected corners have been spacially sorted
                         if 5 < imgutil.norm(centers[i], self.corners.hull[i]):
                             update = True
                             break

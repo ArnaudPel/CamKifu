@@ -23,7 +23,7 @@ class SfClustering(camkifu.stone.StonesFinder):
     def _find(self, goban_img):
         """ Accumulate Goban frames, run stones detection every 3 images, and submit a bulk update accordingly.
 
-        Note: SfMeta is using this class abilities, but it does via find_stones (thus bypassing this method).
+        Note: SfMeta is using this class abilities, but it does via find_stones (thus bypassing this method).
 
         Args:
             goban_img: ndarray
@@ -92,7 +92,7 @@ class SfClustering(camkifu.stone.StonesFinder):
                 Column start and end indexes. Can be used to restrain check to a subregion.
 
         Returns ratios, centers: ndarray, list
-            The matrix of ratios. Its third dimension is used to store percentage of colors in each Goban intersection.
+            The matrix of ratios. Its third dimension is used to store percentage of colors in each Goban intersection.
             The list of k-means centers (greyscale colors) that must be used to read the third dimension of the ratios
             matrix (which percentage is associated to which color).
         """
@@ -105,7 +105,7 @@ class SfClustering(camkifu.stone.StonesFinder):
         if retval:
             # dev code to map the labels on an image to visualize the exact clustering result
             centers_val = list(map(lambda x: int(sum(x) / 3), centers))
-            # pixels = vectorize(lambda x: centers_val[x])(labels)  # wish I could vectorize the colors but.. failed
+            # pixels = vectorize(lambda x: centers_val[x])(labels)  # wish I could vectorize the colors but.. failed
             # pixels = reshape(pixels.astype(uint8), (subimg.shape[0], subimg.shape[1]))
             # pixels *= self.getmask(self.accu.shape[0:2])[x0:x1, y0:y1]
             # self._show(pixels)

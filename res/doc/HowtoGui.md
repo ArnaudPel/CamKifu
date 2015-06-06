@@ -161,7 +161,7 @@ def __init__(self, user_input, display, sgffile=None, video=0, bounds=(0, 1)):
     }
 ```
 
-### 3. class VUI
+### 3. class VUI
 Now remains the actual GUI code updating the slider !
 
  ```python

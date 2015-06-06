@@ -86,8 +86,8 @@ class StonesFinder(camkifu.core.VidProcessor):
             A background image used in the "user corrections" learning process.
         deleted: dict
             Locations under "deletion watch". keys: the locations, values: the number of samples left to do.
-            Note: each location is a tuple indicating an intersection row and column, in numpy coordinates frame.
-        nb_del_samples: int
+            Note: each location is a tuple indicating an intersection row and column, in numpy coordinates frame.
+        nb_del_samples: int
             The number of times a zone should be sampled when it has been deleted by user. For example, after the
             user has deleted a wrongly detected stone, compute the mean of the pixel area around that intersection
             over 50 frames.
@@ -186,7 +186,7 @@ class StonesFinder(camkifu.core.VidProcessor):
 
         Other cases will raise an Exception for now, to show they exist but not reaction has been implemented.
         """
-        # step one: process new user inputs
+        # step one: process new user inputs
         unprocessed = []
         try:
             while True:
@@ -252,7 +252,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         """ Indicate to the controller the add of a new stone on the goban. May be processed asynchronously.
 
         Args:
-            color: B or W
+            color: B or W
                 The color of the new stone to add.
             r: int
             c: int
@@ -329,7 +329,7 @@ class StonesFinder(camkifu.core.VidProcessor):
                 A move that has wrongly been detected by algorithms. It has been removed by user.
             exp_move: Move
                 A move that has been missed by detection algorithms. It has been added by user.
-        Note: a relocation will for example consist of the providing of an err_move together with an exp_move.
+        Note: a relocation will for example consist of the providing of an err_move together with an exp_move.
         """
         try:
             self.corrections.put_nowait((err_move, exp_move))
@@ -506,7 +506,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         if hasattr(self, "_fg"):
             current, target = self.total_f_processed, self.bg_init_frames
             if current < target:
-                print("Warning : background model still initializing ({} / {})".format(current,  target))
+                print("Warning : background model still initializing ({} / {})".format(current,  target))
             return self._fg
         else:
             raise ValueError("This StonesFinder doesn't seem to be segmenting background. See self.__init__()")
@@ -514,7 +514,7 @@ class StonesFinder(camkifu.core.VidProcessor):
     def find_intersections(self, img: np.ndarray, canvas: np.ndarray=None) -> np.ndarray:
         """ Find which intersections are likely to be empty based on lines detection.
 
-        The search is based on hough lines detection: if good lines are found inside the intersection zone, it is
+        The search is based on hough lines detection: if good lines are found inside the intersection zone, it is
         very unlikely that a stone would be present. This method is also used to update the intersections coordinates
         when "crosses" are found. By "cross" read at least one horizontal and one vertical line.
 
@@ -577,7 +577,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         """ The approximation of the radius (in pixels) of a stone in the canonical frame.
         Simple implementation based on self._posgrid.size.
 
-        Returns radius: float
+        Returns radius: float
         """
         return self._posgrid.size / gsize / 2
 
@@ -611,7 +611,7 @@ class StonesFinder(camkifu.core.VidProcessor):
                 Although not used explicitly, allowing for keyword args enables multiple check methods to be called
                 indifferently. See self.verify().
 
-        Return status: int
+        Return status: int
             -1, 0, or 1 if the check is respectively refused, undetermined, or passed.
         """
         refs = 0  # number of stones found in reference
@@ -649,7 +649,7 @@ class StonesFinder(camkifu.core.VidProcessor):
             kwargs:
                 Allowing for keyword args enables multiple check methods to be called indifferently. See self.verify().
 
-        Return status: int
+        Return status: int
             1 if enough matches have been found,
            -1 if too many mismatches have been found,
             0 if data isn't sufficient to judge (eg. too few lines found, potentially caused by too few empty positions)
@@ -685,7 +685,7 @@ class StonesFinder(camkifu.core.VidProcessor):
             kwargs:
                 Allowing for keyword args enables multiple check methods to be called indifferently. See self.verify().
 
-        Return status: int
+        Return status: int
             -1, 0, or 1 if the check is respectively refused, undetermined, or passed.
         """
         for color in (B, W):
@@ -700,7 +700,7 @@ class StonesFinder(camkifu.core.VidProcessor):
     def check_flow(self, stones: np.ndarray, rs=0, re=gsize, cs=0, ce=gsize, **kwargs):
         """ Check that newly added stones colors match expectations.
 
-        If multiple new stones : there should be at most one more stone of a color than the other color. The use of
+        If multiple new stones : there should be at most one more stone of a color than the other color. The use of
         this check may prevent algorithms from catching up with previous failures to detect a certain color of stones,
         since they won't be allowed to add multiple stones of the same color when they finally see them. In other
         words this check is probably not such a good idea (As of 14/02/15).
@@ -717,7 +717,7 @@ class StonesFinder(camkifu.core.VidProcessor):
             kwargs:
                 Allowing for keyword args enables multiple check methods to be called indifferently. See self.verify().
 
-        Return status: int
+        Return status: int
             -1, 0, or 1 if the check is respectively refused, undetermined, or passed.
         """
         moves = []  # newly added moves
@@ -750,7 +750,7 @@ class StonesFinder(camkifu.core.VidProcessor):
             kwargs:
                 Allowing for keyword args enables multiple check methods to be called indifferently. See self.verify().
 
-        Returns lonelies: list
+        Returns lonelies: list
             The lonely stones coordinates (r, c), in numpy coord system.
         """
         pos = set()
@@ -903,7 +903,7 @@ def update_grid(lines, box, result_slot):
             The part of the locations grid corresponding to the current intersection.
     """
     margin = min(box[2] - box[0], box[3] - box[1]) / 7
-    # step one: only retain lines that are either vertical or horizontal enough, and centered
+    # step one: only retain lines that are either vertical or horizontal enough, and centered
     segments = []
     for line in lines:
         seg = imgutil.Segment(line[0])
@@ -1016,7 +1016,7 @@ class PosGrid:
         the current grid by this vector.
 
         Args:
-            grid: ndarray
+            grid: ndarray
                 An updated version of self.mtx
             rate: float
                 A factor used to scale the adjustment vector before it is applied.
@@ -1034,7 +1034,7 @@ class PosGrid:
             self.adjust_vect += vect * rate
             self.adjust_contribs += contributors
             if 20 < self.adjust_contribs:
-                print("Grid adjust vector : {}".format(self.adjust_vect))
+                print("Grid adjust vector : {}".format(self.adjust_vect))
                 self.mtx += self.adjust_vect.astype(np.int16)
                 self.adjust_vect[:] = 0
                 self.adjust_contribs = 0
