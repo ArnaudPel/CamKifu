@@ -45,7 +45,7 @@ class StonesFinder(camkifu.core.VidProcessor):
             In an attempt to validate the stones detection result by several different approaches, "constraints"
             checking methods have been introduced. They may veto, accept or ignore a stones detection result based
             on the extra data they use (lines detection, history, thickness). These implementations are here as an
-            example, although I am not satisfied with their actual value (As of 13/02/15).
+            example, although I am not satisfied with their actual value (As of June 2015).
         Grid position learning:
             StoneFinder relies on a PosGrid object to manage the location of each Goban intersection. When having
             run lines detection on the current image, the results can be further used by computing the intersection
@@ -703,7 +703,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         If multiple new stones : there should be at most one more stone of a color than the other color. The use of
         this check may prevent algorithms from catching up with previous failures to detect a certain color of stones,
         since they won't be allowed to add multiple stones of the same color when they finally see them. In other
-        words this check is probably not such a good idea (As of 14/02/15).
+        words this check is probably not such a good idea (As of June 2015).
 
         Args:
             stones: ndarray
