@@ -113,7 +113,7 @@ class SfClustering(camkifu.stone.StonesFinder):
             shape = subimg.shape[0], subimg.shape[1]
             labels = np.reshape(labels, shape)
             labels += 1  # don't leave any 0 before applying mask
-            labels *= self.getmask()[x0:x1, y0:y1]
+            labels *= self.getmask()[x0:x1, y0:y1].astype(labels.dtype)
             # store each label percentage, over each intersection. Careful, they are not sorted, refer to "centers"
             ratios = np.zeros((gsize, gsize, 3), dtype=np.uint8)
             ratios[:, :, centers_val.index(sorted(centers_val)[1])] = 1  # initialize 'E' channel to 1%
