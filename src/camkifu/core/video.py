@@ -221,7 +221,7 @@ class VidProcessor:
             pass  # not interested in non-char keys ATM
         self.key = None
 
-    def _draw_metadata(self, img: np.ndarray, name: str, latency: bool, thread: bool):
+    def _draw_metadata(self, img: np.ndarray, name: str, frame: bool, latency: bool, thread: bool):
         """ Print info strings on the image based on the current instance data.
 
         Custom metadata is read from self.metadata, and printed as follows (one key per row):
@@ -232,6 +232,8 @@ class VidProcessor:
                 The image on which to print the data.
             name: str
                 The name of the image.
+            frame: bool
+                True if frame progression (eg. 12 / 1000) should be printed.
             latency: bool
                 True if latency information should be printed.
             thread: bool
@@ -239,13 +241,15 @@ class VidProcessor:
         """
         # step 1 : draw default metadata, starting at the top of image
         try:
-            # line 1
-            frame_idx = int(round(self.vmanager.capt.get(cv2.CAP_PROP_POS_FRAMES)))
-            total = int(round(self.vmanager.capt.get(cv2.CAP_PROP_FRAME_COUNT)))
-            x_offset = 40
-            line_spacing = 20
-            s = "Frame {}/{} ({} not shown)".format(frame_idx, total, self.ignored_show[name])
-            imgutil.draw_str(img, s, x_offset, line_spacing)
+            # line 1 (optional)
+            if frame:
+                frame_idx = int(round(self.vmanager.capt.get(cv2.CAP_PROP_POS_FRAMES)))
+                total = int(round(self.vmanager.capt.get(cv2.CAP_PROP_FRAME_COUNT)))
+                x_offset = 40
+                line_spacing = 20
+                s = "Frame {}/{} ({} not shown)".format(frame_idx, total, self.ignored_show[name])
+                imgutil.draw_str(img, s, x_offset, line_spacing)
+
             # line 2 (optional)
             if latency:
                 imgutil.draw_str(img, "latency: %.1f ms" % ((time.time() - self.last_read) * 1000), x_offset, 2 * line_spacing)
@@ -265,7 +269,7 @@ class VidProcessor:
         except Exception as exc:
             print("VidProcessor._draw_metadata(): {}".format(exc))
 
-    def _show(self, img: np.ndarray, name: str=None, latency: bool=True, thread: bool=False,
+    def _show(self, img: np.ndarray, name: str=None, frame: bool=True, latency: bool=True, thread: bool=False,
               loc: (int, int)=None, max_frequ: float=2):
         """ Request an image to be shown / updated.
 
@@ -291,7 +295,7 @@ class VidProcessor:
             name = self._window_name()
         if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
             if 1 / max_frequ < time.time() - self.last_shown[name]:
-                self._draw_metadata(img, name, latency, thread)
+                self._draw_metadata(img, name, frame, latency, thread)
                 try:
                     self.vmanager.imqueue.put_nowait((name, img, self, loc))
                     self.own_images[name] = img
@@ -303,7 +307,7 @@ class VidProcessor:
             else:
                 self.ignored_show[name] += 1
         else:  # supposedly in single-threaded (dev) mode
-            self._draw_metadata(img, name, latency, thread)
+            self._draw_metadata(img, name, frame, latency, thread)
             imgutil.show(img, name=name, loc=loc)  # assume we are on main thread
             self.own_images[name] = img
 

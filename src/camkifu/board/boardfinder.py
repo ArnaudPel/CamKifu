@@ -55,12 +55,12 @@ class BoardFinder(camkifu.core.VidProcessor):
         """
         raise NotImplementedError("Abstract method meant to be extended")
 
-    def _show(self, img, name=None, latency=True, thread=False, loc=None, max_freq=2):
+    def _show(self, img, name=None, frame=True, latency=True, thread=False, loc=None, max_freq=2):
         """ Little method override, in order to take control of the location of the window of this boardfinder.
         """
         if loc is None:
             loc = cvconf.bf_loc
-        super()._show(img, name, latency, thread, loc=loc, max_frequ=max_freq)
+        super()._show(img, name, frame, latency, thread, loc=loc, max_frequ=max_freq)
 
 
 class GobanCorners():
