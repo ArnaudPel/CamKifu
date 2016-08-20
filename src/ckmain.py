@@ -50,7 +50,7 @@ def main(video=0, sgf=None, bounds=(0, 1), sf=None, bf=None):
     video -- Filename or device descriptor, as used in cv2.VideoCapture().
 
     """
-    assert cv2.__version__ == "3.0.0-beta"  # disable that if needs be, this is just meant as a quick indication
+    assert cv2.__version__ == "3.1.0"  # disable that if needs be, this is just meant as a quick indication
     root = tkinter.Tk(className="Camkifu")
     glmain.configure(root)
     app = camkifu.vgui.VUI(root)
