@@ -21,7 +21,7 @@ class SfNeural(StonesFinder):
         self.r_width = y1 - y0  # number of pixels on the vertical side of the sample
         self.c_width = x1 - x0  # number of pixels on the horizontal side of the sample
 
-        self.nb_features = self.r_width * self.c_width               # size of ANN input layer
+        self.nb_features = self.r_width * self.c_width               # size of ANN input layer (nb of pixels)
         self.nb_classes = 3 ** (int((gsize + 1) / self.split) ** 2)  # size of ANN output layer
 
     def _subregion(self, row, col):
@@ -73,36 +73,49 @@ class SfNeural(StonesFinder):
     def _parse_regions(self, img, stones):
         examples = np.zeros((self.split ** 2, self.nb_features))
         labels = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
+        break_keys = ('q', 'y')
+        adjust_keys = ('e', 'b', 'w')
         key = None
         for i in range(self.split):
             for j in range(self.split):
                 rs, re, cs, ce = self._subregion(i, j)
                 x0, x1, y0, y1 = self._get_rect_nn(rs, re, cs, ce)
 
-                subimg = img[x0:x1, y0:y1].copy()
-                self.draw_suggestion(rs, re, cs, ce, stones, subimg)
-                show(subimg)
+                for r in range(rs, re):
+                    for c in range(cs, ce):
+                        subimg = img[x0:x1, y0:y1].copy()
+                        self.draw_suggestion(rs, re, cs, ce, stones, subimg)
+                        a0, b0, a1, b1 = self.getrect(r, c)
+                        cv2.rectangle(subimg, (b0 - y0, a0 - x0), (b1 - y0, a1 - x0), (0, 0, 255), thickness=2)
+                        show(subimg)
 
-                key = None
-                try:
-                    key = chr(cv2.waitKey())
-                except:
-                    pass
-                if key is 'q':
-                    print('bye bye')
-                    break
+                        try:
+                            key = chr(cv2.waitKey())
+                            while key not in break_keys + adjust_keys:
+                                print("unknown command. please use: {} or fix with {}".format(break_keys, adjust_keys))
+                                key = chr(cv2.waitKey())
+                        except Exception as e:
+                            print(e)
+                            key = 'q'
+                        if key in break_keys:
+                            break
+                        elif key in adjust_keys:
+                            stones[r, c] = key.upper()
+                    if key in break_keys:
+                        break
 
                 label_val = self.compute_label(ce, cs, re, rs, stones)
 
-                if key is 'y' or key is 'o':
+                if key not in ('q', None):
                     example_idx = i * self.split + j
                     # feed grayscale to nn as a starter. todo use colors ? (3 times as more input nodes)
-                    examples[example_idx] = cv2.cvtColor(subimg, cv2.COLOR_BGR2GRAY).flatten()
+                    examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY).flatten()
                     labels[example_idx, label_val] = 1
-                    print("sample {} is {}".format(example_idx, label_val))
+                    print("sample {} is {} {}".format(example_idx, label_val, self.compute_stones(label_val)))
                 else:
-                    print("sample corresponding to ({}-{})x({}-{}) has not been labeled".format(rs, re, cs, ce))
+                    break
             if key is 'q':
+                print('bye bye')
                 break
         return examples, labels
 
@@ -119,10 +132,19 @@ class SfNeural(StonesFinder):
         for r in range(rs, re):
             for c in range(cs, ce):
                 stone = stones[r, c]
-                digit = 0 if stone is 'E' else 1 if stone is 'B' else 2
+                digit = 0 if stone == 'E' else 1 if stone == 'B' else 2
                 power = (r - rs) * (ce - cs) + (c - cs)
                 label_val += digit * (3 ** power)
         return label_val
+
+    def compute_stones(self, label, dimension=4):
+        k = label
+        stones = []
+        for i in reversed(range(dimension)):
+            digit = int(k / (3**i))
+            stones.append('E' if digit == 0 else 'B' if digit == 1 else 'W')
+            k %= 3**i
+        return list(reversed(stones))
 
     def _get_rect_nn(self, rs, re, cs, ce):
         """ For machine learning (neural networks) data generation.
