@@ -1,12 +1,17 @@
+from os import listdir
+
 import cv2
 import numpy as np
+from os.path import join
 
 from camkifu.core.imgutil import show, draw_str
 from camkifu.stone import StonesFinder
 from camkifu.stone.sf_clustering import SfClustering
-from golib.config.golib_conf import gsize
+from golib.config.golib_conf import gsize, E, B, W
 
 __author__ = 'Arnaud Peloquin'
+
+train_dat_suffix = '-train data.npz'
 
 
 class SfNeural(StonesFinder):
@@ -63,17 +68,55 @@ class SfNeural(StonesFinder):
     def gen_data(self, img_path):
         img = cv2.imread(img_path)
         assert img.shape[0:2] == self.canonical_shape  # all the size computations are based on this assumption
-        clustering = SfClustering(None)
-        stones = clustering.find_stones(img)
-        # canvas = self.draw_stones(stones)
-        # show(canvas, name="Kmeans")
-        # cv2.waitKey()
+        stones = self.suggest_stones(img)
         return self._parse_regions(img, stones)
+
+    def suggest_stones(self, img):
+        stones = SfClustering(None).find_stones(img)
+
+        def onmouse(event, x, y, flag, param):
+            if event == cv2.EVENT_LBUTTONDOWN:
+                row = int(gsize * y / self.canonical_shape[1])
+                col = int(gsize * x / self.canonical_shape[0])
+                prev = stones[row, col]
+                if prev != E:
+                    stones[row, col] = E
+                else:
+                    stones[row, col] = B if key == 'b' else W
+
+        key = None
+        win_name = 'Labels Validation'
+        while key not in ('k', 'q'):
+            canvas = img.copy()
+            for r in range(gsize):
+                for c in range(gsize):
+                    x0, y0, x1, y1 = self.getrect(r, c)
+                    current = stones[c, r]
+                    if current in (B, W):
+                        x_loc = int((x1 + x0) / 2) - 4
+                        y_loc = int((y1 + y0) / 2) + 6
+                        color = (255, 50, 50) if current == B else (0, 255, 255)
+                        draw_str(canvas, current, x=x_loc, y=y_loc, color=color)
+            show(canvas, name=win_name)
+            cv2.setMouseCallback(win_name, onmouse)
+            try:
+                key = chr(cv2.waitKey(500))
+            except:
+                pass
+            if key == 'r':
+                stones = np.zeros((gsize, gsize), dtype=object)
+                stones[:] = E
+                key = None
+
+        if key == 'q':
+            exit()  # a bit of violence for the time being
+
+        return stones
 
     def _parse_regions(self, img, stones):
         examples = np.zeros((self.split ** 2, self.nb_features), dtype=np.uint8)
         labels = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
-        break_keys = ('q', 'y')
+        break_keys = ('q', 'k')
         adjust_keys = ('e', 'b', 'w')
         key = None
         for i in range(self.split):
@@ -122,14 +165,16 @@ class SfNeural(StonesFinder):
                 x = int((c - cs + 0.5) * self.c_width / (ce - cs))
                 y = int((r - rs + 0.5) * self.r_width / (re - rs))
                 stone = stones[r, c]
-                draw_str(subimg, stone, x=x - 4, y=y + 6)
+                if stone in (B, W):
+                    color = (255, 50, 50) if stone == B else (0, 255, 255)
+                    draw_str(subimg, stone, x=x - 4, y=y + 6, color=color)
 
     def compute_label(self, ce, cs, re, rs, stones):
         label_val = 0
         for r in range(rs, re):
             for c in range(cs, ce):
                 stone = stones[r, c]
-                digit = 0 if stone == 'E' else 1 if stone == 'B' else 2
+                digit = 0 if stone == E else 1 if stone == B else 2
                 power = (r - rs) * (ce - cs) + (c - cs)
                 label_val += digit * (3 ** power)
         return label_val
@@ -139,7 +184,7 @@ class SfNeural(StonesFinder):
         stones = []
         for i in reversed(range(dimension)):
             digit = int(k / (3**i))
-            stones.append('E' if digit == 0 else 'B' if digit == 1 else 'W')
+            stones.append(E if digit == 0 else B if digit == 1 else W)
             k %= 3**i
         return list(reversed(stones))
 
@@ -155,11 +200,12 @@ class SfNeural(StonesFinder):
                 y0 = y1 - self.r_width
         return x0, x1, y0, y1
 
-    def train(self, train_data_path):
-        file = np.load(train_data_path)
+    def train(self, train_data_file):
+        file = np.load(train_data_file)
         x = file['X']
         y = file['Y']
-        print('Loaded {}' + train_data_path)
+        print('Loaded {}'.format(train_data_file))
+        print('Starting ANN training..')
         self.neurons.setLayerSizes(np.int32([x.shape[1], 100, 100, y.shape[1]]))
         self.neurons.setTrainMethod(cv2.ml.ANN_MLP_BACKPROP)
         self.neurons.setBackpropMomentumScale(0.0)
@@ -172,21 +218,42 @@ class SfNeural(StonesFinder):
         # https://github.com/opencv/opencv/issues/4969
         # self.neurons.save(train_data_path.replace('-train data.npz', '-neurons.yml'))
 
-        print('Trained neural network')
+        print('.. training done')
 
-    def predict(self, train_data_path):
-        file = np.load(train_data_path)
+    def predict(self, test_file):
+        file = np.load(test_file)
         x = file['X']
         y = file['Y']
-        print('Loaded ' + train_data_path)
-        ret, y_predict = self.neurons.predict(x)
+        print('Loaded ' + test_file)
+        ret, y_predict = self.neurons.predict(x.astype(np.float32))
+        count = 0
         for i, label in enumerate(y):
             pred = np.argmax(y_predict[i])
             truth = np.where(label == 1)[0]
-            print("Predicted {}, should be {}".format(pred, truth))
+            if pred == truth:
+                count += 1
+            else:
+                print("Predicted {}, should be {}".format(pred, truth))
+        print('Accuracy: {} %'.format(100 * count / x.shape[0]))
+
+    @staticmethod
+    def merge_trains(train_data_dir):
+        inputs = []
+        labels = []
+        for mat in [f for f in listdir(train_data_dir) if f.endswith(train_dat_suffix)]:
+            data = np.load(join(train_data_dir, mat))
+            inputs.append(data['X'])
+            labels.append(data['Y'])
+        x = np.concatenate(inputs, axis=0)
+        print('Merged {} inputs {} -> {}'.format(len(inputs), inputs[0].shape, x.shape))
+        y = np.concatenate(labels, axis=0)
+        print('Merged {} labels {} -> {}'.format(len(labels), labels[0].shape, y.shape))
+        return x, y
 
 if __name__ == '__main__':
     sf = SfNeural(None, )
-    img_path = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-1.png"
-    examples, labels = sf.gen_data(img_path)
-    np.savez(img_path.replace('.png', '-train data.npz'), X=examples, Y=labels)  # X and Y are the matrices names
+    base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
+    img_path = "{}snapshot-13.png".format(base_dir)
+
+    sf.train('/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/all train.npz')
+    sf.predict('/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-13-cross-valid data.npz')

@@ -65,7 +65,7 @@ def draw_lines(img, segments, color=255):
         cv2.line(img, p1, p2, color=color, thickness=thickness)
 
 
-def draw_str(dst, s, x=None, y=None):
+def draw_str(dst, s, x=None, y=None, color=(255, 255, 255)):
     """ Print a white string with a black shadow on the image. (Thank you opencv python samples)
 
     Args:
@@ -77,6 +77,8 @@ def draw_str(dst, s, x=None, y=None):
             Vertical offset from top, in pixels. Defaults to a value that tries to center the str.
         s: str
             The string to draw.
+        color: tuple
+            The BGR color with which the text should be displayed.
     """
     if x is None:
         # try to center horizontally depending on the string length. quite approximate since the font isn't monospaced
@@ -86,7 +88,7 @@ def draw_str(dst, s, x=None, y=None):
     # the shadow
     cv2.putText(dst, s, (x+1, y+1), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), thickness=2, lineType=cv2.LINE_AA)
     # the white text
-    cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), lineType=cv2.LINE_AA)
+    cv2.putText(dst, s, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, color, lineType=cv2.LINE_AA)
 
 
 windows = set()  # dev workaround to center windows the first time they are displayed only

@@ -52,7 +52,6 @@ class TestSfNeural:
                 break
 
 
-
 if __name__ == '__main__':
     test = TestSfNeural()  # there seems to be a bug with unittest.main(), no will to look into that now
     # test.test_should_generate_examples_and_labels()
