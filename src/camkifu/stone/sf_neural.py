@@ -68,8 +68,7 @@ class SfNeural(StonesFinder):
         # canvas = self.draw_stones(stones)
         # show(canvas, name="Kmeans")
         # cv2.waitKey()
-        examples, labels = self._parse_regions(img, stones)
-        np.savez(img_path.replace('.png', '-train data.npz'), X=examples, Y=labels)  # X and Y are the matrices names
+        return self._parse_regions(img, stones)
 
     def _parse_regions(self, img, stones):
         examples = np.zeros((self.split ** 2, self.nb_features))
@@ -79,18 +78,11 @@ class SfNeural(StonesFinder):
             for j in range(self.split):
                 rs, re, cs, ce = self._subregion(i, j)
                 x0, x1, y0, y1 = self._get_rect_nn(rs, re, cs, ce)
+
                 subimg = img[x0:x1, y0:y1].copy()
-                label_val = 0
-                for r in range(rs, re):
-                    for c in range(cs, ce):
-                        x = int((c - cs + 0.5) * self.c_width / (ce - cs))
-                        y = int((r - rs + 0.5) * self.r_width / (re - rs))
-                        stone = stones[r, c]
-                        draw_str(subimg, stone, x=x - 4, y=y + 6)
-                        digit = 0 if stone is 'E' else 1 if stone is 'B' else 2
-                        power = (r - rs) * (ce - cs) + (c - cs)
-                        label_val += digit * (3 ** power)
+                self.draw_suggestion(rs, re, cs, ce, stones, subimg)
                 show(subimg)
+
                 key = None
                 try:
                     key = chr(cv2.waitKey())
@@ -99,6 +91,9 @@ class SfNeural(StonesFinder):
                 if key is 'q':
                     print('bye bye')
                     break
+
+                label_val = self.compute_label(ce, cs, re, rs, stones)
+
                 if key is 'y' or key is 'o':
                     example_idx = i * self.split + j
                     # feed grayscale to nn as a starter. todo use colors ? (3 times as more input nodes)
@@ -110,6 +105,24 @@ class SfNeural(StonesFinder):
             if key is 'q':
                 break
         return examples, labels
+
+    def draw_suggestion(self, rs, re, cs, ce, stones, subimg):
+        for r in range(rs, re):
+            for c in range(cs, ce):
+                x = int((c - cs + 0.5) * self.c_width / (ce - cs))
+                y = int((r - rs + 0.5) * self.r_width / (re - rs))
+                stone = stones[r, c]
+                draw_str(subimg, stone, x=x - 4, y=y + 6)
+
+    def compute_label(self, ce, cs, re, rs, stones):
+        label_val = 0
+        for r in range(rs, re):
+            for c in range(cs, ce):
+                stone = stones[r, c]
+                digit = 0 if stone is 'E' else 1 if stone is 'B' else 2
+                power = (r - rs) * (ce - cs) + (c - cs)
+                label_val += digit * (3 ** power)
+        return label_val
 
     def _get_rect_nn(self, rs, re, cs, ce):
         """ For machine learning (neural networks) data generation.
@@ -136,7 +149,10 @@ class SfNeural(StonesFinder):
         self.neurons.setActivationFunction(cv2.ml.ANN_MLP_SIGMOID_SYM, 2, 1)
 
         self.neurons.train(x.astype(np.float32), cv2.ml.ROW_SAMPLE, y.astype(np.float32))
-        self.neurons.save(train_data_path.replace('-train data.npz', '-neurons.yml'))
+
+        # https://github.com/opencv/opencv/issues/4969
+        # self.neurons.save(train_data_path.replace('-train data.npz', '-neurons.yml'))
+
         print('Trained neural network')
 
     def predict(self, train_data_path):
@@ -152,7 +168,10 @@ class SfNeural(StonesFinder):
 
 if __name__ == '__main__':
     sf = SfNeural(None, )
-    # sf.gen_data("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/gobanimg 1.png")
-    # sf.gen_data("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/gobanimg 2.png")
-    sf.train("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/gobanimg 1-train data.npz")
-    sf.predict("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/gobanimg 2-train data.npz")
+    img_path = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-3.png"
+    examples, labels = sf.gen_data(img_path)
+    np.savez(img_path.replace('.png', '-train data.npz'), X=examples, Y=labels)  # X and Y are the matrices names
+
+    # sf.gen_data("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-2.png")
+    # sf.train("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-1-train data.npz")
+    # sf.predict("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-2-train data.npz")
