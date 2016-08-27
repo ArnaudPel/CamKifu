@@ -1,5 +1,6 @@
-import unittest
+import math
 
+import cv2
 import numpy as np
 
 from camkifu.stone.sf_neural import SfNeural
@@ -7,10 +8,9 @@ from camkifu.stone.sf_neural import SfNeural
 __author__ = 'Arnaud Peloquin'
 
 
-class TestSfNeural(unittest.TestCase):
+class TestSfNeural:
 
     def __init__(self):
-        super().__init__()
         self.sf = SfNeural(None)
 
     # https://docs.python.org/3/library/unittest.html#unittest.TestLoader.testMethodPrefix
@@ -39,7 +39,21 @@ class TestSfNeural(unittest.TestCase):
         assert self.sf.compute_stones(36) == ['E', 'E', 'B', 'B']
         assert self.sf.compute_stones(64) == ['B', 'E', 'B', 'W']
 
+    def labels_should_match_inputs(self):
+        file = np.load("/Users/Kohistan/Developer/PycharmProjects/CamKifu/test/camkifu/stone/snapshot-1-train data.npz")
+        Xref = file['X']
+        newdim = math.sqrt(Xref.shape[1])
+        img = Xref.reshape(Xref.shape[0], newdim, newdim)
+        Yref = file['Y']
+        for i in range(Xref.shape[0]):
+            cv2.imshow('Test SF Neural', img[i])
+            print(self.sf.compute_stones(np.argmax(Yref[i])))
+            if chr(cv2.waitKey()) == 'q':
+                break
+
+
+
 if __name__ == '__main__':
     test = TestSfNeural()  # there seems to be a bug with unittest.main(), no will to look into that now
-    test.test_should_generate_examples_and_labels()
-    # test.should_compute_stones_from_labels()
+    # test.test_should_generate_examples_and_labels()
+    test.labels_should_match_inputs()

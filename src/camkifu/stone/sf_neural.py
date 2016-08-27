@@ -71,7 +71,7 @@ class SfNeural(StonesFinder):
         return self._parse_regions(img, stones)
 
     def _parse_regions(self, img, stones):
-        examples = np.zeros((self.split ** 2, self.nb_features))
+        examples = np.zeros((self.split ** 2, self.nb_features), dtype=np.uint8)
         labels = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
         break_keys = ('q', 'y')
         adjust_keys = ('e', 'b', 'w')
@@ -80,7 +80,6 @@ class SfNeural(StonesFinder):
             for j in range(self.split):
                 rs, re, cs, ce = self._subregion(i, j)
                 x0, x1, y0, y1 = self._get_rect_nn(rs, re, cs, ce)
-
                 for r in range(rs, re):
                     for c in range(cs, ce):
                         subimg = img[x0:x1, y0:y1].copy()
@@ -88,7 +87,6 @@ class SfNeural(StonesFinder):
                         a0, b0, a1, b1 = self.getrect(r, c)
                         cv2.rectangle(subimg, (b0 - y0, a0 - x0), (b1 - y0, a1 - x0), (0, 0, 255), thickness=2)
                         show(subimg)
-
                         try:
                             key = chr(cv2.waitKey())
                             while key not in break_keys + adjust_keys:
@@ -104,12 +102,11 @@ class SfNeural(StonesFinder):
                     if key in break_keys:
                         break
 
-                label_val = self.compute_label(ce, cs, re, rs, stones)
-
                 if key not in ('q', None):
                     example_idx = i * self.split + j
                     # feed grayscale to nn as a starter. todo use colors ? (3 times as more input nodes)
                     examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY).flatten()
+                    label_val = self.compute_label(ce, cs, re, rs, stones)
                     labels[example_idx, label_val] = 1
                     print("sample {} is {} {}".format(example_idx, label_val, self.compute_stones(label_val)))
                 else:
@@ -190,10 +187,6 @@ class SfNeural(StonesFinder):
 
 if __name__ == '__main__':
     sf = SfNeural(None, )
-    img_path = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-3.png"
+    img_path = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-1.png"
     examples, labels = sf.gen_data(img_path)
     np.savez(img_path.replace('.png', '-train data.npz'), X=examples, Y=labels)  # X and Y are the matrices names
-
-    # sf.gen_data("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-2.png")
-    # sf.train("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-1-train data.npz")
-    # sf.predict("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-2-train data.npz")
