@@ -3,6 +3,7 @@ import math
 import cv2
 import numpy as np
 
+from camkifu.core.imgutil import show
 from camkifu.stone.sf_neural import SfNeural
 
 __author__ = 'Arnaud Peloquin'
@@ -51,8 +52,27 @@ class TestSfNeural:
             if chr(cv2.waitKey()) == 'q':
                 break
 
+    def labels_histo(self, train_file, nb_bins=3 ** 4):
+        labels = np.load(train_file)['Y']
+        y = np.zeros((labels.shape[0], 1), dtype=np.uint8)
+        for i, label_vect in enumerate(labels):
+            y[i] = np.argmax(label_vect)
+        hist_item = cv2.calcHist([y], [0], None, [nb_bins], [1, nb_bins])
+        cv2.normalize(hist_item, hist_item, 0, 255, cv2.NORM_MINMAX)
+        hist = np.int32(np.around(hist_item))
+        zoom = 7
+        chart_width = nb_bins * zoom
+        bins = np.arange(0, chart_width, zoom).reshape(nb_bins, 1)
+        pts = np.column_stack((bins, hist))
+        canvas = np.zeros((300, chart_width, 3))
+        cv2.polylines(canvas, [pts], False, (255, 255, 255))
+        histo = np.flipud(canvas)
+        show(histo, name='Training data labels distribution')
+        cv2.waitKey()
+
 
 if __name__ == '__main__':
     test = TestSfNeural()  # there seems to be a bug with unittest.main(), no will to look into that now
     # test.test_should_generate_examples_and_labels()
-    test.labels_should_match_inputs()
+    # test.labels_should_match_inputs()
+    test.labels_histo("/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/all train.npz")
