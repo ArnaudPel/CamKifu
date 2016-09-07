@@ -11,7 +11,7 @@ from golib.config.golib_conf import gsize, E, B, W
 
 __author__ = 'Arnaud Peloquin'
 
-train_dat_suffix = '-train data.npz'
+TRAIN_DAT_SUFFIX = '-train data.npz'
 
 
 class SfNeural(StonesFinder):
@@ -69,7 +69,7 @@ class SfNeural(StonesFinder):
         img = cv2.imread(img_path)
         assert img.shape[0:2] == self.canonical_shape  # all the size computations are based on this assumption
         stones = self.suggest_stones(img)
-        return self._parse_regions(img, stones)
+        return self._label_regions(img, stones)
 
     def suggest_stones(self, img):
         stones = SfClustering(None).find_stones(img)
@@ -113,63 +113,24 @@ class SfNeural(StonesFinder):
 
         return stones
 
-    def _parse_regions(self, img, stones):
+    def _label_regions(self, img, stones):
         examples = np.zeros((self.split ** 2, self.nb_features), dtype=np.uint8)
         labels = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
-        break_keys = ('q', 'k')
-        adjust_keys = ('e', 'b', 'w')
-        key = None
         for i in range(self.split):
             for j in range(self.split):
                 rs, re, cs, ce = self._subregion(i, j)
                 x0, x1, y0, y1 = self._get_rect_nn(rs, re, cs, ce)
-                for r in range(rs, re):
-                    for c in range(cs, ce):
-                        subimg = img[x0:x1, y0:y1].copy()
-                        self.draw_suggestion(rs, re, cs, ce, stones, subimg)
-                        a0, b0, a1, b1 = self.getrect(r, c)
-                        cv2.rectangle(subimg, (b0 - y0, a0 - x0), (b1 - y0, a1 - x0), (0, 0, 255), thickness=2)
-                        show(subimg)
-                        try:
-                            key = chr(cv2.waitKey())
-                            while key not in break_keys + adjust_keys:
-                                print("unknown command. please use: {} or fix with {}".format(break_keys, adjust_keys))
-                                key = chr(cv2.waitKey())
-                        except Exception as e:
-                            print(e)
-                            key = 'q'
-                        if key in break_keys:
-                            break
-                        elif key in adjust_keys:
-                            stones[r, c] = key.upper()
-                    if key in break_keys:
-                        break
+                example_idx = i * self.split + j
 
-                if key not in ('q', None):
-                    example_idx = i * self.split + j
-                    # feed grayscale to nn as a starter. todo use colors ? (3 times as more input nodes)
-                    examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY).flatten()
-                    label_val = self.compute_label(ce, cs, re, rs, stones)
-                    labels[example_idx, label_val] = 1
-                    print("sample {} is {} {}".format(example_idx, label_val, self.compute_stones(label_val)))
-                else:
-                    break
-            if key is 'q':
-                print('bye bye')
-                break
+                # feed grayscale to nn as a starter. todo use colors ? (3 times as more input nodes)
+                examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY).flatten()
+                label_val = self.compute_label(ce, cs, re, rs, stones)
+                labels[example_idx, label_val] = 1
+                print("sample {} is {} {}".format(example_idx, label_val, self.compute_stones(label_val)))
         return examples, labels
 
-    def draw_suggestion(self, rs, re, cs, ce, stones, subimg):
-        for r in range(rs, re):
-            for c in range(cs, ce):
-                x = int((c - cs + 0.5) * self.c_width / (ce - cs))
-                y = int((r - rs + 0.5) * self.r_width / (re - rs))
-                stone = stones[r, c]
-                if stone in (B, W):
-                    color = (255, 50, 50) if stone == B else (0, 255, 255)
-                    draw_str(subimg, stone, x=x - 4, y=y + 6, color=color)
-
-    def compute_label(self, ce, cs, re, rs, stones):
+    @staticmethod
+    def compute_label(ce, cs, re, rs, stones):
         label_val = 0
         for r in range(rs, re):
             for c in range(cs, ce):
@@ -179,7 +140,8 @@ class SfNeural(StonesFinder):
                 label_val += digit * (3 ** power)
         return label_val
 
-    def compute_stones(self, label, dimension=4):
+    @staticmethod
+    def compute_stones(label, dimension=4):
         k = label
         stones = []
         for i in reversed(range(dimension)):
@@ -214,10 +176,8 @@ class SfNeural(StonesFinder):
         self.neurons.setActivationFunction(cv2.ml.ANN_MLP_SIGMOID_SYM, 2, 1)
 
         self.neurons.train(x.astype(np.float32), cv2.ml.ROW_SAMPLE, y.astype(np.float32))
-
         # https://github.com/opencv/opencv/issues/4969
         # self.neurons.save(train_data_path.replace('-train data.npz', '-neurons.yml'))
-
         print('.. training done')
 
     def predict(self, test_file):
@@ -240,7 +200,7 @@ class SfNeural(StonesFinder):
     def merge_trains(train_data_dir):
         inputs = []
         labels = []
-        for mat in [f for f in listdir(train_data_dir) if f.endswith(train_dat_suffix)]:
+        for mat in [f for f in listdir(train_data_dir) if f.endswith(TRAIN_DAT_SUFFIX)]:
             data = np.load(join(train_data_dir, mat))
             inputs.append(data['X'])
             labels.append(data['Y'])
@@ -253,7 +213,10 @@ class SfNeural(StonesFinder):
 if __name__ == '__main__':
     sf = SfNeural(None, )
     base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
-    img_path = "{}snapshot-13.png".format(base_dir)
+    img = "{}snapshot-1.png".format(base_dir)
+
+    # X, Y = sf.gen_data(img)
+    # np.savez(img.replace(".png", TRAIN_DAT_SUFFIX), X=X, Y=Y)
 
     sf.train('/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/all train.npz')
     sf.predict('/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-13-cross-valid data.npz')
