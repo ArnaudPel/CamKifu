@@ -69,6 +69,7 @@ class ControllerV(golib.gui.Controller):
             self.input.commands["vidfile"] = self._openvideo
             self.input.commands["vidlive"] = self._openlive
             self.input.commands["vidpos"] = lambda new_pos: self.vidpos(new_pos)
+            self.input.commands["snapshot"] = lambda: self.snapshot()
         except AttributeError as ae:
             self.log("Some commands could not be bound to User Interface.")
             self.log(ae)
@@ -177,6 +178,11 @@ class ControllerV(golib.gui.Controller):
         Arg:
             new_pos: float
                 The video progress to set (in %).
+        """
+        pass
+
+    def snapshot(self):
+        """ Take a screenshot and save it to filesystem. To be set from outside (eg. by Vision Manager).
         """
         pass
 

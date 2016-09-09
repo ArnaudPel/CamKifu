@@ -2,8 +2,10 @@ import importlib
 import time
 import threading
 import os.path
+from os import listdir
 
 import cv2
+import re
 
 import camkifu.core.video
 from camkifu.config import cvconf
@@ -214,6 +216,7 @@ class VManager(VManagerBase):
         self.controller._on = self._on
         self.controller._off = self._off
         self.controller.vidpos = self._set_vidpos
+        self.controller.snapshot = self._snapshot
 
     def _get_capture(self):
         # noinspection PyArgumentList
@@ -291,6 +294,22 @@ class VManager(VManagerBase):
             # ignoring small changes should help prevent risk of annoying rounding effect (could lock the position).
             if 2 < abs(previous * 100 - new_pos):
                 self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, new_pos/100)
+
+    def _snapshot(self):
+        if self.stones_finder.goban_img is None:
+            print("No goban image available to save")
+            return
+        # TODO prompt for folder where to save the snapshots
+        self.snapshot_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training"
+        namebase = "snapshot-{}.png"
+        lastidx = -1
+        for previous in [f for f in listdir(self.snapshot_dir) if os.path.isfile(os.path.join(self.snapshot_dir, f))]:
+            groups = re.findall("(snapshot-)(\d*)(.png)", previous)
+            if len(groups) > 0:
+                if int(groups[0][1]) > lastidx:
+                    lastidx = int(groups[0][1])
+        print("Saved " + namebase.format(lastidx + 1) + " in {}".format(self.snapshot_dir))
+        cv2.imwrite(os.path.join(self.snapshot_dir, namebase.format(lastidx + 1)), self.stones_finder.goban_img)
 
     def vid_progress(self, progress):
         """ Communicate video read progress to the controller.
