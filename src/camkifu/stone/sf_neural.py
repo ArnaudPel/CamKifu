@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from os.path import join
 
-from camkifu.core.imgutil import show, draw_str
+from camkifu.core.imgutil import show, draw_str, destroy_win
 from camkifu.stone import StonesFinder
 from camkifu.stone.sf_clustering import SfClustering
 from golib.config.golib_conf import gsize, E, B, W
@@ -69,7 +69,7 @@ class SfNeural(StonesFinder):
         img = cv2.imread(img_path)
         assert img.shape[0:2] == self.canonical_shape  # all the size computations are based on this assumption
         stones = self.suggest_stones(img)
-        return self._label_regions(img, stones)
+        return self._label_regions(img, stones) if stones is not None else None
 
     def suggest_stones(self, img):
         stones = SfClustering(None).find_stones(img)
@@ -109,8 +109,8 @@ class SfNeural(StonesFinder):
                 key = None
 
         if key == 'q':
-            exit()  # a bit of violence for the time being
-
+            stones = None
+        destroy_win(win_name)
         return stones
 
     def _label_regions(self, img, stones):
