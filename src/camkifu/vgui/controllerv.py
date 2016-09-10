@@ -1,12 +1,16 @@
 import queue
+import random
 
 import numpy as np
 import golib.gui
+import golib.model
 
 import camkifu.core
 
 
 # size of the command queue
+from golib.config.golib_conf import gsize, E, B, W
+
 commands_size = 10
 
 
@@ -70,6 +74,7 @@ class ControllerV(golib.gui.Controller):
             self.input.commands["vidlive"] = self._openlive
             self.input.commands["vidpos"] = lambda new_pos: self.vidpos(new_pos)
             self.input.commands["snapshot"] = lambda: self.snapshot()
+            self.input.commands["random"] = lambda: self.random()
         except AttributeError as ae:
             self.log("Some commands could not be bound to User Interface.")
             self.log(ae)
@@ -185,6 +190,28 @@ class ControllerV(golib.gui.Controller):
         """ Take a screenshot and save it to filesystem. To be set from outside (eg. by Vision Manager).
         """
         pass
+
+    def random(self):
+        """ Randomly fill the goban with stones (for neural network training).
+            Respect existing stones.
+        """
+        moves = []
+        rand = random.Random()
+        stones = self.get_stones()
+        unique, counts = np.unique(stones.flatten(), return_counts=True)
+        density = (gsize ** 2 - counts[np.where(unique == E)[0][0]]) / (gsize ** 2)
+        if 0.8 < density:
+            print("Goban already too dense, will not randomly fill it more.")
+            return
+        upbound = 2 + int(10 * density)
+        for r in range(gsize):
+            for c in range(gsize):
+                if stones[r, c] == E:
+                    p = rand.randint(0, upbound)
+                    if upbound - 2 < p:
+                        color = B if p == upbound - 1 else W
+                        moves.append(golib.model.Move('np', (color, r, c)))
+        self._bulk_update(moves)
 
     def _run(self):
         """ Ask vision processes to run / resume.

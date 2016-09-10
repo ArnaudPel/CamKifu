@@ -11,6 +11,7 @@ class VUI(golib.gui.UI):
 
     def init_components(self):
         super().init_components()
+        self.build_menu_training()
         self.build_menu_detection()
         self.build_menu_video()
         self.build_buttons()
@@ -38,10 +39,10 @@ class VUI(golib.gui.UI):
         # b_debug.grid(row=5, column=0, columnspan=2)
 
     def build_menu_video(self):
-        m_video = tk.Menu(self.menubar)
-        m_video.add_command(label="Video File...", command=lambda: self.execute("vidfile"))
-        m_video.add_command(label="Live video", command=lambda: self.execute("vidlive"))
-        self.menubar.insert_cascade(0, label="Video", menu=m_video)
+        menu = tk.Menu(self.menubar)
+        menu.add_command(label="Video File...", command=lambda: self.execute("vidfile"))
+        menu.add_command(label="Live video", command=lambda: self.execute("vidlive"))
+        self.menubar.insert_cascade(0, label="Video", menu=menu)
 
     def build_menu_detection(self):
         self.checkvar_detect = tk.BooleanVar()
@@ -56,6 +57,13 @@ class VUI(golib.gui.UI):
         menu.add_cascade(label="Board", menu=self.m_board)
         menu.add_cascade(label="Stones", menu=self.m_stones)
         self.menubar.insert_cascade(0, label="Detection", menu=menu)
+
+    def build_menu_training(self):
+        # TODO one action to set the samples dest folder
+        # TODO one action to open the sampling verification widget
+        menu = tk.Menu(self.menubar)
+        menu.add_command(label="Random Fill", command=lambda: self.execute("random"))
+        self.menubar.insert_cascade(0, label="Training", menu=menu)
 
     def toggle_active(self):
         self.execute("on" if self.checkvar_detect.get() else "off")
