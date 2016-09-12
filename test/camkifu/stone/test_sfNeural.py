@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 from camkifu.core.imgutil import show
-from camkifu.stone.sf_neural import SfNeural
+from camkifu.stone.tmanager import TManager
 
 __author__ = 'Arnaud Peloquin'
 
@@ -12,7 +12,7 @@ __author__ = 'Arnaud Peloquin'
 class TestSfNeural:
 
     def __init__(self):
-        self.sf = SfNeural(None)
+        self.sf = TManager()
 
     # https://docs.python.org/3/library/unittest.html#unittest.TestLoader.testMethodPrefix
     def test_should_generate_examples_and_labels(self):

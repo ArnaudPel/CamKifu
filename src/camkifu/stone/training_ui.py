@@ -6,7 +6,7 @@ from os.path import join, isfile
 
 import numpy as np
 
-from camkifu.stone.sf_neural import TRAIN_DAT_SUFFIX, SfNeural
+from camkifu.stone.tmanager import TRAIN_DAT_SUFFIX, TManager
 from glmain import configure, place, bring_to_front
 
 
@@ -57,7 +57,7 @@ class NnFrame(Frame):
     def __init__(self, master, train_dir):
         Frame.__init__(self, master)
         self.dir = train_dir
-        self.sf = SfNeural(None)
+        self.sf = TManager()
         self.rows = []
 
         for i, img in enumerate(f for f in listdir(self.dir) if f.endswith(PNG_SUFFIX)):

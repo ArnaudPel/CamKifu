@@ -4,8 +4,8 @@ import cv2
 import numpy as np
 from os.path import join
 
+from camkifu.config import cvconf
 from camkifu.core.imgutil import show, draw_str, destroy_win
-from camkifu.stone import StonesFinder
 from camkifu.stone.sf_clustering import SfClustering
 from golib.config.golib_conf import gsize, E, B, W
 
@@ -14,10 +14,16 @@ __author__ = 'Arnaud Peloquin'
 TRAIN_DAT_SUFFIX = '-train data.npz'
 
 
-class SfNeural(StonesFinder):
+class TManager:
+    """The neural network Training Manager.
 
-    def __init__(self, vmanager):
-        super().__init__(vmanager)
+    """
+
+    def __init__(self):
+        # (~ to stonesfinder.canonical_shape)
+        # all the size-related computations are based on this assumption
+        self.canonical_shape = (cvconf.canonical_size, cvconf.canonical_size)
+
         self.neurons = cv2.ml.ANN_MLP_create()
         self.split = 10  # feed the neural network with squares of four intersections (split the goban in 10x10 areas)
 
@@ -67,7 +73,7 @@ class SfNeural(StonesFinder):
 
     def gen_data(self, img_path):
         img = cv2.imread(img_path)
-        assert img.shape[0:2] == self.canonical_shape  # all the size computations are based on this assumption
+        assert img.shape[0:2] == self.canonical_shape
         stones = self.suggest_stones(img)
         return self._label_regions(img, stones) if stones is not None else None
 
@@ -150,6 +156,15 @@ class SfNeural(StonesFinder):
             k %= 3**i
         return list(reversed(stones))
 
+    def getrect(self, r, c, re=0, ce=0):
+        x0 = int(r * self.canonical_shape[0] / gsize)
+        y0 = int(c * self.canonical_shape[1] / gsize)
+        re = (re + 1) if 0 < re else (r+1)
+        ce = (ce + 1) if 0 < ce else (c+1)
+        x1 = int(re * self.canonical_shape[0] / gsize)
+        y1 = int(ce * self.canonical_shape[1] / gsize)
+        return x0, y0, x1, y1
+
     def _get_rect_nn(self, rs, re, cs, ce):
         """ For machine learning (neural networks) data generation.
         """
@@ -211,7 +226,7 @@ class SfNeural(StonesFinder):
         return x, y
 
 if __name__ == '__main__':
-    sf = SfNeural(None, )
+    sf = TManager()
     base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
     img = "{}snapshot-1.png".format(base_dir)
 
