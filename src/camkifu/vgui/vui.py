@@ -31,9 +31,17 @@ class VUI(golib.gui.UI):
         video_pos_lbl.grid(row=6, column=0, columnspan=2)
         self.video_pos.grid(row=7, column=0, columnspan=2)
 
-        b_next = tk.Button(self.buttons, text="Snapshot", command=lambda: self.execute("snapshot"))
+        self.save_goban = tk.IntVar()  # whether to save the current game record with the snapshot (for ANN training)
+        self.save_goban.set(1)
+
+        def snap_cmd():
+            self.execute("snapshot", self.save_goban.get())
+        b_snap = tk.Button(self.buttons, text="Snapshot", command=snap_cmd)
         self.bind_all("<{0}-x>".format(golib.gui.ui.mod1), lambda _: self.execute("snapshot"))
-        b_next.grid(row=8, column=0)
+        b_snap.grid(row=8, column=0)
+
+        b_link_goban = tk.Checkbutton(self.buttons, text="Save Goban", variable=self.save_goban)
+        b_link_goban.grid(row=8, column=1)
 
         # b_debug = Button(self.buttons, text="Debug", command=lambda: self.checkvar_onoff.set(True))
         # b_debug.grid(row=5, column=0, columnspan=2)

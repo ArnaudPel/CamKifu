@@ -73,7 +73,7 @@ class ControllerV(golib.gui.Controller):
             self.input.commands["vidfile"] = self._openvideo
             self.input.commands["vidlive"] = self._openlive
             self.input.commands["vidpos"] = lambda new_pos: self.vidpos(new_pos)
-            self.input.commands["snapshot"] = lambda: self.snapshot()
+            self.input.commands["snapshot"] = lambda save_goban: self.snapshot(save_goban)
             self.input.commands["random"] = lambda: self.random()
         except AttributeError as ae:
             self.log("Some commands could not be bound to User Interface.")
@@ -186,7 +186,7 @@ class ControllerV(golib.gui.Controller):
         """
         pass
 
-    def snapshot(self):
+    def snapshot(self, save_goban):
         """ Take a screenshot and save it to filesystem. To be set from outside (eg. by Vision Manager).
         """
         pass

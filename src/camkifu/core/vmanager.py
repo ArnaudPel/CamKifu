@@ -295,21 +295,25 @@ class VManager(VManagerBase):
             if 2 < abs(previous * 100 - new_pos):
                 self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, new_pos/100)
 
-    def _snapshot(self):
+    def _snapshot(self, save_goban):
         if self.stones_finder.goban_img is None:
             print("No goban image available to save")
             return
         # TODO prompt for folder where to save the snapshots
         self.snapshot_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training"
-        namebase = "snapshot-{}.png"
         lastidx = -1
         for previous in [f for f in listdir(self.snapshot_dir) if os.path.isfile(os.path.join(self.snapshot_dir, f))]:
             groups = re.findall("(snapshot-)(\d*)(.png)", previous)
             if len(groups) > 0:
                 if int(groups[0][1]) > lastidx:
                     lastidx = int(groups[0][1])
-        print("Saved " + namebase.format(lastidx + 1) + " in {}".format(self.snapshot_dir))
-        cv2.imwrite(os.path.join(self.snapshot_dir, namebase.format(lastidx + 1)), self.stones_finder.goban_img)
+        img_name = "snapshot-{}.png".format(lastidx + 1)
+        print("Saved " + img_name + " in {}".format(self.snapshot_dir))
+        cv2.imwrite(os.path.join(self.snapshot_dir, img_name), self.stones_finder.goban_img)
+        if save_goban:
+            game_name = img_name.replace("snapshot", "game")
+            game_name = game_name.replace(".png", ".sgf")
+            self.controller.kifu.snapshot(os.path.join(self.snapshot_dir, game_name))
 
     def vid_progress(self, progress):
         """ Communicate video read progress to the controller.
@@ -530,7 +534,7 @@ class CaptureReader(CaptureReaderBase):
             The current result from videocapture.read().
         served: set
             The threads that have received the current "buffer" result and should wait for others to have been served.
-        lock_init: Lock
+        lock: Lock
             Used to ensure synchronized calls to self.capture.read().
         sleep_time: float
             The number of seconds the threads that have already been served should sleep to wait for others.
