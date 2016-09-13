@@ -20,19 +20,26 @@ SAMPLED = "Sampled"
 
 
 class Row:
-    def __init__(self, nnframe, idx, path, button):
-        self.nnframe = nnframe
+    def __init__(self, master, idx, img_name, button):
+        self.manager = master.manager
+        self.status = tkinter.StringVar(master=master)
+        self.path = join(master.dir, img_name)
         self.idx = idx
-        self.path = path
-        self.status = tkinter.StringVar(master=nnframe)
         self.button = button
         if isfile(self.path.replace(PNG_SUFFIX, TRAIN_DAT_SUFFIX)):
             self.mark_as_done()
         else:
             self.mark_as_new()
 
+    def gen_data(self):
+        x, y = self.manager.gen_data(self.path)
+        if x is not None:
+            np.savez(self.path.replace(PNG_SUFFIX, TRAIN_DAT_SUFFIX), X=x, Y=y)
+            return True
+        return False
+
     def sample(self):
-        if self.nnframe.gen_data(self.path):
+        if self.gen_data():
             self.mark_as_done()
 
     def mark_as_done(self):
@@ -53,37 +60,39 @@ class Row:
         self.button["command"] = self.sample
 
 
-class NnFrame(Frame):
-    def __init__(self, master, train_dir):
+class ImgList(Frame):
+    def __init__(self, master):
         Frame.__init__(self, master)
-        self.dir = train_dir
-        self.sf = TManager()
+        self.dir = master.dir
+        self.manager = master.manager
         self.rows = []
 
-        for i, img in enumerate(f for f in listdir(self.dir) if f.endswith(PNG_SUFFIX)):
+        for i, img in enumerate(f for f in listdir(master.dir) if f.endswith(PNG_SUFFIX)):
             button = Button(self)
             button.grid(row=i, column=2)
-            row = Row(self, i, join(self.dir, img), button)
+            row = Row(self, i, img, button)
             self.rows.append(row)
             Label(self, text=img).grid(row=i)
             Label(self, textvariable=row.status).grid(row=i, column=1)
 
-    def gen_data(self, img_name):
-        fpath = join(self.dir, img_name)
-        mpath = fpath.replace(PNG_SUFFIX, TRAIN_DAT_SUFFIX)
-        x, y = self.sf.gen_data(fpath)
-        if x is not None:
-            np.savez(mpath, X=x, Y=y)
-            return True
-        return False
 
+class DataGeneration(Frame):
+
+    def __init__(self, master, train_dir):
+        Frame.__init__(self, master)
+        self.dir = train_dir
+        self.manager = TManager()
+        self.img_list = ImgList(self)
+        self.img_list.pack()
+
+    # TODO add a button to run ANN training
 
 if __name__ == '__main__':
     root = tkinter.Tk()
     configure(root)
 
     nn_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training"
-    app = NnFrame(root, nn_dir)
+    app = DataGeneration(root, nn_dir)
     app.pack()
 
     place(root)

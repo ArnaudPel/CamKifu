@@ -3,6 +3,10 @@ import golib.gui
 
 
 # noinspection PyAttributeOutsideInit
+from camkifu.config.cvconf import snapshot_dir
+from camkifu.stone.training_ui import DataGeneration
+
+
 class VUI(golib.gui.UI):
     """
     Extension of the GUI to add some vision-related commands.
@@ -71,6 +75,7 @@ class VUI(golib.gui.UI):
         # TODO one action to open the sampling verification widget
         menu = tk.Menu(self.menubar)
         menu.add_command(label="Random Fill", command=lambda: self.execute("random"))
+        menu.add_command(label="Data Generation", command=self.data_gen)
         self.menubar.insert_cascade(0, label="Training", menu=menu)
 
     def toggle_active(self):
@@ -104,3 +109,8 @@ class VUI(golib.gui.UI):
 
     def video_progress(self, progress):
         self.video_pos.set(progress)
+
+    def data_gen(self):
+        window = tk.Toplevel(self)
+        nn_frame = DataGeneration(window, snapshot_dir)
+        nn_frame.pack()
