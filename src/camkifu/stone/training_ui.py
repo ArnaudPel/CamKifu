@@ -84,8 +84,13 @@ class DataGeneration(Frame):
         self.manager = TManager()
         self.img_list = ImgList(self)
         self.img_list.pack()
+        Button(self, text='Train', command=self.train).pack()
 
-    # TODO add a button to run ANN training
+    def train(self):
+        x, y = self.manager.merge_trains(self.dir)
+        # TODO run training in a separate thread
+        self.manager.train(x, y)
+
 
 if __name__ == '__main__':
     root = tkinter.Tk()

@@ -187,11 +187,7 @@ class TManager:
                 y0 = y1 - self.r_width
         return x0, x1, y0, y1
 
-    def train(self, train_data_file):
-        file = np.load(train_data_file)
-        x = file['X']
-        y = file['Y']
-        print('Loaded {}'.format(train_data_file))
+    def train(self, x, y):
         print('Starting ANN training..')
         self.neurons.setLayerSizes(np.int32([x.shape[1], 100, 100, y.shape[1]]))
         self.neurons.setTrainMethod(cv2.ml.ANN_MLP_BACKPROP)
@@ -243,5 +239,11 @@ if __name__ == '__main__':
     # X, Y = sf.gen_data(img)
     # np.savez(img.replace(".png", TRAIN_DAT_SUFFIX), X=X, Y=Y)
 
-    sf.train('/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/all train.npz')
+    train_data_file = '/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/all train.npz'
+    f = np.load(train_data_file)
+    x_train = f['X']
+    y_train = f['Y']
+    print('Loaded {}'.format(train_data_file))
+
+    sf.train(x_train, y_train)
     sf.predict('/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-13-cross-valid data.npz')
