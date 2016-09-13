@@ -29,11 +29,11 @@ bfinders = [
 # the first element in the list will be loaded at startup (unless specified otherwise in startup arguments)
 # format: (module, class)
 sfinders = [
+    ("camkifu.stone.sf_sandbox", "SfSandbox"),
     ("camkifu.stone.sf_meta", "SfMeta"),
     ("camkifu.stone.sf_contours", "SfContours"),
     ("camkifu.stone.sf_clustering", "SfClustering"),
     ("camkifu.stone.sf_tuto", "StonesFinderTuto"),
-    ("camkifu.stone.sf_sandbox", "SfSandbox"),
     ("None", "None"),
     # ("test.objects.sf_dummy", "DummyFinder"),
 ]
@@ -43,3 +43,8 @@ bf_loc = None
 
 # location of the stones_finder window. set to None to center
 sf_loc = None
+
+# TODO prompt user for that
+# folder where to save the snapshots
+snapshot_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training"
+

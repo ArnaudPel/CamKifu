@@ -2,12 +2,13 @@ from os import listdir
 
 import cv2
 import numpy as np
-from os.path import join
+from os.path import join, isfile
 
 from camkifu.config import cvconf
 from camkifu.core.imgutil import show, draw_str, destroy_win
 from camkifu.stone.sf_clustering import SfClustering
 from golib.config.golib_conf import gsize, E, B, W
+from golib.gui import ControllerBase
 
 __author__ = 'Arnaud Peloquin'
 
@@ -34,6 +35,8 @@ class TManager:
 
         self.nb_features = self.r_width * self.c_width               # size of ANN input layer (nb of pixels)
         self.nb_classes = 3 ** (int((gsize + 1) / self.split) ** 2)  # size of ANN output layer
+
+        self.controller = ControllerBase()  # todo find a better way to load a saved game ? (this is using GUI package)
 
     def _subregion(self, row, col):
 
@@ -74,12 +77,23 @@ class TManager:
     def gen_data(self, img_path):
         img = cv2.imread(img_path)
         assert img.shape[0:2] == self.canonical_shape
-        stones = self.suggest_stones(img)
-        return self._label_regions(img, stones) if stones is not None else None
+        stones = self.suggest_stones(img, img_path)
+        if self.validate_stones(stones, img):
+            return self._label_regions(img, stones)
+        else:
+            return None, None
 
-    def suggest_stones(self, img):
-        stones = SfClustering(None).find_stones(img)
+    def suggest_stones(self, img, img_path):
+        game_path = img_path.replace('snapshot', 'game').replace('.png', '.sgf')
+        if isfile(game_path):
+            self.controller.loadkifu(game_path)
+            self.controller.goto(999)
+            stones = np.array(self.controller.rules.stones, dtype=object).T
+        else:
+            stones = SfClustering(None).find_stones(img)
+        return stones
 
+    def validate_stones(self, stones, img):
         def onmouse(event, x, y, flag, param):
             if event == cv2.EVENT_LBUTTONDOWN:
                 row = int(gsize * y / self.canonical_shape[1])
@@ -113,11 +127,8 @@ class TManager:
                 stones = np.zeros((gsize, gsize), dtype=object)
                 stones[:] = E
                 key = None
-
-        if key == 'q':
-            stones = None
         destroy_win(win_name)
-        return stones
+        return True if key == 'k' else False
 
     def _label_regions(self, img, stones):
         examples = np.zeros((self.split ** 2, self.nb_features), dtype=np.uint8)
@@ -132,7 +143,6 @@ class TManager:
                 examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY).flatten()
                 label_val = self.compute_label(ce, cs, re, rs, stones)
                 labels[example_idx, label_val] = 1
-                print("sample {} is {} {}".format(example_idx, label_val, self.compute_stones(label_val)))
         return examples, labels
 
     @staticmethod

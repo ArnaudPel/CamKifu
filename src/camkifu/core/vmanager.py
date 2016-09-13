@@ -9,6 +9,7 @@ import re
 
 import camkifu.core.video
 from camkifu.config import cvconf
+from camkifu.config.cvconf import snapshot_dir
 
 
 class VManagerBase(threading.Thread):
@@ -299,21 +300,19 @@ class VManager(VManagerBase):
         if self.stones_finder.goban_img is None:
             print("No goban image available to save")
             return
-        # TODO prompt for folder where to save the snapshots
-        self.snapshot_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training"
         lastidx = -1
-        for previous in [f for f in listdir(self.snapshot_dir) if os.path.isfile(os.path.join(self.snapshot_dir, f))]:
+        for previous in [f for f in listdir(snapshot_dir) if os.path.isfile(os.path.join(snapshot_dir, f))]:
             groups = re.findall("(snapshot-)(\d*)(.png)", previous)
             if len(groups) > 0:
                 if int(groups[0][1]) > lastidx:
                     lastidx = int(groups[0][1])
         img_name = "snapshot-{}.png".format(lastidx + 1)
-        print("Saved " + img_name + " in {}".format(self.snapshot_dir))
-        cv2.imwrite(os.path.join(self.snapshot_dir, img_name), self.stones_finder.goban_img)
+        print("Saved " + img_name + " in {}".format(snapshot_dir))
+        cv2.imwrite(os.path.join(snapshot_dir, img_name), self.stones_finder.goban_img)
         if save_goban:
             game_name = img_name.replace("snapshot", "game")
             game_name = game_name.replace(".png", ".sgf")
-            self.controller.kifu.snapshot(os.path.join(self.snapshot_dir, game_name))
+            self.controller.kifu.snapshot(os.path.join(snapshot_dir, game_name))
 
     def vid_progress(self, progress):
         """ Communicate video read progress to the controller.

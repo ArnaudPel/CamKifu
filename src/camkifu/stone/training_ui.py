@@ -32,8 +32,8 @@ class Row:
             self.mark_as_new()
 
     def sample(self):
-        self.nnframe.gen_data(self.path)
-        self.mark_as_done()
+        if self.nnframe.gen_data(self.path):
+            self.mark_as_done()
 
     def mark_as_done(self):
         self.status.set(SAMPLED)
@@ -72,7 +72,10 @@ class NnFrame(Frame):
         fpath = join(self.dir, img_name)
         mpath = fpath.replace(PNG_SUFFIX, TRAIN_DAT_SUFFIX)
         x, y = self.sf.gen_data(fpath)
-        np.savez(mpath, X=x, Y=y)
+        if x is not None:
+            np.savez(mpath, X=x, Y=y)
+            return True
+        return False
 
 
 if __name__ == '__main__':

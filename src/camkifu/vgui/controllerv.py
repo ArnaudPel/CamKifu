@@ -93,7 +93,7 @@ class ControllerV(golib.gui.Controller):
         }
 
         if sgffile is not None:
-            self._goto(722)  # get kifu ready to ramble
+            self.goto(722)  # get kifu ready to ramble
 
         self.paused = Pause(False)
 
