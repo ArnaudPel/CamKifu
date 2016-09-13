@@ -84,12 +84,17 @@ class DataGeneration(Frame):
         self.manager = TManager()
         self.img_list = ImgList(self)
         self.img_list.pack()
+        Button(self, text='Histo', command=self.histo).pack()
         Button(self, text='Train', command=self.train).pack()
 
     def train(self):
         x, y = self.manager.merge_trains(self.dir)
         # TODO run training in a separate thread
         self.manager.train(x, y)
+
+    def histo(self):
+        _, y = self.manager.merge_trains(self.dir)
+        self.manager.labels_histo(y)
 
 
 if __name__ == '__main__':

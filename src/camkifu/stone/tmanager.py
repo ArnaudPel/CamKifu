@@ -231,6 +231,30 @@ class TManager:
         print('Merged {} labels {} -> {}'.format(len(labels), labels[0].shape, y.shape))
         return x, y
 
+    @staticmethod
+    def labels_histo(labels, nb_bins=3 ** 4):
+        """
+        labels -- the label vectors as fed to the neural network
+        """
+        y = np.zeros((labels.shape[0], 1), dtype=np.uint8)
+        for i, label_vect in enumerate(labels):
+            y[i] = np.argmax(label_vect)
+        hist_item = cv2.calcHist([y], [0], None, [nb_bins], [1, nb_bins])
+        cv2.normalize(hist_item, hist_item, 0, 255, cv2.NORM_MINMAX)
+        hist = np.int32(np.around(hist_item))
+        zoom = 7
+        chart_width = nb_bins * zoom
+        bins = np.arange(0, chart_width, zoom).reshape(nb_bins, 1)
+        pts = np.column_stack((bins, hist))
+        canvas = np.zeros((300, chart_width, 3))
+        cv2.polylines(canvas, [pts], False, (255, 255, 255))
+        histo = np.flipud(canvas)
+        win_name = 'Training data labels distribution'
+        show(histo, name=win_name)
+        cv2.waitKey()
+        destroy_win(win_name)
+
+
 if __name__ == '__main__':
     sf = TManager()
     base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
