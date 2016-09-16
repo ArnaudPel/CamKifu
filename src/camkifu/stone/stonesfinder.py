@@ -147,7 +147,7 @@ class StonesFinder(camkifu.core.VidProcessor):
             self._learn()
             self._find(self.goban_img)
         else:
-            if 1 < time.time() - self.last_shown:
+            if 1 < time.time() - self.last_read:
                 black = np.zeros(self.canonical_shape, dtype=np.uint8)
                 imgutil.draw_str(black, "NO BOARD LOCATION AVAILABLE", int(black.shape[0] / 2 - 110), int(black.shape[1] / 2))
                 self._show(black)
@@ -273,8 +273,8 @@ class StonesFinder(camkifu.core.VidProcessor):
         robustness of stones finders, here's an implementation.
 
         Args:
-            r: int
-            c: int
+            x: int
+            y: int
                 The row and column of the intersection where to remove the stone, in numpy coord system.
         """
         assert not self.is_empty(x, y), "Can't remove stone from empty intersection."
@@ -340,8 +340,8 @@ class StonesFinder(camkifu.core.VidProcessor):
         """ Return True if the provided goban position is empty (color is E). Synchronized method.
 
         Args:
-            x: int
-            y: int
+            r: int
+            c: int
                 The row and column of the intersection to check, in numpy coord system.
         """
         return self.vmanager.controller.is_empty_blocking(c, r)

@@ -4,6 +4,7 @@ import sys
 
 import numpy as np
 import cv2
+from os.path import isfile
 
 from golib.config import golib_conf
 
@@ -274,7 +275,7 @@ def sort_contours_box(contours, area_bounds=None):
     Args:
         contours: iterable
             A container of contours as returned by cv2.findContours()
-        bounds: (int, int)
+        area_bounds: (int, int)
             The minimum and maximum area to allow a contour in the sorted list. Outsiders are silently ignored.
 
     Returns sorted: list
@@ -290,7 +291,7 @@ def sort_contours_circle(contours, area_bounds=None):
     Args:
         contours: iterable
             A container of contours as returned by cv2.findContours()
-        bounds: (int, int)
+        area_bounds: (int, int)
             The minimum and maximum area to allow a contour in the sorted list. Outsiders are silently ignored.
 
     Returns sorted: list
@@ -366,6 +367,13 @@ def draw_contours_multicolor(img, contours):
         g = int(255 * (i % 5 + 1) / 5)
         r = int(255 * (3 - i % 3) / 3)
         cv2.drawContours(img, contours, i, (b, g, r))
+
+
+def is_img(argument):
+    try:
+        return isfile(argument) and (argument.endswith('.png') or argument.endswith('.jpg'))
+    except:
+        return False
 
 
 class BoundingBox:

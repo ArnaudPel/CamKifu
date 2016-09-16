@@ -293,7 +293,7 @@ class ControllerV(golib.gui.Controller):
     def _openvideo(self):
         """ Change the video source to a file selected by user.
         """
-        vidfile = self.display.promptopen()
+        vidfile = self.display.promptopen(title="Open video or image")
         if len(vidfile):
             self.video = vidfile
             self.bounds = (0, 1)  # reset to default bounds (read entire file)

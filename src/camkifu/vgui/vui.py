@@ -1,12 +1,11 @@
 import tkinter as tk
 import golib.gui
 
-
-# noinspection PyAttributeOutsideInit
 from camkifu.config.cvconf import snapshot_dir
 from camkifu.stone.training_ui import DataGeneration
 
 
+# noinspection PyAttributeOutsideInit
 class VUI(golib.gui.UI):
     """
     Extension of the GUI to add some vision-related commands.
@@ -52,9 +51,9 @@ class VUI(golib.gui.UI):
 
     def build_menu_video(self):
         menu = tk.Menu(self.menubar)
-        menu.add_command(label="Video File...", command=lambda: self.execute("vidfile"))
+        menu.add_command(label="File (video / image)", command=lambda: self.execute("vidfile"))
         menu.add_command(label="Live video", command=lambda: self.execute("vidlive"))
-        self.menubar.insert_cascade(0, label="Video", menu=menu)
+        self.menubar.insert_cascade(0, label="Input", menu=menu)
 
     def build_menu_detection(self):
         self.checkvar_detect = tk.BooleanVar()

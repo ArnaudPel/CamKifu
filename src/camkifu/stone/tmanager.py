@@ -113,8 +113,8 @@ class TManager:
                     x0, y0, x1, y1 = self.getrect(r, c)
                     current = stones[c, r]
                     if current in (B, W):
-                        x_loc = int((x1 + x0) / 2) - 4
-                        y_loc = int((y1 + y0) / 2) + 6
+                        x_loc = int((x1 + x0) / 2) - 7
+                        y_loc = int((y1 + y0) / 2) + 4
                         color = (255, 50, 50) if current == B else (0, 255, 255)
                         draw_str(canvas, current, x=x_loc, y=y_loc, color=color)
             show(canvas, name=win_name)

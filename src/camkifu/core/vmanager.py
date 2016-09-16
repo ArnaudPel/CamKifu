@@ -10,6 +10,7 @@ import re
 import camkifu.core.video
 from camkifu.config import cvconf
 from camkifu.config.cvconf import snapshot_dir
+from camkifu.core.imgutil import is_img
 
 
 class VManagerBase(threading.Thread):
@@ -71,7 +72,10 @@ class VManagerBase(threading.Thread):
         """
         if self.capt is not None:
             self.capt.release()
-        self.capt = self._get_capture()
+        if is_img(self.controller.video):
+            self.capt = CaptureReaderImg(self.controller.video)
+        else:
+            self.capt = self._get_capture()
         self.full_speed = os.path.isfile(self.controller.video)
         self.current_video = self.controller.video
 
@@ -486,7 +490,7 @@ class CaptureReaderBase:
         else:
             return self.capture.__getattribute__(item)
 
-    def read_file(self, caller):
+    def read_file(self, caller) -> (bool, object):
         """ Basic file reading extension: skip the necessary number of frames before reading the next one.
 
         Returns:
@@ -622,6 +626,29 @@ class CaptureReader(CaptureReaderBase):
                 True if all threads should be released, False to resume synchronization on file read.
         """
         self.unsync = unsync
+
+
+class CaptureReaderImg:
+
+    def __init__(self, img):
+        self.img = cv2.imread(img)
+        self.ignored_meths = set()
+
+    def read(self, *args):
+        time.sleep(0.5)
+        return True, self.img.copy()
+
+    def get(self, *args):
+        return 0
+
+    def omega(self, *args, **kwargs):
+        pass
+
+    def __getattr__(self, item):
+        if item not in self.ignored_meths:
+            print("CaptureReaderImg: no attribute {}, ignoring".format(item))
+            self.ignored_meths.add(item)
+        return self.omega
 
 
 def videocapture_skipped_frames(video="/Path/To/movie.mov"):
