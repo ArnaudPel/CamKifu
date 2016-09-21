@@ -4,11 +4,18 @@ import cv2
 import numpy as np
 from os.path import join, isfile
 
+from keras.models import Sequential, load_model
+from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Convolution2D, MaxPooling2D
+from keras.optimizers import SGD
+
 from camkifu.config import cvconf
 from camkifu.core.imgutil import show, draw_str, destroy_win
 from camkifu.stone.sf_clustering import SfClustering
 from golib.config.golib_conf import gsize, E, B, W
 from golib.gui import ControllerBase
+
+KERAS_MODEL_FILE = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/keras/model.h5"
 
 __author__ = 'Arnaud Peloquin'
 
@@ -25,18 +32,30 @@ class TManager:
         # all the size-related computations are based on this assumption
         self.canonical_shape = (cvconf.canonical_size, cvconf.canonical_size)
 
-        self.neurons = cv2.ml.ANN_MLP_create()
+        self._network = None  # please access via self.get_net() - lazy instantiation
         self.split = 10  # feed the neural network with squares of four intersections (split the goban in 10x10 areas)
+        self.nb_classes = 3 ** (int((gsize + 1) / self.split) ** 2)  # size of ANN output layer
 
         # find out the shape of such a square in order to get the number of features
         x0, x1, y0, y1 = self._get_rect_nn(*self._subregion(0, 0))
         self.r_width = y1 - y0  # number of pixels on the vertical side of the sample
         self.c_width = x1 - x0  # number of pixels on the horizontal side of the sample
 
-        self.nb_features = self.r_width * self.c_width               # size of ANN input layer (nb of pixels)
-        self.nb_classes = 3 ** (int((gsize + 1) / self.split) ** 2)  # size of ANN output layer
-
         self.controller = ControllerBase()  # todo find a better way to load a saved game ? (this is using GUI package)
+
+    def get_net(self):
+        if self._network is None:
+            self._network = TManager.init_net()
+        return self._network
+
+    @staticmethod
+    def init_net():
+        if isfile(KERAS_MODEL_FILE):
+            print("Loading previous model from [{}] ...".format(KERAS_MODEL_FILE))
+            model = load_model(KERAS_MODEL_FILE)
+            print("... loading done")
+            return model
+        return TManager.create_net()
 
     def _subregion(self, row, col):
 
@@ -131,7 +150,7 @@ class TManager:
         return True if key == 'k' else False
 
     def _label_regions(self, img, stones):
-        examples = np.zeros((self.split ** 2, self.nb_features), dtype=np.uint8)
+        examples = np.zeros((self.split ** 2, self.r_width, self.c_width), dtype=np.uint8)
         labels = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
         for i in range(self.split):
             for j in range(self.split):
@@ -140,7 +159,7 @@ class TManager:
                 example_idx = i * self.split + j
 
                 # feed grayscale to nn as a starter. todo use colors ? (3 times as more input nodes)
-                examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY).flatten()
+                examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY)
                 label_val = self.compute_label(ce, cs, re, rs, stones)
                 labels[example_idx, label_val] = 1
         return examples, labels
@@ -187,35 +206,67 @@ class TManager:
                 y0 = y1 - self.r_width
         return x0, x1, y0, y1
 
-    def train(self, x, y):
-        print('Starting ANN training..')
-        self.neurons.setLayerSizes(np.int32([x.shape[1], 100, 100, y.shape[1]]))
-        self.neurons.setTrainMethod(cv2.ml.ANN_MLP_BACKPROP)
-        self.neurons.setBackpropMomentumScale(0.0)
-        self.neurons.setBackpropWeightScale(0.001)
-        self.neurons.setTermCriteria((cv2.TERM_CRITERIA_COUNT, 20, 0.01))
-        self.neurons.setActivationFunction(cv2.ml.ANN_MLP_SIGMOID_SYM, 2, 1)
+    @staticmethod
+    def create_net():
+        print("Creating new Keras model")
+        network = Sequential()
+        input_shape = (40, 40, 1)  # gray input for now
+        network.add(Convolution2D(32, 3, 3, activation='relu', border_mode='valid', input_shape=input_shape))
+        network.add(Convolution2D(32, 3, 3, activation='relu'))
+        network.add(MaxPooling2D(pool_size=(2, 2)))
+        network.add(Dropout(0.25))
+        network.add(Convolution2D(64, 3, 3, activation='relu', border_mode='valid'))
+        network.add(Convolution2D(64, 3, 3, activation='relu'))
+        network.add(MaxPooling2D(pool_size=(2, 2)))
+        network.add(Dropout(0.25))
+        network.add(Flatten())
+        # Note: Keras does automatic shape inference.
+        network.add(Dense(160, activation='relu'))
+        network.add(Dropout(0.5))
+        # output layer
+        network.add(Dense(81, activation='softmax'))
+        sgd = SGD(lr=0.003, decay=1e-6, momentum=0.9, nesterov=True)
+        network.compile(loss='categorical_crossentropy', optimizer=sgd)
+        return network
 
-        self.neurons.train(x.astype(np.float32), cv2.ml.ROW_SAMPLE, y.astype(np.float32))
-        # https://github.com/opencv/opencv/issues/4969
-        # self.neurons.save(train_data_path.replace('-train data.npz', '-neurons.yml'))
-        print('.. training done')
+    def train(self, x, y):
+        print('Starting CNN training..')
+        if len(x.shape) == 3:
+            x = np.reshape(x, (*x.shape, 1))  # the depth (the color dimension) has to be specified even if it is 1
+        self.get_net().fit(x, y, batch_size=200, nb_epoch=10)
+        self.get_net().save(KERAS_MODEL_FILE)
+        print('.. CNN training done')
 
     def predict(self, test_file):
         file = np.load(test_file)
         x = file['X']
         y = file['Y']
         print('Loaded ' + test_file)
-        ret, y_predict = self.neurons.predict(x.astype(np.float32))
-        count = 0
+        if len(x.shape) == 3:
+            x = np.reshape(x, (*x.shape, 1))
+        y_predict = self.get_net().predict(x.astype(np.float32))
+        tp = 0  # true "positives" = non empty zones (at least one stone) detected correctly
+        ap = 0  # all  "positives"
+        tn = 0  # true "negatives"
+        an = 0  # all  "negatives"
         for i, label in enumerate(y):
             pred = np.argmax(y_predict[i])
             truth = np.where(label == 1)[0]
-            if pred == truth:
-                count += 1
+            if 0 < truth:
+                ap += 1
+                if pred == truth:
+                    tp += 1
+                else:
+                    print("Predicted {}, should be {}".format(pred, truth))
             else:
-                print("Predicted {}, should be {}".format(pred, truth))
-        print('Accuracy: {} %'.format(100 * count / x.shape[0]))
+                an += 1
+                if pred == truth:
+                    tn += 1
+                else:
+                    print("Predicted {}, should be {}".format(pred, truth))
+        assert ap + an == x.shape[0]
+        print('Accuracy on non-empty regions: {} %'.format(100 * tp / ap))
+        print('Accuracy on empty regions: {} %'.format(100 * tn / an))
 
     @staticmethod
     def merge_trains(train_data_dir):
@@ -256,18 +307,14 @@ class TManager:
 
 
 if __name__ == '__main__':
-    sf = TManager()
+    manager = TManager()
     base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
     img = "{}snapshot-1.png".format(base_dir)
 
     # X, Y = sf.gen_data(img)
     # np.savez(img.replace(".png", TRAIN_DAT_SUFFIX), X=X, Y=Y)
 
-    train_data_file = '/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/all train.npz'
-    f = np.load(train_data_file)
-    x_train = f['X']
-    y_train = f['Y']
-    print('Loaded {}'.format(train_data_file))
-
-    sf.train(x_train, y_train)
-    sf.predict('/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/snapshot-13-cross-valid data.npz')
+    x_train, y_train = manager.merge_trains(base_dir)
+    for _ in range(10):
+        manager.train(x_train, y_train)
+    manager.predict(base_dir + 'snapshot-13-cross-valid data.npz')
