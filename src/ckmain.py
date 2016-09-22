@@ -43,7 +43,7 @@ def img_update(imqueue):
         pass
 
 
-def main(video=0, sgf=None, bounds=(0, 1), sf=None, bf=None):
+def main(video=0, sgf=None, bounds=(0, 1), sf=None, bf=None, active=True):
     """
     singleth --  Set to True to run everything on the main thread. Handy when in need to
             display images from inside loops during dev.
@@ -53,12 +53,12 @@ def main(video=0, sgf=None, bounds=(0, 1), sf=None, bf=None):
     assert cv2.__version__ == "3.1.0"  # disable that if needs be, this is just meant as a quick indication
     root = tkinter.Tk(className="Camkifu")
     glmain.configure(root)
-    app = camkifu.vgui.VUI(root)
+    app = camkifu.vgui.VUI(root, active=active)
     app.pack()
     configure(root)
     imqueue = queue.Queue(maxsize=10)
     controller = camkifu.vgui.ControllerV(app, app, sgffile=sgf, video=video, bounds=bounds)
-    vmanager = camkifu.core.VManager(controller, imqueue=imqueue, bf=bf, sf=sf)
+    vmanager = camkifu.core.VManager(controller, imqueue=imqueue, bf=bf, sf=sf, active=active)
 
     def tk_routine():
         img_update(imqueue)
@@ -96,6 +96,9 @@ def get_argparser() -> argparse.ArgumentParser:
     bhelp = "Video file bounds, expressed as ratios in [0, 1]. See openCV VideoCapture.set()"
     parser.add_argument("-b", "--bounds", default=(0, 1), type=float, nargs=2, metavar="R", help=bhelp)
 
+    ahelp = "Don't activate the video processing at startup."
+    parser.add_argument("--off", action='store_true', default=False, help=ahelp)
+
     add_finder_args(parser)
 
     return parser
@@ -103,4 +106,4 @@ def get_argparser() -> argparse.ArgumentParser:
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    main(video=args.video, sgf=args.sgf, bounds=args.bounds, bf=args.bf, sf=args.sf)
+    main(video=args.video, sgf=args.sgf, bounds=args.bounds, bf=args.bf, sf=args.sf, active=not args.off)

@@ -208,11 +208,12 @@ class VManager(VManagerBase):
             Indicate if self.run() has completed at least one iteration.
     """
 
-    def __init__(self, controller, imqueue=None, bf=None, sf=None):
+    def __init__(self, controller, imqueue=None, bf=None, sf=None, active=True):
         super().__init__(controller, imqueue=imqueue, bf=bf, sf=sf)
         self.daemon = True
         self.processes = []
         self._interrupt_flag = False
+        self.active = active
         self.hasrun = False
 
     def punch_controller(self):
@@ -245,9 +246,10 @@ class VManager(VManagerBase):
 
         # Main loop, watch for processor class changes and video input changes. Not intended to stop (daemon thread)
         while not self._interrupt_flag:
-            self.check_bf()
-            self.check_sf()
-            self.check_video()
+            if self.active:
+                self.check_bf()
+                self.check_sf()
+                self.check_video()
             time.sleep(0.2)
             self.hasrun = True
 
@@ -383,12 +385,14 @@ class VManager(VManagerBase):
             # force fresh instantiation (see self.check_bf() for example)
             self.board_finder = None
             self.stones_finder = None
+        self.active = True
 
     def _off(self):
         """ Turn off video processing if needs be.
         """
         if self.is_processing():
             self.stop_processing()
+        self.active = False
 
     def confirm_stop(self, process):
         self.processes.remove(process)
@@ -595,7 +599,7 @@ class CaptureReader(CaptureReaderBase):
                 self.served.clear()
             else:
                 served_all = True
-                for vp in self.get_active():
+                for vp in self.active_processes():
                     if vp.processor not in self.served:
                         served_all = False
                         break
@@ -605,7 +609,7 @@ class CaptureReader(CaptureReaderBase):
                     self.served.clear()
                     self.vmanager.vid_progress(self.capture.get(cv2.CAP_PROP_POS_AVI_RATIO) * 100)
 
-    def get_active(self):
+    def active_processes(self):
         """ Return the list of VidProcessor that are (supposedly) actively reading frames at the moment.
         """
         active = []

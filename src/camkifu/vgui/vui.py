@@ -12,6 +12,10 @@ class VUI(golib.gui.UI):
 
     """
 
+    def __init__(self, master, active=True, origin=(0, 0)):
+        self.active = active  # whether the Vision processes should be active at startup
+        super().__init__(master, origin)
+
     def init_components(self):
         super().init_components()
         self.build_menu_training()
@@ -57,7 +61,7 @@ class VUI(golib.gui.UI):
 
     def build_menu_detection(self):
         self.checkvar_detect = tk.BooleanVar()
-        self.checkvar_detect.set(True)
+        self.checkvar_detect.set(self.active)
         self.radvar_bf = tk.StringVar()
         self.radvar_sf = tk.StringVar()
 
