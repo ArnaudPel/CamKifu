@@ -339,7 +339,7 @@ def split_data(base_dir, manager):
     tfile = join(base_dir, TRAIN_DAT_MTX)
     if isfile(tfile):
         tdat = np.load(tfile)
-        xt, yt = tdat['Xe'], tdat['Ye']
+        xt, yt = tdat['Xt'], tdat['Yt']
         xe, ye = tdat['Xe'], tdat['Ye']
         print("Loaded previous datasets from [{}]".format(TRAIN_DAT_MTX))
     else:
