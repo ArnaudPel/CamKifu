@@ -18,7 +18,7 @@ from camkifu.stone.sf_clustering import SfClustering
 from golib.config.golib_conf import gsize, E, B, W
 from golib.gui import ControllerBase
 
-KERAS_MODEL_FILE = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/keras/model.h5"
+KERAS_MODEL_FILE = cvconf.train_dir + "/model/keras.h5"
 
 __author__ = 'Arnaud Peloquin'
 
@@ -370,7 +370,5 @@ def extract_ys(base_dir):
 
 if __name__ == '__main__':
     manager = TManager()
-    base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
-
-    train_eval(manager, base_dir)
-    # extract_ys(base_dir)
+    train_eval(manager, cvconf.snapshot_dir)
+    # extract_ys(cvconf.snapshot_dir)

@@ -6,6 +6,7 @@ from os.path import join, isfile
 
 import numpy as np
 
+from camkifu.config import cvconf
 from camkifu.stone.tmanager import TManager, TRAIN_DAT_SUFFIX, PNG_SUFFIX
 from glmain import configure, place, bring_to_front
 
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     root = tkinter.Tk()
     configure(root)
 
-    nn_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training"
+    nn_dir = cvconf.snapshot_dir
     app = DataGeneration(root, nn_dir)
     app.pack()
 
