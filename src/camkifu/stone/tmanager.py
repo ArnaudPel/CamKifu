@@ -245,11 +245,7 @@ class TManager:
         self.get_net().save(KERAS_MODEL_FILE)
         print('.. CNN training done')
 
-    def predict(self, test_file):
-        file = np.load(test_file)
-        x = file['X']
-        y = file['Y']
-        print('Loaded ' + test_file)
+    def evaluate(self, x, y):
         if len(x.shape) == 3:
             x = np.reshape(x, (*x.shape, 1))
         y_predict = self.get_net().predict(x.astype(np.float32))
@@ -273,8 +269,8 @@ class TManager:
                 else:
                     print("Predicted {}, should be {}".format(pred, truth))
         assert ap + an == x.shape[0]
-        print('Accuracy on non-empty regions: {} %'.format(100 * tp / ap))
-        print('Accuracy on empty regions: {} %'.format(100 * tn / an))
+        print('Non-empty: {:.2f} % ({}/{})'.format(100 * tp / ap, tp, ap))
+        print('Empty    : {:.2f} % ({}/{})'.format(100 * tn / an, tn, an))
 
     @staticmethod
     def merge_trains(train_data_dir):
@@ -319,23 +315,17 @@ class TManager:
 if __name__ == '__main__':
     manager = TManager()
     base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
-    # img = "{}snapshot-1.png".format(base_dir)
+    x_tot, y_tot = manager.merge_trains(base_dir)
 
-    # X, Y = sf.gen_data(img)
-    # np.savez(img.replace(".png", TRAIN_DAT_SUFFIX), X=X, Y=Y)
+    indices = np.indices([x_tot.shape[0]])[0]
+    np.random.shuffle(indices)
+    split_idx = int(0.8 * len(indices))
 
-    # x_train, y_train = manager.merge_trains(base_dir)
-    # for _ in range(50):
-    #     manager.train(x_train, y_train, batch_size=1100, nb_epoch=2)
-    # for i in range(1, 15):
-    #     manager.predict(base_dir + 'snapshot-17 ({})-train data.npz'.format(i))
-    # manager.predict(base_dir + 'snapshot-13-cross-valid data.npz')
-    # manager.predict(base_dir + 'snapshot-16-train data.npz')
+    x_train = x_tot[indices[:split_idx], :]
+    y_train = y_tot[indices[:split_idx], :]
+    for _ in range(1):
+        manager.train(x_train, y_train, batch_size=1100, nb_epoch=1)
 
-    x, y = manager.merge_trains(base_dir)
-    # data = np.load(base_dir + "snapshot-17 (1)-train data.npz")
-    # x, y = data['X'], data['Y']
-    histo = manager.raw_histo(y)
-    for i in range(len(histo)):
-        print("{} x {}".format(i, int(histo[i][0])))
-#
+    x_eval = x_tot[indices[split_idx:], :]
+    y_eval = y_tot[indices[split_idx:], :]
+    manager.evaluate(x_eval, y_eval)
