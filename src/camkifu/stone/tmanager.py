@@ -22,6 +22,7 @@ KERAS_MODEL_FILE = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/k
 
 __author__ = 'Arnaud Peloquin'
 
+PNG_SUFFIX = ".png"
 TRAIN_DAT_SUFFIX = '-train data.npz'
 
 
@@ -106,15 +107,34 @@ class TManager:
             return None, None
 
     def suggest_stones(self, img, img_path):
-        game_path = img_path.replace('snapshot', 'game').replace('.png', '.sgf')
-        game_path = regex.sub(' \(\\d*\)', '', game_path)
-        if isfile(game_path):
+        game_path = TManager.get_ref_game(img_path)
+        y_path = TManager.get_ref_y(img_path)
+        if isfile(game_path):  # load stones from an sgf
             self.controller.loadkifu(game_path)
             self.controller.goto(999)
             stones = np.array(self.controller.rules.stones, dtype=object).T
-        else:
+        elif isfile(y_path):  # load stones from a previous numpy file
+            stones = np.ndarray((gsize, gsize), dtype=object)
+            y = np.load(y_path)['Y']
+            for i in range(self.split):
+                for j in range(self.split):
+                    rs, re, cs, ce = self._subregion(i, j)
+                    example_idx = i * self.split + j
+                    slist = self.compute_stones(np.argmax(y[example_idx]))
+                    stones[rs:re, cs:ce] = np.array(slist).reshape((re - rs, ce - cs))
+            print("Loaded {}".format(y_path))
+        else:  # try to guess stones with custom algo
             stones = SfClustering(None).find_stones(img)
         return stones
+
+    @staticmethod
+    def get_ref_game(img_path):
+        game_path = img_path.replace('snapshot', 'game').replace('.png', '.sgf')
+        return regex.sub(' \(\\d*\)', '', game_path)
+
+    @staticmethod
+    def get_ref_y(path):
+        return path.replace(PNG_SUFFIX, '-y.npz')
 
     # noinspection PyBroadException
     def validate_stones(self, stones, img):
@@ -149,23 +169,20 @@ class TManager:
             except:
                 pass
             if key == 'r':
-                stones = np.zeros((gsize, gsize), dtype=object)
                 stones[:] = E
                 key = None
         destroy_win(win_name)
         return True if key == 'k' else False
 
     def _label_regions(self, img, stones):
-        examples = np.zeros((self.split ** 2, self.r_width, self.c_width), dtype=np.uint8)
+        examples = np.zeros((self.split ** 2, self.r_width, self.c_width, 3), dtype=np.uint8)
         labels = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
         for i in range(self.split):
             for j in range(self.split):
                 rs, re, cs, ce = self._subregion(i, j)
                 x0, x1, y0, y1 = self._get_rect_nn(rs, re, cs, ce)
                 example_idx = i * self.split + j
-
-                # feed grayscale to nn as a starter. todo use colors ? (3 times as more input nodes)
-                examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY)
+                examples[example_idx] = img[x0:x1, y0:y1].copy()
                 label_val = self.compute_label(rs, re, cs, ce, stones)
                 labels[example_idx, label_val] = 1
         return examples, labels
@@ -217,7 +234,7 @@ class TManager:
     def create_net():
         print("Creating new Keras model")
         network = Sequential()
-        input_shape = (40, 40, 1)  # gray input for now
+        input_shape = (40, 40, 3)
         network.add(Convolution2D(32, 3, 3, activation='relu', border_mode='valid', input_shape=input_shape))
         network.add(Convolution2D(32, 3, 3, activation='relu'))
         network.add(MaxPooling2D(pool_size=(2, 2)))
@@ -237,17 +254,15 @@ class TManager:
         return network
 
     def train(self, x, y, batch_size=1000, nb_epoch=2):
+        assert len(x.shape) == 4  # expecting an array of colored images
         self.get_net().optimizer.lr = backend.variable(0.003)
         print('Starting CNN training..')
-        if len(x.shape) == 3:
-            x = np.reshape(x, (*x.shape, 1))  # the depth (the color dimension) has to be specified even if it is 1
         self.get_net().fit(x, y, batch_size=batch_size, nb_epoch=nb_epoch)
         self.get_net().save(KERAS_MODEL_FILE)
         print('.. CNN training done')
 
     def evaluate(self, x, y):
-        if len(x.shape) == 3:
-            x = np.reshape(x, (*x.shape, 1))
+        assert len(x.shape) == 4  # expecting an array of colored images
         y_predict = self.get_net().predict(x.astype(np.float32))
         tp = 0  # true "positives" = non empty zones (at least one stone) detected correctly
         ap = 0  # all  "positives"
@@ -260,14 +275,14 @@ class TManager:
                 ap += 1
                 if pred == truth:
                     tp += 1
-                else:
-                    print("Predicted {}, should be {}".format(pred, truth))
+                # else:
+                #     print("Predicted {}, should be {}".format(pred, truth))
             else:
                 an += 1
                 if pred == truth:
                     tn += 1
-                else:
-                    print("Predicted {}, should be {}".format(pred, truth))
+                # else:
+                #     print("Predicted {}, should be {}".format(pred, truth))
         assert ap + an == x.shape[0]
         print('Non-empty: {:.2f} % ({}/{})'.format(100 * tp / ap, tp, ap))
         print('Empty    : {:.2f} % ({}/{})'.format(100 * tn / an, tn, an))
@@ -312,20 +327,35 @@ class TManager:
         return cv2.calcHist([y], [0], None, [nb_bins], [0, nb_bins])
 
 
-if __name__ == '__main__':
-    manager = TManager()
-    base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
+def train_eval(manager, base_dir):
     x_tot, y_tot = manager.merge_trains(base_dir)
-
     indices = np.indices([x_tot.shape[0]])[0]
     np.random.shuffle(indices)
     split_idx = int(0.8 * len(indices))
-
     x_train = x_tot[indices[:split_idx], :]
     y_train = y_tot[indices[:split_idx], :]
-    for _ in range(1):
-        manager.train(x_train, y_train, batch_size=1100, nb_epoch=1)
-
+    for _ in range(30):
+        manager.train(x_train, y_train, batch_size=920, nb_epoch=2)
     x_eval = x_tot[indices[split_idx:], :]
     y_eval = y_tot[indices[split_idx:], :]
     manager.evaluate(x_eval, y_eval)
+
+
+def extract_ys(base_dir):
+    """ Extract the Y matrix from every train-data file for which no ref game can be found.
+
+    """
+    for mat in [f for f in listdir(base_dir) if f.endswith(PNG_SUFFIX)]:
+        path = join(base_dir, mat)
+        if not isfile(TManager.get_ref_game(path)):
+            dat_path = path.replace(PNG_SUFFIX, TRAIN_DAT_SUFFIX)
+            if isfile(dat_path):
+                np.savez(TManager.get_ref_y(path), Y=np.load(dat_path)['Y'])
+
+
+if __name__ == '__main__':
+    manager = TManager()
+    base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
+
+    train_eval(manager, base_dir)
+    # extract_ys(base_dir)

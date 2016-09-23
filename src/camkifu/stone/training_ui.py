@@ -6,11 +6,9 @@ from os.path import join, isfile
 
 import numpy as np
 
-from camkifu.stone.tmanager import TRAIN_DAT_SUFFIX, TManager
+from camkifu.stone.tmanager import TManager, TRAIN_DAT_SUFFIX, PNG_SUFFIX
 from glmain import configure, place, bring_to_front
 
-
-PNG_SUFFIX = ".png"
 
 VERIFY = "Verify"
 DELETE = "Delete"
