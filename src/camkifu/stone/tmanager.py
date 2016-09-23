@@ -24,6 +24,7 @@ __author__ = 'Arnaud Peloquin'
 
 PNG_SUFFIX = ".png"
 TRAIN_DAT_SUFFIX = '-train data.npz'
+TRAIN_DAT_MTX = "all-train.npz"
 
 
 class TManager:
@@ -328,17 +329,31 @@ class TManager:
 
 
 def train_eval(manager, base_dir):
-    x_tot, y_tot = manager.merge_trains(base_dir)
-    indices = np.indices([x_tot.shape[0]])[0]
-    np.random.shuffle(indices)
-    split_idx = int(0.8 * len(indices))
-    x_train = x_tot[indices[:split_idx], :]
-    y_train = y_tot[indices[:split_idx], :]
+    x_train, y_train, x_eval, y_eval = split_data(base_dir, manager)
     for _ in range(30):
         manager.train(x_train, y_train, batch_size=920, nb_epoch=2)
-    x_eval = x_tot[indices[split_idx:], :]
-    y_eval = y_tot[indices[split_idx:], :]
     manager.evaluate(x_eval, y_eval)
+
+
+def split_data(base_dir, manager):
+    tfile = join(base_dir, TRAIN_DAT_MTX)
+    if isfile(tfile):
+        tdat = np.load(tfile)
+        xt, yt = tdat['Xe'], tdat['Ye']
+        xe, ye = tdat['Xe'], tdat['Ye']
+        print("Loaded previous datasets from [{}]".format(TRAIN_DAT_MTX))
+    else:
+        x_tot, y_tot = manager.merge_trains(base_dir)
+        indices = np.indices([x_tot.shape[0]])[0]
+        np.random.shuffle(indices)
+        split_idx = int(0.8 * len(indices))
+        xt = x_tot[indices[:split_idx], :]
+        yt = y_tot[indices[:split_idx], :]
+        xe = x_tot[indices[split_idx:], :]
+        ye = y_tot[indices[split_idx:], :]
+        np.savez(tfile, Xt=xt, Yt=yt, Xe=xe, Ye=ye)
+        print("Created NEW datasets: [{}]".format(TRAIN_DAT_MTX))
+    return xt, yt, xe, ye
 
 
 def extract_ys(base_dir):
