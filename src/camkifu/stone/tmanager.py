@@ -4,6 +4,9 @@ import cv2
 import numpy as np
 from os.path import join, isfile
 
+import re as regex
+
+from keras import backend
 from keras.models import Sequential, load_model
 from keras.layers import Dense, Dropout, Flatten
 from keras.layers import Convolution2D, MaxPooling2D
@@ -104,6 +107,7 @@ class TManager:
 
     def suggest_stones(self, img, img_path):
         game_path = img_path.replace('snapshot', 'game').replace('.png', '.sgf')
+        game_path = regex.sub(' \(\\d*\)', '', game_path)
         if isfile(game_path):
             self.controller.loadkifu(game_path)
             self.controller.goto(999)
@@ -112,7 +116,9 @@ class TManager:
             stones = SfClustering(None).find_stones(img)
         return stones
 
+    # noinspection PyBroadException
     def validate_stones(self, stones, img):
+        # noinspection PyUnusedLocal
         def onmouse(event, x, y, flag, param):
             if event == cv2.EVENT_LBUTTONDOWN:
                 row = int(gsize * y / self.canonical_shape[1])
@@ -160,12 +166,13 @@ class TManager:
 
                 # feed grayscale to nn as a starter. todo use colors ? (3 times as more input nodes)
                 examples[example_idx] = cv2.cvtColor(img[x0:x1, y0:y1], cv2.COLOR_BGR2GRAY)
-                label_val = self.compute_label(ce, cs, re, rs, stones)
+                label_val = self.compute_label(rs, re, cs, ce, stones)
                 labels[example_idx, label_val] = 1
         return examples, labels
 
     @staticmethod
-    def compute_label(ce, cs, re, rs, stones):
+    def compute_label(rs, re, cs, ce, stones):
+        # todo refactor to take a 1-D collection of stones instead WARNING: check that np.flatten() is same as below !!
         label_val = 0
         for r in range(rs, re):
             for c in range(cs, ce):
@@ -229,11 +236,12 @@ class TManager:
         network.compile(loss='categorical_crossentropy', optimizer=sgd)
         return network
 
-    def train(self, x, y):
+    def train(self, x, y, batch_size=1000, nb_epoch=2):
+        self.get_net().optimizer.lr = backend.variable(0.003)
         print('Starting CNN training..')
         if len(x.shape) == 3:
             x = np.reshape(x, (*x.shape, 1))  # the depth (the color dimension) has to be specified even if it is 1
-        self.get_net().fit(x, y, batch_size=200, nb_epoch=10)
+        self.get_net().fit(x, y, batch_size=batch_size, nb_epoch=nb_epoch)
         self.get_net().save(KERAS_MODEL_FILE)
         print('.. CNN training done')
 
@@ -283,38 +291,51 @@ class TManager:
         return x, y
 
     @staticmethod
-    def labels_histo(labels, nb_bins=3 ** 4):
+    def display_histo(labels, nb_bins=3 ** 4):
         """
         labels -- the label vectors as fed to the neural network
         """
-        y = np.zeros((labels.shape[0], 1), dtype=np.uint8)
-        for i, label_vect in enumerate(labels):
-            y[i] = np.argmax(label_vect)
-        hist_item = cv2.calcHist([y], [0], None, [nb_bins], [1, nb_bins])
-        cv2.normalize(hist_item, hist_item, 0, 255, cv2.NORM_MINMAX)
-        hist = np.int32(np.around(hist_item))
+        histo = TManager.raw_histo(labels, nb_bins)
+        cv2.normalize(histo, histo, 0, 255, cv2.NORM_MINMAX)
         zoom = 7
         chart_width = nb_bins * zoom
         bins = np.arange(0, chart_width, zoom).reshape(nb_bins, 1)
-        pts = np.column_stack((bins, hist))
+        pts = np.column_stack((bins, (np.int32(np.around(histo)))))
         canvas = np.zeros((300, chart_width, 3))
         cv2.polylines(canvas, [pts], False, (255, 255, 255))
-        histo = np.flipud(canvas)
         win_name = 'Training data labels distribution'
-        show(histo, name=win_name)
+        show(np.flipud(canvas), name=win_name)
         cv2.waitKey()
         destroy_win(win_name)
+
+    @staticmethod
+    def raw_histo(labels, nb_bins=3 ** 4):
+        y = np.zeros((labels.shape[0], 1), dtype=np.uint8)
+        for i, label_vect in enumerate(labels):
+            y[i] = np.argmax(label_vect)
+        return cv2.calcHist([y], [0], None, [nb_bins], [0, nb_bins])
 
 
 if __name__ == '__main__':
     manager = TManager()
     base_dir = "/Users/Kohistan/Developer/PycharmProjects/CamKifu/res/temp/training/"
-    img = "{}snapshot-1.png".format(base_dir)
+    # img = "{}snapshot-1.png".format(base_dir)
 
     # X, Y = sf.gen_data(img)
     # np.savez(img.replace(".png", TRAIN_DAT_SUFFIX), X=X, Y=Y)
 
-    x_train, y_train = manager.merge_trains(base_dir)
-    for _ in range(10):
-        manager.train(x_train, y_train)
-    manager.predict(base_dir + 'snapshot-13-cross-valid data.npz')
+    # x_train, y_train = manager.merge_trains(base_dir)
+    # for _ in range(50):
+    #     manager.train(x_train, y_train, batch_size=1100, nb_epoch=2)
+    # for i in range(1, 15):
+    #     manager.predict(base_dir + 'snapshot-17 ({})-train data.npz'.format(i))
+    # manager.predict(base_dir + 'snapshot-13-cross-valid data.npz')
+    # manager.predict(base_dir + 'snapshot-16-train data.npz')
+
+    x, y = manager.merge_trains(base_dir)
+    # data = np.load(base_dir + "snapshot-17 (1)-train data.npz")
+    # x, y = data['X'], data['Y']
+    histo = manager.raw_histo(y)
+    for i in range(len(histo)):
+        print("{} x {}".format(i, int(histo[i][0])))
+#

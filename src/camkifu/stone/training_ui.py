@@ -94,7 +94,7 @@ class DataGeneration(Frame):
 
     def histo(self):
         _, y = self.manager.merge_trains(self.dir)
-        self.manager.labels_histo(y)
+        self.manager.display_histo(y)
 
 
 if __name__ == '__main__':

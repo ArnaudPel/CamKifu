@@ -3,8 +3,8 @@ import math
 import cv2
 import numpy as np
 
-from camkifu.core.imgutil import show
 from camkifu.stone.tmanager import TManager
+from golib.config.golib_conf import B
 
 __author__ = 'Arnaud Peloquin'
 
@@ -58,5 +58,8 @@ if __name__ == '__main__':
     # test.test_should_generate_examples_and_labels()
     # test.labels_should_match_inputs()
     for lab in [80]:
-        print("{} -> {}", lab, test.sf.compute_stones(lab))
+        print("{} -> {}".format(lab, test.sf.compute_stones(lab)))
+    stones = np.ndarray((2, 2), dtype=object)
+    stones[:] = B
+    print("{} -> {}".format(stones, test.sf.compute_label(0, 2, 0, 2, stones)))
     pass
