@@ -36,6 +36,7 @@ class TManager:
         # (~ to stonesfinder.canonical_shape)
         # all the size-related computations are based on this assumption
         self.canonical_shape = (cvconf.canonical_size, cvconf.canonical_size)
+        self.depth = 3
 
         self._network = None  # please access via self.get_net() - lazy instantiation
         self.split = 10  # feed the neural network with squares of four intersections (split the goban in 10x10 areas)
@@ -50,17 +51,16 @@ class TManager:
 
     def get_net(self):
         if self._network is None:
-            self._network = TManager.init_net()
+            self._network = self.init_net()
         return self._network
 
-    @staticmethod
-    def init_net():
+    def init_net(self):
         if isfile(KERAS_MODEL_FILE):
             print("Loading previous model from [{}] ...".format(KERAS_MODEL_FILE))
             model = load_model(KERAS_MODEL_FILE)
             print("... loading done")
             return model
-        return TManager.create_net()
+        return self.create_net()
 
     def _subregion(self, row, col):
 
@@ -176,7 +176,7 @@ class TManager:
         return True if key == 'k' else False
 
     def _label_regions(self, img, stones):
-        examples = np.zeros((self.split ** 2, self.r_width, self.c_width, 3), dtype=np.uint8)
+        examples = np.zeros((self.split ** 2, self.r_width, self.c_width, self.depth), dtype=np.uint8)
         labels = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
         for i in range(self.split):
             for j in range(self.split):
@@ -231,11 +231,10 @@ class TManager:
                 y0 = y1 - self.r_width
         return x0, x1, y0, y1
 
-    @staticmethod
-    def create_net():
+    def create_net(self):
         print("Creating new Keras model")
         network = Sequential()
-        input_shape = (40, 40, 3)
+        input_shape = (40, 40, self.depth)
         network.add(Convolution2D(32, 3, 3, activation='relu', border_mode='valid', input_shape=input_shape))
         network.add(Convolution2D(32, 3, 3, activation='relu'))
         network.add(MaxPooling2D(pool_size=(2, 2)))
@@ -254,9 +253,9 @@ class TManager:
         network.compile(loss='categorical_crossentropy', optimizer=sgd)
         return network
 
-    def train(self, x, y, batch_size=1000, nb_epoch=2):
+    def train(self, x, y, batch_size=1000, nb_epoch=2, lr=0.001):
         assert len(x.shape) == 4  # expecting an array of colored images
-        self.get_net().optimizer.lr = backend.variable(0.003)
+        self.get_net().optimizer.lr = backend.variable(lr)
         print('Starting CNN training..')
         self.get_net().fit(x, y, batch_size=batch_size, nb_epoch=nb_epoch)
         self.get_net().save(KERAS_MODEL_FILE)
@@ -327,11 +326,35 @@ class TManager:
             y[i] = np.argmax(label_vect)
         return cv2.calcHist([y], [0], None, [nb_bins], [0, nb_bins])
 
+    def patchwork(self, x, shape=(20, 20)):
+        a, b = shape
+        rw, cw = self.r_width, self.c_width
+        idx = 0
+        while True:
+            canvas = np.zeros((a * rw, b * cw, self.depth), dtype=np.uint8)
+            for j in range(a):
+                for k in range(b):
+                    if idx < len(x):
+                        canvas[j*rw:(j+1)*rw, k*cw:(k+1)*cw] = x[idx]
+                    else:
+                        print("Images {} -> {}".format(idx - (j*b + k), idx))
+                        yield canvas
+                        return
+                    idx += 1
+            print("Images {} -> {}".format(idx - a*b, idx-1))
+            yield canvas
 
-def train_eval(manager, base_dir):
+    def visualize(self, x, shape=(20, 20)):
+        for img in self.patchwork(x, shape):
+            show(img, name='Patchwork')
+            if chr(cv2.waitKey()) == 'q':
+                break
+
+
+def run_batch(manager, base_dir):
     x_train, y_train, x_eval, y_eval = split_data(base_dir, manager)
     for _ in range(30):
-        manager.train(x_train, y_train, batch_size=920, nb_epoch=2)
+        manager.train(x_train, y_train, batch_size=920, nb_epoch=2, lr=0.001)
     manager.evaluate(x_eval, y_eval)
 
 
@@ -370,5 +393,7 @@ def extract_ys(base_dir):
 
 if __name__ == '__main__':
     manager = TManager()
-    train_eval(manager, cvconf.snapshot_dir)
+    # run_batch(manager, cvconf.snapshot_dir)
+    xt, yt, xe, ye = split_data(cvconf.snapshot_dir, manager)
+    manager.visualize(xt)
     # extract_ys(cvconf.snapshot_dir)
