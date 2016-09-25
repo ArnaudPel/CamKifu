@@ -103,7 +103,7 @@ class TManager:
         assert img.shape[0:2] == self.canonical_shape
         stones = self.suggest_stones(img, img_path)
         if self.validate_stones(stones, img):
-            return self._label_regions(img, stones)
+            return self.generate_xs(img), self.generate_ys(stones)
         else:
             return None, None
 
@@ -175,18 +175,23 @@ class TManager:
         destroy_win(win_name)
         return True if key == 'k' else False
 
-    def _label_regions(self, img, stones):
-        examples = np.zeros((self.split ** 2, self.r_width, self.c_width, self.depth), dtype=np.uint8)
-        labels = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
+    def generate_xs(self, img):
+        x_s = np.zeros((self.split ** 2, self.r_width, self.c_width, self.depth), dtype=np.uint8)
         for i in range(self.split):
             for j in range(self.split):
                 rs, re, cs, ce = self._subregion(i, j)
                 x0, x1, y0, y1 = self._get_rect_nn(rs, re, cs, ce)
-                example_idx = i * self.split + j
-                examples[example_idx] = img[x0:x1, y0:y1].copy()
+                x_s[(i * self.split + j)] = img[x0:x1, y0:y1].copy()
+        return x_s
+
+    def generate_ys(self, stones):
+        y_s = np.zeros((self.split ** 2, self.nb_classes), dtype=bool)
+        for i in range(self.split):
+            for j in range(self.split):
+                rs, re, cs, ce = self._subregion(i, j)
                 label_val = self.compute_label(rs, re, cs, ce, stones)
-                labels[example_idx, label_val] = 1
-        return examples, labels
+                y_s[(i * self.split + j), label_val] = 1
+        return y_s
 
     @staticmethod
     def compute_label(rs, re, cs, ce, stones):
@@ -260,6 +265,14 @@ class TManager:
         self.get_net().fit(x, y, batch_size=batch_size, nb_epoch=nb_epoch)
         self.get_net().save(KERAS_MODEL_FILE)
         print('.. CNN training done')
+
+    def predict(self, x):
+        assert len(x.shape) == 4  # expecting an array of colored images
+        predictions = self.get_net().predict(x.astype(np.float32))
+        stones = np.ndarray((len(predictions), 4), dtype=object)
+        for i, distrib in enumerate(predictions):
+            stones[i] = TManager.compute_stones(np.argmax(distrib))
+        return stones
 
     def evaluate(self, x, y):
         assert len(x.shape) == 4  # expecting an array of colored images

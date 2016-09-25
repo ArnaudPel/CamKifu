@@ -30,6 +30,7 @@ bfinders = [
 # format: (module, class)
 sfinders = [
     ("camkifu.stone.sf_sandbox", "SfSandbox"),
+    ("camkifu.stone.sf_neural", "SfNeural"),
     ("camkifu.stone.sf_meta", "SfMeta"),
     ("camkifu.stone.sf_contours", "SfContours"),
     ("camkifu.stone.sf_clustering", "SfClustering"),

@@ -161,7 +161,7 @@ class StonesFinder(camkifu.core.VidProcessor):
             return False
 
     def _find(self, goban_img):
-        """ Abstract method. Detect stones in the (already) canonical image of the goban.
+        """ Abstract method. Detect stones in the provided canonical image of the goban.
 
         Args:
             goban_img: ndarray
