@@ -14,7 +14,6 @@ from keras.optimizers import SGD
 
 from camkifu.config import cvconf
 from camkifu.core.imgutil import show, draw_str, destroy_win
-from camkifu.stone.sf_clustering import SfClustering
 from golib.config.golib_conf import gsize, E, B, W
 from golib.gui import ControllerBase
 
@@ -120,12 +119,12 @@ class TManager:
             for i in range(self.split):
                 for j in range(self.split):
                     rs, re, cs, ce = self._subregion(i, j)
-                    example_idx = i * self.split + j
-                    slist = self.compute_stones(np.argmax(y[example_idx]))
-                    stones[rs:re, cs:ce] = np.array(slist).reshape((re - rs, ce - cs))
+                    idx = i * self.split + j
+                    s_arr = self.compute_stones(np.argmax(y[idx]))
+                    stones[rs:re, cs:ce] = s_arr.reshape((re - rs, ce - cs))
             print("Loaded {}".format(y_path))
         else:  # try to guess stones with custom algo
-            stones = SfClustering(None).find_stones(img)
+            stones = self.predict_stones(img)
         return stones
 
     @staticmethod
@@ -208,12 +207,12 @@ class TManager:
     @staticmethod
     def compute_stones(label, dimension=4):
         k = label
-        stones = []
+        stones = np.ndarray(dimension, dtype=object)
         for i in reversed(range(dimension)):
             digit = int(k / (3**i))
-            stones.append(E if digit == 0 else B if digit == 1 else W)
+            stones[i] = E if digit == 0 else B if digit == 1 else W
             k %= 3**i
-        return list(reversed(stones))
+        return stones
 
     def getrect(self, r, c, re=0, ce=0):
         x0 = int(r * self.canonical_shape[0] / gsize)
@@ -266,12 +265,19 @@ class TManager:
         self.get_net().save(KERAS_MODEL_FILE)
         print('.. CNN training done')
 
-    def predict(self, x):
+    def predict_ys(self, x):
         assert len(x.shape) == 4  # expecting an array of colored images
-        predictions = self.get_net().predict(x.astype(np.float32))
-        stones = np.ndarray((len(predictions), 4), dtype=object)
-        for i, distrib in enumerate(predictions):
-            stones[i] = TManager.compute_stones(np.argmax(distrib))
+        return np.argmax(self.get_net().predict(x.astype(np.float32)), axis=1)
+
+    def predict_stones(self, goban_img):
+        x_s = self.generate_xs(goban_img)
+        predict = self.predict_ys(x_s)
+        stones = np.ndarray((gsize, gsize), dtype=object)
+        for k, y in enumerate(predict):
+            i = int(k / self.split)
+            j = k % self.split
+            rs, re, cs, ce = self._subregion(i, j)
+            stones[rs:re, cs:ce] = self.compute_stones(y).reshape((re-rs, ce-cs))
         return stones
 
     def evaluate(self, x, y):
@@ -301,13 +307,14 @@ class TManager:
         print('Empty    : {:.2f} % ({}/{})'.format(100 * tn / an, tn, an))
 
     @staticmethod
-    def merge_trains(train_data_dir):
+    def merge_npz(train_data_dir, pattern):
         inputs = []
         labels = []
-        for mat in [f for f in listdir(train_data_dir) if f.endswith(TRAIN_DAT_SUFFIX)]:
-            data = np.load(join(train_data_dir, mat))
-            inputs.append(data['X'])
-            labels.append(data['Y'])
+        for mat in [f for f in listdir(train_data_dir) if f.endswith('.npz')]:
+            if regex.match(pattern, mat):
+                data = np.load(join(train_data_dir, mat))
+                inputs.append(data['X'])
+                labels.append(data['Y'])
         x = np.concatenate(inputs, axis=0)
         print('Merged {} inputs {} -> {}'.format(len(inputs), inputs[0].shape, x.shape))
         y = np.concatenate(labels, axis=0)
@@ -365,13 +372,13 @@ class TManager:
 
 
 def run_batch(manager, base_dir):
-    x_train, y_train, x_eval, y_eval = split_data(base_dir, manager)
+    x_train, y_train, x_eval, y_eval = split_data(base_dir)
     for _ in range(30):
         manager.train(x_train, y_train, batch_size=920, nb_epoch=2, lr=0.001)
     manager.evaluate(x_eval, y_eval)
 
 
-def split_data(base_dir, manager):
+def split_data(base_dir):
     tfile = join(base_dir, TRAIN_DAT_MTX)
     if isfile(tfile):
         tdat = np.load(tfile)
@@ -379,7 +386,7 @@ def split_data(base_dir, manager):
         xe, ye = tdat['Xe'], tdat['Ye']
         print("Loaded previous datasets from [{}]".format(TRAIN_DAT_MTX))
     else:
-        x_tot, y_tot = manager.merge_trains(base_dir)
+        x_tot, y_tot = TManager.merge_npz(base_dir, '(.*-train data.*)|(arch\\d*)')
         indices = np.indices([x_tot.shape[0]])[0]
         np.random.shuffle(indices)
         split_idx = int(0.8 * len(indices))
@@ -404,9 +411,24 @@ def extract_ys(base_dir):
                 np.savez(TManager.get_ref_y(path), Y=np.load(dat_path)['Y'])
 
 
+def archive(idx):
+    assert type(idx) is int
+    f = join(cvconf.snapshot_dir, 'arch{}.npz'.format(idx))
+    if isfile(f):
+        raise FileExistsError(f)
+    xa, ya = TManager.merge_npz(cvconf.snapshot_dir, '(.*-train data.*)')
+    np.savez(f, X=xa, Y=ya)
+
+
 if __name__ == '__main__':
     manager = TManager()
     # run_batch(manager, cvconf.snapshot_dir)
-    xt, yt, xe, ye = split_data(cvconf.snapshot_dir, manager)
-    manager.visualize(xt)
+    # fnpz = np.load(join(cvconf.snapshot_dir, 'arch1/snapshot-17-train data.npz'))
+    # manager.evaluate(fnpz['X'], fnpz['Y'])
+
+    # xt, yt, xe, ye = split_data(cvconf.snapshot_dir, manager)
+    # manager.visualize(xt)
+
     # extract_ys(cvconf.snapshot_dir)
+
+    # archive(2)

@@ -87,12 +87,11 @@ class DataGeneration(Frame):
         Button(self, text='Train', command=self.train).pack()
 
     def train(self):
-        x, y = self.manager.merge_trains(self.dir)
-        # TODO run training in a separate thread
-        self.manager.train(x, y)
+        # TODO implement and run training in a separate thread
+        pass
 
     def histo(self):
-        _, y = self.manager.merge_trains(self.dir)
+        _, y = self.manager.merge_npz(self.dir, '(.*-train data.*)|(arch\\d*)')
         self.manager.display_histo(y)
 
 

@@ -36,9 +36,9 @@ class TestSfNeural:
         print("Y array seems alright")
 
     def should_compute_stones_from_labels(self):
-        assert self.sf.compute_stones(27) == ['E', 'E', 'E', 'B']
-        assert self.sf.compute_stones(36) == ['E', 'E', 'B', 'B']
-        assert self.sf.compute_stones(64) == ['B', 'E', 'B', 'W']
+        assert list(self.sf.compute_stones(27)) == ['E', 'E', 'E', 'B']
+        assert list(self.sf.compute_stones(36)) == ['E', 'E', 'B', 'B']
+        assert list(self.sf.compute_stones(64)) == ['B', 'E', 'B', 'W']
 
     def labels_should_match_inputs(self):
         file = np.load("/Users/Kohistan/Developer/PycharmProjects/CamKifu/test/camkifu/stone/snapshot-1-train data.npz")
