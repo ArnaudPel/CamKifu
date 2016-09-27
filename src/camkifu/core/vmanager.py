@@ -635,6 +635,8 @@ class CaptureReader(CaptureReaderBase):
 class CaptureReaderImg:
 
     def __init__(self, img):
+        if img.endswith('.JPG'):
+            print("Warning: '.JPG' format doesn't seem to be supported by OpenCV. Please rename to '.jpg'")
         self.img = cv2.imread(img)
         self.ignored_meths = set()
 
