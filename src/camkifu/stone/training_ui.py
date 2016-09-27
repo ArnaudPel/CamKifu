@@ -91,7 +91,7 @@ class DataGeneration(Frame):
         pass
 
     def histo(self):
-        _, y = self.manager.merge_npz(self.dir, '(.*-train data.*)|(arch\\d*)')
+        _, y, _ = self.manager.merge_npz(self.dir, '(.*\-train data.*)|(arch\d*)')
         self.manager.display_histo(y)
 
 

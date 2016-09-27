@@ -39,7 +39,7 @@ class VUI(golib.gui.UI):
         self.video_pos.grid(row=7, column=0, columnspan=2)
 
         self.save_goban = tk.IntVar()  # whether to save the current game record with the snapshot (for ANN training)
-        self.save_goban.set(1)
+        self.save_goban.set(0)
 
         def snap_cmd():
             self.execute("snapshot", self.save_goban.get())
