@@ -2,7 +2,8 @@ from os import listdir
 
 import cv2
 import numpy as np
-from os.path import join, isfile
+import os
+from os.path import join, isfile, exists
 
 import re as regex
 
@@ -310,16 +311,17 @@ class TManager:
     def merge_npz(train_data_dir, pattern):
         inputs = []
         labels = []
+        files = []
         for mat in [f for f in listdir(train_data_dir) if f.endswith('.npz')]:
             if regex.match(pattern, mat):
                 data = np.load(join(train_data_dir, mat))
                 inputs.append(data['X'])
                 labels.append(data['Y'])
+                files.append(mat)
         x = np.concatenate(inputs, axis=0)
-        print('Merged {} inputs {} -> {}'.format(len(inputs), inputs[0].shape, x.shape))
+        print('Merged {} inputs -> {}'.format(len(inputs), x.shape))
         y = np.concatenate(labels, axis=0)
-        print('Merged {} labels {} -> {}'.format(len(labels), labels[0].shape, y.shape))
-        return x, y
+        return x, y, files
 
     @staticmethod
     def display_histo(labels, nb_bins=3 ** 4):
@@ -371,13 +373,6 @@ class TManager:
                 break
 
 
-def run_batch(manager, base_dir):
-    x_train, y_train, x_eval, y_eval = split_data(base_dir)
-    for _ in range(30):
-        manager.train(x_train, y_train, batch_size=920, nb_epoch=2, lr=0.001)
-    manager.evaluate(x_eval, y_eval)
-
-
 def split_data(base_dir):
     tfile = join(base_dir, TRAIN_DAT_MTX)
     if isfile(tfile):
@@ -386,7 +381,7 @@ def split_data(base_dir):
         xe, ye = tdat['Xe'], tdat['Ye']
         print("Loaded previous datasets from [{}]".format(TRAIN_DAT_MTX))
     else:
-        x_tot, y_tot = TManager.merge_npz(base_dir, '(.*-train data.*)|(arch\\d*)')
+        x_tot, y_tot, _ = TManager.merge_npz(base_dir, '(.*\-train data.*)|(arch\d*)')
         indices = np.indices([x_tot.shape[0]])[0]
         np.random.shuffle(indices)
         split_idx = int(0.8 * len(indices))
@@ -413,22 +408,39 @@ def extract_ys(base_dir):
 
 def archive(idx):
     assert type(idx) is int
-    f = join(cvconf.snapshot_dir, 'arch{}.npz'.format(idx))
-    if isfile(f):
-        raise FileExistsError(f)
-    xa, ya = TManager.merge_npz(cvconf.snapshot_dir, '(.*-train data.*)')
-    np.savez(f, X=xa, Y=ya)
+    cd = cvconf.snapshot_dir  # current directory
+    arch_dir = join(cd, 'arch{}'.format(idx))
+    arch_file = arch_dir + '.npz'
+    if exists(arch_dir):
+        raise IsADirectoryError(arch_dir, "Directory already exists")
+    if isfile(arch_file):
+        raise FileExistsError(arch_file)
+    xa, ya, files = TManager.merge_npz(cd, '.*\-train data.*')
+    np.savez(arch_file, X=xa, Y=ya)
+    os.makedirs(arch_dir)
+    for f in files:
+        os.rename(join(cd, f), join(arch_dir, f))
+        pic = f.replace(TRAIN_DAT_SUFFIX, PNG_SUFFIX)
+        os.rename(join(cd, pic), join(arch_dir, pic))
+
+
+def run_batch(manager, base_dir):
+    x_train, y_train, x_eval, y_eval = split_data(base_dir)
+    for _ in range(20):
+        manager.train(x_train, y_train, batch_size=2000, nb_epoch=2, lr=0.001)
+    manager.evaluate(x_eval, y_eval)
 
 
 if __name__ == '__main__':
     manager = TManager()
-    # run_batch(manager, cvconf.snapshot_dir)
-    # fnpz = np.load(join(cvconf.snapshot_dir, 'arch1/snapshot-17-train data.npz'))
-    # manager.evaluate(fnpz['X'], fnpz['Y'])
+    run_batch(manager, cvconf.snapshot_dir)
 
-    # xt, yt, xe, ye = split_data(cvconf.snapshot_dir, manager)
-    # manager.visualize(xt)
+    # xt, yt, xe, ye = split_data(cvconf.snapshot_dir)
+    # manager.visualize(xe)
+
+    # x, y, _ = TManager.merge_npz(cvconf.snapshot_dir, 'snapshot\-3 \(\d*\).*')
+    # manager.evaluate(x, y)
 
     # extract_ys(cvconf.snapshot_dir)
 
-    # archive(2)
+    # archive(3)
