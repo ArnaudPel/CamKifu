@@ -47,6 +47,6 @@ sf_loc = None
 
 # TODO prompt user for that
 # folder where to save the snapshots
-train_dir = "/Users/Kohistan/Developer/PycharmProjects/Train/"
+train_dir = "/Users/Kohistan/Developer/PycharmProjects/Train"
 snapshot_dir = "%s/data" % train_dir
 
