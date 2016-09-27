@@ -1,3 +1,4 @@
+import os
 import ntpath
 
 import cv2
@@ -98,8 +99,11 @@ class BoardFinderManual(board.BoardFinder):
             if type(self.vmanager.current_video) is str:
                 fname = ntpath.basename(self.vmanager.current_video)
                 return gobanloc_npz + fname + ".npz"
-        except ImportError:
-            return None
+        except ImportError as err:
+            print("Can't cache goban locs: {}".format(err))
 
     def _window_name(self):
-        return "Manual Grid Detection"
+        video = self.vmanager.controller.video
+        if type(video) is str:
+            video = os.path.basename(video)
+        return "Manual Grid Detection - {}".format(video)
