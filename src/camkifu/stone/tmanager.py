@@ -1,8 +1,8 @@
-from os import listdir
 
 import cv2
 import numpy as np
 import os
+import math
 from os.path import join, isfile, exists
 
 import re as regex
@@ -25,6 +25,7 @@ __author__ = 'Arnaud Peloquin'
 PNG_SUFFIX = ".png"
 TRAIN_DAT_SUFFIX = '-train data.npz'
 TRAIN_DAT_MTX = "all-train.npz"
+colors = {E: 0, B: 1, W: 2}
 
 
 class TManager:
@@ -36,7 +37,7 @@ class TManager:
         # (~ to stonesfinder.canonical_shape)
         # all the size-related computations are based on this assumption
         self.canonical_shape = (cvconf.canonical_size, cvconf.canonical_size)
-        self.depth = 3
+        self.depth = 3  # color channel
 
         self._network = None  # please access via self.get_net() - lazy instantiation
         self.split = 10  # feed the neural network with squares of four intersections (split the goban in 10x10 areas)
@@ -48,6 +49,7 @@ class TManager:
         self.c_width = x1 - x0  # number of pixels on the horizontal side of the sample
 
         self.controller = ControllerBase()  # todo find a better way to load a saved game ? (this is using GUI package)
+        self.c_indices = None  # see self.class_indices()
 
     def get_net(self):
         if self._network is None:
@@ -131,11 +133,17 @@ class TManager:
     @staticmethod
     def get_ref_game(img_path):
         game_path = img_path.replace('snapshot', 'game').replace('.png', '.sgf')
-        return regex.sub(' \(\\d*\)', '', game_path)
+        if isfile(game_path):
+            return game_path
+        return regex.sub(' \(\d*\)', '', game_path)
 
     @staticmethod
     def get_ref_y(path):
-        return path.replace(PNG_SUFFIX, '-y.npz')
+        y_path = path.replace(PNG_SUFFIX, '-y.npz')
+        if isfile(y_path):
+            return y_path
+        # try to use a generic one if no specific has been found
+        return regex.sub(' \(\d*\)', '', y_path)
 
     # noinspection PyBroadException
     def validate_stones(self, stones, img):
@@ -199,10 +207,8 @@ class TManager:
         label_val = 0
         for r in range(rs, re):
             for c in range(cs, ce):
-                stone = stones[r, c]
-                digit = 0 if stone == E else 1 if stone == B else 2
                 power = (r - rs) * (ce - cs) + (c - cs)
-                label_val += digit * (3 ** power)
+                label_val += colors[stones[r, c]] * (3 ** power)
         return label_val
 
     @staticmethod
@@ -261,10 +267,8 @@ class TManager:
     def train(self, x, y, batch_size=1000, nb_epoch=2, lr=0.001):
         assert len(x.shape) == 4  # expecting an array of colored images
         self.get_net().optimizer.lr = backend.variable(lr)
-        print('Starting CNN training..')
         self.get_net().fit(x, y, batch_size=batch_size, nb_epoch=nb_epoch)
         self.get_net().save(KERAS_MODEL_FILE)
-        print('.. CNN training done')
 
     def predict_ys(self, x):
         assert len(x.shape) == 4  # expecting an array of colored images
@@ -306,13 +310,37 @@ class TManager:
         assert ap + an == x.shape[0]
         print('Non-empty: {:.2f} % ({}/{})'.format(100 * tp / ap, tp, ap))
         print('Empty    : {:.2f} % ({}/{})'.format(100 * tn / an, tn, an))
+        
+    def class_indices(self):
+        """ Return an array of shape (dimension, nb_colors, n)
+        where:
+            - dimension is the number of intersections present in a subregions sent to neural training (typically 4)
+            - nb_colors is the different values an intersection can take (E, B, W)
+            - n is the number of classes matching these two keys (dimension, nb_colors)
+
+        Eg. indices[0, 1] returns all the classes coding a Black stone at the second intersection
+            indices[3, 2] returns all the classes coding a White stone at the forth intersection
+
+        """
+        if self.c_indices is None:
+            nb_colors = len(colors)
+            dimension = int(math.log(self.nb_classes, nb_colors))
+            binar = np.zeros((self.nb_classes, dimension), dtype=object)
+            self.c_indices = np.ndarray((dimension, nb_colors, int(self.nb_classes / nb_colors)), dtype=np.uint8)
+            for c in range(self.nb_classes):
+                binar[c] = TManager.compute_stones(c, dimension=dimension)
+            for d in range(dimension):
+                for stone in colors.keys():
+                    classes = np.where(binar[:, d] == stone)
+                    self.c_indices[d, colors[stone]] = classes[0]
+        return self.c_indices
 
     @staticmethod
     def merge_npz(train_data_dir, pattern):
         inputs = []
         labels = []
         files = []
-        for mat in [f for f in listdir(train_data_dir) if f.endswith('.npz')]:
+        for mat in [f for f in os.listdir(train_data_dir) if f.endswith('.npz')]:
             if regex.match(pattern, mat):
                 data = np.load(join(train_data_dir, mat))
                 inputs.append(data['X'])
@@ -347,6 +375,18 @@ class TManager:
         for i, label_vect in enumerate(labels):
             y[i] = np.argmax(label_vect)
         return cv2.calcHist([y], [0], None, [nb_bins], [0, nb_bins])
+
+    @staticmethod
+    def distrib_imbalance(labels, nb_bins=3 ** 4):
+        """ Return an sorted list mapping each label to its 'balance ratio'
+        Ratio < 1 means the label is not frequent enough
+        Ratio > 1 means the label is too frequent
+
+        """
+        histo = TManager.raw_histo(labels, nb_bins=nb_bins)
+        distr = histo.astype(np.float32) / np.sum(histo)
+        res = [(label, freq[0] * nb_bins) for label, freq in enumerate(distr)]
+        return sorted(res, key=lambda t: t[1])
 
     def patchwork(self, x, shape=(20, 20)):
         a, b = shape
@@ -398,7 +438,7 @@ def extract_ys(base_dir):
     """ Extract the Y matrix from every train-data file for which no ref game can be found.
 
     """
-    for mat in [f for f in listdir(base_dir) if f.endswith(PNG_SUFFIX)]:
+    for mat in [f for f in os.listdir(base_dir) if f.endswith(PNG_SUFFIX)]:
         path = join(base_dir, mat)
         if not isfile(TManager.get_ref_game(path)):
             dat_path = path.replace(PNG_SUFFIX, TRAIN_DAT_SUFFIX)
@@ -425,15 +465,19 @@ def archive(idx):
 
 
 def run_batch(manager, base_dir):
-    x_train, y_train, x_eval, y_eval = split_data(base_dir)
-    for _ in range(20):
-        manager.train(x_train, y_train, batch_size=2000, nb_epoch=2, lr=0.001)
-    manager.evaluate(x_eval, y_eval)
+    try:
+        x_train, y_train, x_eval, y_eval = split_data(base_dir)
+        for _ in range(20):
+            manager.train(x_train, y_train, batch_size=1780, nb_epoch=1, lr=0.003)
+        manager.evaluate(x_eval, y_eval)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt")
 
 
 if __name__ == '__main__':
     manager = TManager()
-    run_batch(manager, cvconf.snapshot_dir)
+
+    # run_batch(manager, cvconf.snapshot_dir)
 
     # xt, yt, xe, ye = split_data(cvconf.snapshot_dir)
     # manager.visualize(xe)
@@ -441,6 +485,16 @@ if __name__ == '__main__':
     # x, y, _ = TManager.merge_npz(cvconf.snapshot_dir, 'snapshot\-3 \(\d*\).*')
     # manager.evaluate(x, y)
 
+    # x, y, _ = TManager.merge_npz(cvconf.snapshot_dir, '(.*\-train data.*)|(arch\d*)')
+    # distrib = TManager.distrib_imbalance(y)
+    # for label, ratio in distrib:
+    #     print("{} : {:.2f}".format(TManager.compute_stones(label), ratio))
+
     # extract_ys(cvconf.snapshot_dir)
 
     # archive(3)
+    
+    indices = manager.class_indices()
+    print(indices[3, 2])
+    print(indices[0, 2])
+
