@@ -1,17 +1,16 @@
+import functools
+import math
+import operator
+import re as regex
+from os.path import isfile
 
 import cv2
 import numpy as np
-import os
-import math
-from os.path import join, isfile, exists
-
-import re as regex
-
-from keras import backend
-from keras.models import Sequential, load_model
-from keras.layers import Dense, Dropout, Flatten
+from keras.callbacks import ModelCheckpoint
 from keras.layers import Convolution2D, MaxPooling2D
-from keras.optimizers import SGD
+from keras.layers import Dense, Dropout, Flatten
+from keras.models import Sequential, load_model
+from keras.optimizers import Adam
 
 from camkifu.config import cvconf
 from camkifu.core.imgutil import show, draw_str, destroy_win
@@ -28,7 +27,7 @@ TRAIN_DAT_MTX = "all-train.npz"
 colors = {E: 0, B: 1, W: 2}
 
 
-class TManager:
+class NNManager:
     """The neural network Training Manager.
 
     """
@@ -110,8 +109,8 @@ class TManager:
             return None, None
 
     def suggest_stones(self, img, img_path):
-        game_path = TManager.get_ref_game(img_path)
-        y_path = TManager.get_ref_y(img_path)
+        game_path = NNManager.get_ref_game(img_path)
+        y_path = NNManager.get_ref_y(img_path)
         if isfile(game_path):  # load stones from an sgf
             self.controller.loadkifu(game_path)
             self.controller.goto(999)
@@ -246,12 +245,12 @@ class TManager:
         print("Creating new Keras model")
         network = Sequential()
         input_shape = (40, 40, self.depth)
-        network.add(Convolution2D(32, 3, 3, activation='relu', border_mode='valid', input_shape=input_shape))
-        network.add(Convolution2D(32, 3, 3, activation='relu'))
+        network.add(Convolution2D(32, 5, 5, activation='relu', input_shape=input_shape))
+        network.add(Convolution2D(32, 5, 5, activation='relu'))
         network.add(MaxPooling2D(pool_size=(2, 2)))
         network.add(Dropout(0.25))
-        network.add(Convolution2D(64, 3, 3, activation='relu', border_mode='valid'))
-        network.add(Convolution2D(64, 3, 3, activation='relu'))
+        network.add(Convolution2D(90, 3, 3, activation='relu'))
+        network.add(Convolution2D(90, 3, 3, activation='relu'))
         network.add(MaxPooling2D(pool_size=(2, 2)))
         network.add(Dropout(0.25))
         network.add(Flatten())
@@ -260,15 +259,18 @@ class TManager:
         network.add(Dropout(0.5))
         # output layer
         network.add(Dense(81, activation='softmax'))
-        sgd = SGD(lr=0.003, decay=1e-6, momentum=0.9, nesterov=True)
-        network.compile(loss='categorical_crossentropy', optimizer=sgd)
+        optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+        network.compile(loss='categorical_crossentropy', optimizer=optimizer)
         return network
 
     def train(self, x, y, batch_size=1000, nb_epoch=2, lr=0.001):
         assert len(x.shape) == 4  # expecting an array of colored images
-        self.get_net().optimizer.lr = backend.variable(lr)
-        self.get_net().fit(x, y, batch_size=batch_size, nb_epoch=nb_epoch)
-        self.get_net().save(KERAS_MODEL_FILE)
+        previous_lr = float(self.get_net().optimizer.lr.get_value())
+        if not math.isclose(lr, previous_lr, rel_tol=1e-06):
+            print("Setting new learning rate: {:.5f} -> {:.5f}".format(previous_lr, lr))
+            self.get_net().optimizer.lr.set_value(lr)
+        checkpoint = ModelCheckpoint(KERAS_MODEL_FILE, monitor='loss', save_best_only=True, save_weights_only=False)
+        self.get_net().fit(x, y, batch_size=batch_size, nb_epoch=nb_epoch, callbacks=[checkpoint])
 
     def predict_ys(self, x):
         assert len(x.shape) == 4  # expecting an array of colored images
@@ -308,9 +310,14 @@ class TManager:
                 # else:
                 #     print("Predicted {}, should be {}".format(pred, truth))
         assert ap + an == x.shape[0]
-        print('Non-empty: {:.2f} % ({}/{})'.format(100 * tp / ap, tp, ap))
-        print('Empty    : {:.2f} % ({}/{})'.format(100 * tn / an, tn, an))
-        
+        tp_percent = 100 * tp / ap if 0 < ap else 0
+        print('Non-empty: {:.2f} % ({}/{})'.format(tp_percent, tp, ap))
+        tn_percent = 100 * tn / an if 0 < an else 0
+        print('Empty    : {:.2f} % ({}/{})'.format(tn_percent, tn, an))
+
+    def get_nb_weights(self):
+        return sum([functools.reduce(operator.mul, layer.shape) for layer in self.get_net().get_weights()])
+
     def class_indices(self):
         """ Return an array of shape (dimension, nb_colors, n)
         where:
@@ -328,65 +335,12 @@ class TManager:
             binar = np.zeros((self.nb_classes, dimension), dtype=object)
             self.c_indices = np.ndarray((dimension, nb_colors, int(self.nb_classes / nb_colors)), dtype=np.uint8)
             for c in range(self.nb_classes):
-                binar[c] = TManager.compute_stones(c, dimension=dimension)
+                binar[c] = NNManager.compute_stones(c, dimension=dimension)
             for d in range(dimension):
                 for stone in colors.keys():
                     classes = np.where(binar[:, d] == stone)
                     self.c_indices[d, colors[stone]] = classes[0]
         return self.c_indices
-
-    @staticmethod
-    def merge_npz(train_data_dir, pattern):
-        inputs = []
-        labels = []
-        files = []
-        for mat in [f for f in os.listdir(train_data_dir) if f.endswith('.npz')]:
-            if regex.match(pattern, mat):
-                data = np.load(join(train_data_dir, mat))
-                inputs.append(data['X'])
-                labels.append(data['Y'])
-                files.append(mat)
-        x = np.concatenate(inputs, axis=0)
-        print('Merged {} inputs -> {}'.format(len(inputs), x.shape))
-        y = np.concatenate(labels, axis=0)
-        return x, y, files
-
-    @staticmethod
-    def display_histo(labels, nb_bins=3 ** 4):
-        """
-        labels -- the label vectors as fed to the neural network
-        """
-        histo = TManager.raw_histo(labels, nb_bins)
-        cv2.normalize(histo, histo, 0, 255, cv2.NORM_MINMAX)
-        zoom = 7
-        chart_width = nb_bins * zoom
-        bins = np.arange(0, chart_width, zoom).reshape(nb_bins, 1)
-        pts = np.column_stack((bins, (np.int32(np.around(histo)))))
-        canvas = np.zeros((300, chart_width, 3))
-        cv2.polylines(canvas, [pts], False, (255, 255, 255))
-        win_name = 'Training data labels distribution'
-        show(np.flipud(canvas), name=win_name)
-        cv2.waitKey()
-        destroy_win(win_name)
-
-    @staticmethod
-    def raw_histo(labels, nb_bins=3 ** 4):
-        y = np.zeros((labels.shape[0], 1), dtype=np.uint8)
-        for i, label_vect in enumerate(labels):
-            y[i] = np.argmax(label_vect)
-        return cv2.calcHist([y], [0], None, [nb_bins], [0, nb_bins])
-
-    @staticmethod
-    def distrib_imbalance(labels, nb_bins=3 ** 4):
-        """ Return an sorted list mapping each label to its 'balance ratio'
-        Ratio < 1 means the label is not frequent enough
-        Ratio > 1 means the label is too frequent
-
-        """
-        histo = TManager.raw_histo(labels, nb_bins=nb_bins)
-        distr = histo.astype(np.float32) / np.sum(histo)
-        res = [(label, freq[0] * nb_bins) for label, freq in enumerate(distr)]
-        return sorted(res, key=lambda t: t[1])
 
     def patchwork(self, x, shape=(20, 20)):
         a, b = shape
@@ -411,90 +365,3 @@ class TManager:
             show(img, name='Patchwork')
             if chr(cv2.waitKey()) == 'q':
                 break
-
-
-def split_data(base_dir):
-    tfile = join(base_dir, TRAIN_DAT_MTX)
-    if isfile(tfile):
-        tdat = np.load(tfile)
-        xt, yt = tdat['Xt'], tdat['Yt']
-        xe, ye = tdat['Xe'], tdat['Ye']
-        print("Loaded previous datasets from [{}]".format(TRAIN_DAT_MTX))
-    else:
-        x_tot, y_tot, _ = TManager.merge_npz(base_dir, '(.*\-train data.*)|(arch\d*)')
-        indices = np.indices([x_tot.shape[0]])[0]
-        np.random.shuffle(indices)
-        split_idx = int(0.8 * len(indices))
-        xt = x_tot[indices[:split_idx], :]
-        yt = y_tot[indices[:split_idx], :]
-        xe = x_tot[indices[split_idx:], :]
-        ye = y_tot[indices[split_idx:], :]
-        np.savez(tfile, Xt=xt, Yt=yt, Xe=xe, Ye=ye)
-        print("Created NEW datasets: [{}]".format(TRAIN_DAT_MTX))
-    return xt, yt, xe, ye
-
-
-def extract_ys(base_dir):
-    """ Extract the Y matrix from every train-data file for which no ref game can be found.
-
-    """
-    for mat in [f for f in os.listdir(base_dir) if f.endswith(PNG_SUFFIX)]:
-        path = join(base_dir, mat)
-        if not isfile(TManager.get_ref_game(path)):
-            dat_path = path.replace(PNG_SUFFIX, TRAIN_DAT_SUFFIX)
-            if isfile(dat_path):
-                np.savez(TManager.get_ref_y(path), Y=np.load(dat_path)['Y'])
-
-
-def archive(idx):
-    assert type(idx) is int
-    cd = cvconf.snapshot_dir  # current directory
-    arch_dir = join(cd, 'arch{}'.format(idx))
-    arch_file = arch_dir + '.npz'
-    if exists(arch_dir):
-        raise IsADirectoryError(arch_dir, "Directory already exists")
-    if isfile(arch_file):
-        raise FileExistsError(arch_file)
-    xa, ya, files = TManager.merge_npz(cd, '.*\-train data.*')
-    np.savez(arch_file, X=xa, Y=ya)
-    os.makedirs(arch_dir)
-    for f in files:
-        os.rename(join(cd, f), join(arch_dir, f))
-        pic = f.replace(TRAIN_DAT_SUFFIX, PNG_SUFFIX)
-        os.rename(join(cd, pic), join(arch_dir, pic))
-
-
-def run_batch(manager, base_dir):
-    try:
-        x_train, y_train, x_eval, y_eval = split_data(base_dir)
-        for _ in range(20):
-            manager.train(x_train, y_train, batch_size=1780, nb_epoch=1, lr=0.003)
-        manager.evaluate(x_eval, y_eval)
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt")
-
-
-if __name__ == '__main__':
-    manager = TManager()
-
-    # run_batch(manager, cvconf.snapshot_dir)
-
-    # xt, yt, xe, ye = split_data(cvconf.snapshot_dir)
-    # manager.visualize(xe)
-
-    # x, y, _ = TManager.merge_npz(cvconf.snapshot_dir, 'snapshot\-3 \(\d*\).*')
-    # manager.evaluate(x, y)
-
-    # x, y, _ = TManager.merge_npz(cvconf.snapshot_dir, '(.*\-train data.*)|(arch\d*)')
-    # distrib = TManager.distrib_imbalance(y)
-    # for label, ratio in distrib:
-    #     print("{} : {:.2f}".format(TManager.compute_stones(label), ratio))
-
-    # extract_ys(cvconf.snapshot_dir)
-
-    # archive(3)
-    
-    indices = manager.class_indices()
-    print(indices[3, 2])
-    print(indices[0, 2])
-

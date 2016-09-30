@@ -3,7 +3,7 @@ import math
 import cv2
 import numpy as np
 
-from camkifu.stone.tmanager import TManager
+from camkifu.stone.nn_manager import NNManager
 from golib.config.golib_conf import B
 
 __author__ = 'Arnaud Peloquin'
@@ -12,7 +12,7 @@ __author__ = 'Arnaud Peloquin'
 class TestTManager:
 
     def __init__(self):
-        self.sf = TManager()
+        self.sf = NNManager()
 
     # https://docs.python.org/3/library/unittest.html#unittest.TestLoader.testMethodPrefix
     def should_compute_stones_from_labels(self):

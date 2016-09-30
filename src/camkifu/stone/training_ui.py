@@ -1,15 +1,14 @@
 import tkinter
 from os import listdir, remove
-from tkinter.ttk import Frame, Label, Button
-
 from os.path import join, isfile
+from tkinter.ttk import Frame, Label, Button
 
 import numpy as np
 
 from camkifu.config import cvconf
-from camkifu.stone.tmanager import TManager, TRAIN_DAT_SUFFIX, PNG_SUFFIX
+from camkifu.stone.nn_manager import NNManager, TRAIN_DAT_SUFFIX, PNG_SUFFIX
+from camkifu.stone.nn_runner import merge_npz, display_histo
 from glmain import configure, place, bring_to_front
-
 
 VERIFY = "Verify"
 DELETE = "Delete"
@@ -80,7 +79,7 @@ class DataGeneration(Frame):
     def __init__(self, master, train_dir):
         Frame.__init__(self, master)
         self.dir = train_dir
-        self.manager = TManager()
+        self.manager = NNManager()
         self.img_list = ImgList(self)
         self.img_list.pack()
         Button(self, text='Histo', command=self.histo).pack()
@@ -91,8 +90,8 @@ class DataGeneration(Frame):
         pass
 
     def histo(self):
-        _, y, _ = self.manager.merge_npz(self.dir, '(.*\-train data.*)|(arch\d*)')
-        self.manager.display_histo(y)
+        _, y, _ = merge_npz(self.dir, '(.*\-train data.*)|(arch\d*)')
+        display_histo(y)
 
 
 if __name__ == '__main__':
