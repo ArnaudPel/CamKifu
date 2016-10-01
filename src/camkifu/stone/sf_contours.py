@@ -1,11 +1,11 @@
 import itertools
 import math
 
-import numpy as np
 import cv2
+import numpy as np
 
-from camkifu.core import imgutil
 import camkifu.stone
+from camkifu.core import imgutil
 from golib.config.golib_conf import gsize, B, W, E
 
 
@@ -40,7 +40,7 @@ class SfContours(camkifu.stone.StonesFinder):
                 temp = self.draw_stones(stones)
                 self._show(np.maximum(canvas, temp))
         else:
-            self.display_bg_sampling(goban_img.shape)
+            self.display_message("BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames))
 
     def _learn(self):
         pass

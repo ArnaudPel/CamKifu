@@ -25,6 +25,7 @@ PNG_SUFFIX = ".png"
 TRAIN_DAT_SUFFIX = '-train data.npz'
 TRAIN_DAT_MTX = "all-train.npz"
 colors = {E: 0, B: 1, W: 2}
+rcolors = {0: E, 1: B, 2: W}
 
 
 class NNManager:
@@ -325,8 +326,8 @@ class NNManager:
             - nb_colors is the different values an intersection can take (E, B, W)
             - n is the number of classes matching these two keys (dimension, nb_colors)
 
-        Eg. indices[0, 1] returns all the classes coding a Black stone at the second intersection
-            indices[3, 2] returns all the classes coding a White stone at the forth intersection
+        Eg. indices[0, 1] returns all the classes coding a Black stone at the first intersection (~ indices[0, B])
+            indices[3, 2] returns all the classes coding a White stone at the forth intersection (~ indices[3, W])
 
         """
         if self.c_indices is None:

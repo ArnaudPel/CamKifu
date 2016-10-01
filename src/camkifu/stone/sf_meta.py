@@ -1,14 +1,13 @@
 import math
 
 import numpy as np
-from golib.config.golib_conf import gsize, E
 
 import camkifu.core
-from camkifu.core import imgutil
-
 import camkifu.stone
+from camkifu.core import imgutil
 from camkifu.stone.sf_clustering import SfClustering
 from camkifu.stone.sf_contours import SfContours
+from golib.config.golib_conf import gsize, E
 
 
 # possible states of a region. watch indicate no active search need to be performed
@@ -79,7 +78,7 @@ class SfMeta(camkifu.stone.StonesFinder):
         """
         # 0. if startup phase: let background model get initialized (see StonesFinder._doframe())
         if self.total_f_processed < self.bg_init_frames:
-            self.display_bg_sampling(goban_img.shape)
+            self.display_message("BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames))
             return
         # 1. delegate all the work to Regions
         else:

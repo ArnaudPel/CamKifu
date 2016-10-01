@@ -4,14 +4,12 @@ import time
 
 import cv2
 import numpy as np
-import golib.model
 
 import camkifu.core
-from camkifu.core import imgutil
+import golib.model
 from camkifu.config import cvconf
-
+from camkifu.core import imgutil
 from golib.config.golib_conf import gsize, E, B, W
-
 
 correc_size = 10
 
@@ -873,11 +871,10 @@ class StonesFinder(camkifu.core.VidProcessor):
             loc = sf_loc
         super()._show(img, name, frame, latency, thread, loc=loc, max_frequ=max_frequ)
 
-    def display_bg_sampling(self, shape):
+    def display_message(self, message):
         """ Display a "message" image of the provided shape, indicating the background sampling is running.
         """
-        black = np.zeros((shape[0], shape[1]), dtype=np.uint8)
-        message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
+        black = np.zeros(self.goban_img.shape[0:2], dtype=np.uint8)
         imgutil.draw_str(black, message)
         self._show(black)
 
