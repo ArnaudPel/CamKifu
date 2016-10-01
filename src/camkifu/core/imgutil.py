@@ -1,10 +1,10 @@
 import bisect
 import math
 import sys
-
-import numpy as np
-import cv2
 from os.path import isfile
+
+import cv2
+import numpy as np
 
 from golib.config import golib_conf
 
@@ -371,7 +371,7 @@ def draw_contours_multicolor(img, contours):
 
 def is_img(argument):
     try:
-        return isfile(argument) and (argument.endswith('.png') or argument.endswith('.jpg'))
+        return isfile(argument) and (argument.lower().endswith('.png') or argument.lower().endswith('.jpg'))
     except:
         return False
 
@@ -596,6 +596,7 @@ class CyclicBuffer():
         """
         buff_item = item if isinstance(item, tuple) else (item, )
         while len(buff_item) < len(self.buffer.shape) - 1:
+            # noinspection PyTypeChecker
             buff_item += (slice(None), )
         buff_item += (self.index % self.size, )
         return buff_item

@@ -9,6 +9,7 @@ import camkifu.core
 import golib.model
 from camkifu.config import cvconf
 from camkifu.core import imgutil
+from camkifu.core.imgutil import is_img
 from golib.config.golib_conf import gsize, E, B, W
 
 correc_size = 10
@@ -111,7 +112,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         # background-related attributes
         if learn_bg:
             self.bg_model = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
-            self.bg_init_frames = 50
+            self.bg_init_frames = 50 if not is_img(self.vmanager.current_video) else 0
 
         # (quite primal) "learning" attributes. see self._learn()
         self.corrections = queue.Queue(correc_size)
@@ -210,8 +211,8 @@ class StonesFinder(camkifu.core.VidProcessor):
                 except ValueError:
                     fg = None
                 x0, y0, x1, y1 = self.getrect(r, c)
+                # noinspection PyTypeChecker
                 if fg is None or np.sum(fg[x0:x1, y0:y1] < 0.1 * (x1-x0) * (y1-y0)):
-                    # noinspection PyTypeChecker
                     self.saved_bg[x0:x1, y0:y1] += self.goban_img[x0:x1, y0:y1] / self.nb_del_samples
                     self.deleted[(r, c)] = nb_left - 1
 
@@ -871,12 +872,12 @@ class StonesFinder(camkifu.core.VidProcessor):
             loc = sf_loc
         super()._show(img, name, frame, latency, thread, loc=loc, max_frequ=max_frequ)
 
-    def display_message(self, message):
+    def display_message(self, message, name=None):
         """ Display a "message" image of the provided shape, indicating the background sampling is running.
         """
         black = np.zeros(self.goban_img.shape[0:2], dtype=np.uint8)
         imgutil.draw_str(black, message)
-        self._show(black)
+        self._show(black, name=name)
 
 
 def update_grid(lines, box, result_slot):
