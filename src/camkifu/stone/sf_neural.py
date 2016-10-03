@@ -22,7 +22,7 @@ class SfNeural(StonesFinder):
         self.indices = self.manager.class_indices()  # compute only once
         self.last_sugg = (-1, -1)
         self.has_sampled = False
-        self.heatmap = np.zeros((gsize, gsize, 3), dtype=np.uint32)
+        self.heatmap = np.ndarray((gsize, gsize), dtype=object)
 
     def _find(self, goban_img):
         #  todo this method is crying for a state machine
@@ -59,7 +59,7 @@ class SfNeural(StonesFinder):
         fg = self.get_foreground()
         for r in range(gsize):
             for c in range(gsize):
-                if 0 < self.heatmap[r, c, 0]:
+                if self.heatmap[r, c] is not None:
                     continue  # intersection under scrutiny already
                 a0, b0, a1, b1 = self.getrect(r, c)
                 if (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255:
@@ -71,13 +71,13 @@ class SfNeural(StonesFinder):
                         cv2.rectangle(canvas, (b0, a0), (b1, a1), color)
 
     def new_hit(self, r, c, img, canvas):
-        new_color = self.predict(r, c, img, canvas=canvas)
+        new_color, confidence = self.predict(r, c, img, canvas=canvas)
         if new_color is not E:
             prev_color = self.get_stones()[r, c]
             if prev_color == E:
                 self.suggest(new_color, r, c)
                 self.last_sugg = (r, c)
-                self.heatmap[r, c] = NB_LOOKBACK, 0, self.total_f_processed
+                self.heatmap[r, c] = HeatPoint(NB_LOOKBACK, self.total_f_processed, confidence)
             elif prev_color != new_color:
                 loc = Move(NP_TYPE, (prev_color, r, c)).get_coord(NP_TYPE)
                 print("Err.. hum. Now seeing {} instead of {} at {}".format(new_color, prev_color, loc))
@@ -85,17 +85,19 @@ class SfNeural(StonesFinder):
     def lookback(self, goban_img):
         stones = self.get_stones()
         to_del = []
-        for r, c in np.transpose(np.where(self.heatmap[:, :, 0] > 0)):
-            if 10 < self.total_f_processed - self.heatmap[r, c, 2]:
-                self.heatmap[r, c, 0] -= 1
-                self.heatmap[r, c, 2] = self.total_f_processed
+        for r, c in np.transpose(np.where(self.heatmap == HeatPoint)):  # trick to express 'where not None'
+            hpoint = self.heatmap[r, c]
+            if 10 < self.total_f_processed - hpoint.stamp:
+                hpoint.energy -= 1
+                hpoint.stamp = self.total_f_processed
                 if stones[r, c] == E:
                     print("Did someone just remove a stone in my back ?")  # todo handle that properly
                     continue
-                color = self.predict(r, c, goban_img)
-                self.heatmap[r, c, 1] += 1 if color == stones[r, c] else 0
-                if self.heatmap[r, c, 0] == 0:
-                    if self.heatmap[r, c, 1] <= 2 * NB_LOOKBACK / 3:
+                color, confidence = self.predict(r, c, goban_img)
+                hpoint.confirms += 1 if color == stones[r, c] else 0
+                if hpoint.energy == 0:
+                    self.heatmap[r, c] = None  # unregister
+                    if hpoint.confirms <= 2 * NB_LOOKBACK / 3:
                         to_del.append((E, r, c))  # cancel previous prediction
                         print("deleted " + Move(NP_TYPE, (color, r, c)).repr(KGS_TYPE))
                     else:
@@ -113,6 +115,8 @@ class SfNeural(StonesFinder):
         (3, 2, 1, 0) ~ (lower right, lower left, upper right, upper left)
 
         These prediction distributions are eventually reduced to predict the color at (r, c)
+
+        Return: color: chr, confidence: float
         """
         step = int((gsize + 1) / self.manager.split)
         x = []
@@ -134,7 +138,8 @@ class SfNeural(StonesFinder):
             pos = x[i][0]  # the relative position (in the current sub-image) of the intersection (r, c)
             for color in range(3):
                 pred[color] += np.sum(y[self.indices[pos, color]])
-        return rcolors[np.argmax(pred)]
+        winner = np.argmax(pred)
+        return rcolors[winner], pred[winner]/sum(pred)
 
     def wait(self, canvas: np.ndarray):
         fg = self.get_foreground()
@@ -144,3 +149,17 @@ class SfNeural(StonesFinder):
                 a0, b0, a1, b1 = self.getrect(x, y)
                 if (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255:
                     cv2.rectangle(canvas, (b0, a0), (b1, a1), (0, 0, 255))
+
+
+class HeatPoint:
+
+    def __init__(self, energy, stamp, confidence):
+        self.energy = energy
+        self.stamp = stamp
+        self.confidence = confidence
+        self.confirms = 0
+
+    def __eq__(self, *args, **kwargs):
+        if len(args) and args[0] is HeatPoint:
+            return True
+        return super().__eq__(*args, **kwargs)

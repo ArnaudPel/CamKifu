@@ -149,7 +149,7 @@ if __name__ == '__main__':
         archive(args.arch)
 
     if args.filters:
-        manager.visualize_l1()
+        manager.visualize_l0()
 
     # xt, yt, xe, ye = split_data(cvconf.snapshot_dir)
     # manager.visualize_inputs(xe)

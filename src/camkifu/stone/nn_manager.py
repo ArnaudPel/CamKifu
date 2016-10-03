@@ -367,7 +367,7 @@ class NNManager:
             if chr(cv2.waitKey()) == 'q':
                 break
 
-    def visualize_l1(self):
+    def visualize_l0(self):
         filters = self.get_net().get_weights()[0]
         nb_filt = filters.shape[3]
         nb_rows, nb_cols = 1, nb_filt
@@ -393,6 +393,7 @@ class NNManager:
             x1, y1 = x0 + f.shape[0] * zoom, y0 + f.shape[1] * zoom
             for color in range(depth):
                 f[:, :, color] = (f[:, :, color] - lows[color]) / (highs[color] - lows[color])
+            # noinspection PyTypeChecker
             colored[x0:x1, y0:y1] = np.repeat(np.repeat(f * 255, zoom, axis=0), zoom, axis=1)
         c_height = colored.shape[0]
         canvas = np.zeros(((c_height + margin) * 4 - margin, colored.shape[1], depth), dtype=np.uint8)
