@@ -361,8 +361,38 @@ class NNManager:
             print("Images {} -> {}".format(idx - a*b, idx-1))
             yield canvas
 
-    def visualize(self, x, shape=(20, 20)):
+    def visualize_inputs(self, x, shape=(20, 20)):
         for img in self.patchwork(x, shape):
             show(img, name='Patchwork')
             if chr(cv2.waitKey()) == 'q':
                 break
+
+    def visualize_l1(self):
+        filters = self.get_net().get_weights()[0]
+        nb_filt = filters.shape[3]
+        nb_rows, nb_cols = 1, nb_filt
+        for d in reversed(range(int(math.sqrt(nb_filt)))):
+            if nb_filt % d == 0:
+                nb_rows, nb_cols = d, nb_filt // d
+                break
+        depth = 3
+        zoom = 8
+        margin = 3
+        img_height = (filters.shape[0] * zoom + margin) * nb_rows - margin
+        img_width = (filters.shape[1] * zoom + margin) * nb_cols - margin
+        canvas = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+        highs = []
+        lows = []
+        for color in range(depth):
+            lows.append(np.min(filters[:, :, color, :]))
+            highs.append(np.max(filters[:, :, color, :]))
+
+        for i in range(nb_filt):
+            f = filters[:, :, :, i]
+            x0, y0 = (f.shape[0] * zoom + margin) * (i // nb_cols), (f.shape[1] * zoom + margin) * (i % nb_cols)
+            x1, y1 = x0 + f.shape[0] * zoom, y0 + f.shape[1] * zoom
+            for color in range(depth):
+                f[:, :, color] = (f[:, :, color] - lows[color]) / (highs[color] - lows[color])
+            canvas[x0:x1, y0:y1] = np.repeat(np.repeat(f * 255, zoom, axis=0), zoom, axis=1)
+        show(canvas, name='Convolution filters - First layer')
+        cv2.waitKey()

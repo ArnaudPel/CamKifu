@@ -134,6 +134,7 @@ def get_argparser() -> argparse.ArgumentParser:
     parser.add_argument('-v', '--eval', action='store_true', default=False, help="Evaluate the current neural network.")
     parser.add_argument('-e', '--epoch', default=15, help="Set the number of epochs (applies to training only).")
     parser.add_argument('-a', '--arch', default=0, type=int, help="Archive snapshots and their associated labels")
+    parser.add_argument('-f', '--filters', action='store_true', default=False, help="Display convolution filters.")
     return parser
 
 
@@ -147,8 +148,11 @@ if __name__ == '__main__':
     if args.arch:
         archive(args.arch)
 
+    if args.filters:
+        manager.visualize_l1()
+
     # xt, yt, xe, ye = split_data(cvconf.snapshot_dir)
-    # manager.visualize(xe)
+    # manager.visualize_inputs(xe)
 
     # x, y, _ = merge_npz(cvconf.snapshot_dir, 'snapshot\-3 \(\d*\).*')
     # manager.evaluate(x, y)
