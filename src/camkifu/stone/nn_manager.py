@@ -380,7 +380,7 @@ class NNManager:
         margin = 3
         img_height = (filters.shape[0] * zoom + margin) * nb_rows - margin
         img_width = (filters.shape[1] * zoom + margin) * nb_cols - margin
-        canvas = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+        colored = np.zeros((img_height, img_width, 3), dtype=np.uint8)
         highs = []
         lows = []
         for color in range(depth):
@@ -393,6 +393,12 @@ class NNManager:
             x1, y1 = x0 + f.shape[0] * zoom, y0 + f.shape[1] * zoom
             for color in range(depth):
                 f[:, :, color] = (f[:, :, color] - lows[color]) / (highs[color] - lows[color])
-            canvas[x0:x1, y0:y1] = np.repeat(np.repeat(f * 255, zoom, axis=0), zoom, axis=1)
+            colored[x0:x1, y0:y1] = np.repeat(np.repeat(f * 255, zoom, axis=0), zoom, axis=1)
+        c_height = colored.shape[0]
+        canvas = np.zeros(((c_height + margin) * 4 - margin, colored.shape[1], depth), dtype=np.uint8)
+        canvas[0:c_height, :, :] = colored
+        for color in range(depth):
+            x0 = (color + 1) * (c_height + margin)
+            canvas[x0: x0 + c_height, :, color] = colored[:, :, color]
         show(canvas, name='Convolution filters - First layer')
         cv2.waitKey()
