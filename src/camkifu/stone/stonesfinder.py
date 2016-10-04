@@ -202,7 +202,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         except queue.Empty:
             pass
 
-        # step 2: sample all locations that still need it
+        # step 2: unlock all 'deleted' locations that seem to have changed (maybe there is a real stone there now)
         for (r, c), nb_left in self.deleted.items():
             if nb_left:
                 # only sample "calm" frames if background segmentation is on
@@ -798,7 +798,9 @@ class StonesFinder(camkifu.core.VidProcessor):
         for row in range(gsize):
             for col in range(gsize):
                 x, y = self._posgrid.mtx[row, col]
-                imgutil.draw_str(img, str(values[row, col]), x - 10, y + 2)
+                val = values[row, col]
+                if val is not None:
+                    imgutil.draw_str(img, str(val), x - 10, y + 2)
 
     def draw_stones(self, stones: np.ndarray, canvas: np.ndarray=None):
         """ Dev method to display an array of stones in an image.

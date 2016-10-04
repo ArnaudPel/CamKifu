@@ -5,7 +5,9 @@ from camkifu.stone import StonesFinder
 from camkifu.stone.nn_manager import NNManager, rcolors
 from golib.config.golib_conf import gsize, E
 from golib.model import Move
-from golib.model.move import KGS_TYPE, NP_TYPE
+from golib.model.move import NP_TYPE
+
+COLD = 'cold'
 
 WIN_NAME = 'Neural'
 NB_LOOKBACK = 3
@@ -45,6 +47,8 @@ class SfNeural(StonesFinder):
             else:
                 self.search(goban_img, canvas=canvas)
                 self.lookback(goban_img)
+            self._cleanup_heatmap()
+            self._drawvalues(canvas, np.transpose(self.heatmap))
             self._show(canvas, name=WIN_NAME)
 
     def predict_all(self, goban_img):
@@ -77,35 +81,10 @@ class SfNeural(StonesFinder):
             if prev_color == E:
                 self.suggest(new_color, r, c)
                 self.last_sugg = (r, c)
-                self.heatmap[r, c] = HeatPoint(NB_LOOKBACK, self.total_f_processed, confidence)
+                self.heatmap[r, c] = HeatPoint(NB_LOOKBACK, new_color, confidence, self.total_f_processed)
             elif prev_color != new_color:
                 loc = Move(NP_TYPE, (prev_color, r, c)).get_coord(NP_TYPE)
                 print("Err.. hum. Now seeing {} instead of {} at {}".format(new_color, prev_color, loc))
-
-    def lookback(self, goban_img):
-        stones = self.get_stones()
-        to_del = []
-        for r, c in np.transpose(np.where(self.heatmap == HeatPoint)):  # trick to express 'where not None'
-            hpoint = self.heatmap[r, c]
-            if 10 < self.total_f_processed - hpoint.stamp:
-                hpoint.energy -= 1
-                hpoint.stamp = self.total_f_processed
-                if stones[r, c] == E:
-                    print("Did someone just remove a stone in my back ?")  # todo handle that properly
-                    continue
-                color, confidence = self.predict(r, c, goban_img)
-                hpoint.confirms += 1 if color == stones[r, c] else 0
-                if hpoint.energy == 0:
-                    self.heatmap[r, c] = None  # unregister
-                    if hpoint.confirms <= 2 * NB_LOOKBACK / 3:
-                        to_del.append((E, r, c))  # cancel previous prediction
-                        print("deleted " + Move(NP_TYPE, (color, r, c)).repr(KGS_TYPE))
-                    else:
-                        print("validated " + Move(NP_TYPE, (color, r, c)).repr(KGS_TYPE))
-                elif color == stones[r, c]:
-                    print("checked " + Move(NP_TYPE, (color, r, c)).repr(KGS_TYPE))
-        if len(to_del):
-            self.bulk_update(to_del)
 
     def predict(self, r, c, img, canvas=None):
         """ Feed up to 4 input vectors to the neural network to predict the color of intersection (r, c)
@@ -150,16 +129,74 @@ class SfNeural(StonesFinder):
                 if (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255:
                     cv2.rectangle(canvas, (b0, a0), (b1, a1), (0, 0, 255))
 
+    def lookback(self, goban_img):
+        """ Re-check recent predictions, and cancel them if they are not consistent.
+
+        """
+        stones = self.get_stones()
+        to_del = []
+        for r, c in np.transpose(np.where(self.heatmap == HeatPoint)):  # trick to express 'where not None'
+            hpoint = self.heatmap[r, c]
+            if hpoint.color != stones[r, c]:
+                self.heatmap[r, c] = None  # the location has been modified by someone else, leave it alone
+                continue
+            if 10 < self.total_f_processed - hpoint.stamp:
+                hpoint.stamp = self.total_f_processed
+                hpoint.check(*self.predict(r, c, goban_img))
+                if not hpoint.is_valid():
+                    to_del.append((E, r, c))  # cancel previous prediction
+        if len(to_del):
+            self.bulk_update(to_del)
+
+    def _cleanup_heatmap(self):
+        for r, c in np.transpose(np.where(self.heatmap == COLD)):
+            self.heatmap[r, c] = None
+
 
 class HeatPoint:
 
-    def __init__(self, energy, stamp, confidence):
+    def __init__(self, energy, color, confidence, stamp):
+        self.target = energy
         self.energy = energy
-        self.stamp = stamp
+        self.color = color
         self.confidence = confidence
-        self.confirms = 0
+        self.stamp = stamp
+        self.nb_checks = 0
+        self.nb_passed = 0
+
+    def check(self, color, confidence: float):
+        self.nb_checks += 1
+        self.energy -= 1
+        new_conf = 0
+        if color == self.color:
+            self.nb_passed += 1
+            new_conf = confidence
+        # compute confidence after increment of self.nb_checks in order to count the initial confidence weight
+        self.confidence = (self.confidence * self.nb_checks + new_conf) / (self.nb_checks + 1)
+
+    def is_valid(self):
+        # fail as soon as energy no longer allows to reach target
+        can_pass = 2 * self.target / 3 <= self.nb_passed + self.energy
+        if not can_pass:
+            self.energy = 0  # no need to check this location any longer
+            self.confidence = 0.0
+        return can_pass
+
+    def is_cold(self):
+        return self.energy < -5
 
     def __eq__(self, *args, **kwargs):
-        if len(args) and args[0] is HeatPoint:
-            return True
+        if len(args):
+            if args[0] is HeatPoint:
+                return 0 < self.energy
+            if args[0] == COLD:
+                return self.is_cold()
         return super().__eq__(*args, **kwargs)
+
+    def __repr__(self):
+        if self.energy <= 0:
+            self.energy -= 1
+        if not self.is_cold():
+            return '{} {:.0f}%'.format(self.color, self.confidence*100)
+        else:
+            return ''
