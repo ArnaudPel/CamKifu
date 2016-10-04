@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from camkifu.stone import StonesFinder
+from camkifu.stone.nn_cache import NNCache
 from camkifu.stone.nn_manager import NNManager, rcolors
 from golib.config.golib_conf import gsize, E
 from golib.model import Move
@@ -22,12 +23,14 @@ class SfNeural(StonesFinder):
     def __init__(self, vmanager):
         super().__init__(vmanager, learn_bg=True)
         self.manager = NNManager()
+        self.cache = None
         self.targets = np.zeros((gsize, gsize), dtype=np.uint8)
         self.indices = self.manager.class_indices()  # compute only once
         self.has_sampled = False
         self.heatmap = np.ndarray((gsize, gsize), dtype=object)
 
     def _find(self, goban_img):
+        self.cache = NNCache(self.manager, goban_img)
         #  todo this method is crying for a state machine
         if self.total_f_processed == 0:
             self.display_message("LOADING NEURAL NET...", name=WIN_NAME)
@@ -38,17 +41,17 @@ class SfNeural(StonesFinder):
         elif not self.has_sampled:
             self.display_message("MAKING INITIAL ASSESSMENT...", name=WIN_NAME, force=True)
             print("initial assessment")
-            self.predict_all(goban_img)
+            self.predict_all()
             self.has_sampled = True
         else:
             canvas = goban_img.copy()
             self.mark_targets(canvas)
-            self.process_targets(goban_img, canvas)
-            self.lookback(goban_img, canvas=canvas)
+            self.process_targets(canvas)
+            self.lookback(canvas=canvas)
             self._show(canvas, name=WIN_NAME)
 
-    def predict_all(self, goban_img):
-        stones = self.manager.predict_stones(goban_img)
+    def predict_all(self):
+        stones = self.cache.predict_all_stones()
         moves = []
         for r in range(gsize):
             for c in range(gsize):
@@ -72,55 +75,52 @@ class SfNeural(StonesFinder):
                         cv2.rectangle(canvas, (y0, x0), (y1, x1), (0, 0, red))
         self.targets[np.where(self.targets > 0)] -= 1
 
-    def process_targets(self, img, canvas):
+    def process_targets(self, canvas):
         fg = self.get_foreground()
-        x = []
+        zones = []
         for i in range(self.manager.split):
             for j in range(self.manager.split):
                 rs, re, cs, ce = self.manager._subregion(i, j)
                 agitated = False
                 if not len(np.where(self.targets[rs:re, cs:ce] > TARGET_THRESH)[0]):
                     continue
-                for r in range(rs, re):
-                    for c in range(cs, ce):
+                for a in range(rs, re):
+                    for b in range(cs, ce):
                         # todo set a different agitation threshold for target processing than selection
-                        if self.is_agitated(r, c, fg):
+                        if self.is_agitated(a, b, fg):
                             agitated = True
                             if agitated: break
                     if agitated: break
                 x0, x1, y0, y1 = self.manager._get_rect_nn(rs, re, cs, ce)
                 if not agitated:
-                    x.append(((rs, re, cs, ce), img[x0:x1, y0:y1]))
+                    zones.append((i, j))
                     self.targets[rs:re, cs:ce] = 0
                     cv2.rectangle(canvas, (y0, x0), (y1, x1), (0, 255, 0))
                 else:
                     cv2.rectangle(canvas, (y0, x0), (y1, x1), (255, 0, 0))
-        if len(x):
-            y_s = self.manager.get_net().predict(np.asarray([img for _, img in x], dtype=np.float32))
+        if len(zones):
             stones = self.get_stones()
-            for i, y in enumerate(y_s):
-                (rs, re, cs, ce), _ = x[i]
-                new_stones = self.manager.compute_stones(np.argmax(y)).reshape((re - rs, ce - cs))
-                for r, c in np.transpose(np.where(new_stones != E)):
-                    pred = np.zeros(3, dtype=np.float32)
-                    for color in range(3):
-                        pred[color] += np.sum(y[self.indices[r * (ce - cs) + c, color]])
-                    confidence = max(pred) / sum(pred)
-                    prev_color = stones[r + rs, c + cs]
-                    new_color = new_stones[r, c]
+            for i, j in zones:
+                new_stones, confidence = self.cache.predict_4_stones(i, j)
+                rs, re, cs, ce = self.manager._subregion(i, j)
+                for a, b in np.transpose(np.where(new_stones != E)):
+                    r = a + rs
+                    c = b + cs
+                    prev_color = stones[r, c]
+                    new_color = new_stones[a, b]
                     if prev_color == E:
-                        self.suggest(new_color, r + rs, c + cs)  # todo probably too early to suggest
-                        stones[r+rs, c+cs] = new_color  # necessary because of overlapping before last row and col
-                        self.heatmap[r + rs, c + cs] = HeatPoint(new_color, confidence, self.total_f_processed)
+                        self.suggest(new_color, r, c)  # todo probably too early to suggest
+                        stones[r, c] = new_color  # necessary because of overlapping before last row and col
+                        self.heatmap[r, c] = HeatPoint(new_color, confidence, self.total_f_processed)
                     elif prev_color != new_color:
-                        loc = Move(NP_TYPE, (prev_color, r + rs, c + cs)).get_coord(NP_TYPE)
+                        loc = Move(NP_TYPE, (prev_color, r, c)).get_coord(NP_TYPE)
                         print("Err.. hum. Now seeing {} instead of {} at {}".format(new_color, prev_color, loc))
 
     def is_agitated(self, r, c, fg):
         a0, b0, a1, b1 = self.getrect(r, c)
         return (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255
 
-    def predict(self, r, c, img, canvas=None):
+    def predict_heavy(self, r, c, img, canvas=None):
         """ Feed up to 4 input vectors to the neural network to predict the color of intersection (r, c)
 
         Since the neural network model takes images corresponding to 2x2 intersections, it is possible to
@@ -162,7 +162,7 @@ class SfNeural(StonesFinder):
                 if (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255:
                     cv2.rectangle(canvas, (b0, a0), (b1, a1), (0, 0, 255))
 
-    def lookback(self, goban_img, canvas=None):
+    def lookback(self, canvas=None):
         """ Re-check recent predictions, and cancel them if they are not consistent.
 
         """
@@ -175,7 +175,7 @@ class SfNeural(StonesFinder):
                 continue
             if 10 < self.total_f_processed - hpoint.stamp:
                 hpoint.stamp = self.total_f_processed
-                hpoint.check(*self.predict(r, c, goban_img))
+                hpoint.check(*self.cache.predict_stone(r, c))
                 if not hpoint.is_valid():
                     to_del.append((E, r, c))  # cancel previous prediction
         if len(to_del):

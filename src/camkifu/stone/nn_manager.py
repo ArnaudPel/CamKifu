@@ -278,6 +278,7 @@ class NNManager:
         return np.argmax(self.get_net().predict(x.astype(np.float32)), axis=1)
 
     def predict_stones(self, goban_img):
+        # todo replace with nncache.predict_all_stones()
         x_s = self.generate_xs(goban_img)
         predict = self.predict_ys(x_s)
         stones = np.ndarray((gsize, gsize), dtype=object)
