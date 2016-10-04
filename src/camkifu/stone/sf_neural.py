@@ -8,8 +8,10 @@ from golib.model import Move
 from golib.model.move import NP_TYPE
 
 COLD = 'cold'
-
 WIN_NAME = 'Neural'
+
+TARGET_THRESH = 15
+TARGET_INCR = 5
 NB_LOOKBACK = 3
 
 __author__ = 'Arnaud Peloquin'
@@ -20,9 +22,8 @@ class SfNeural(StonesFinder):
     def __init__(self, vmanager):
         super().__init__(vmanager, learn_bg=True)
         self.manager = NNManager()
-        self.candidates = np.zeros((gsize, gsize), dtype=np.uint8)
+        self.targets = np.zeros((gsize, gsize), dtype=np.uint8)
         self.indices = self.manager.class_indices()  # compute only once
-        self.last_sugg = (-1, -1)
         self.has_sampled = False
         self.heatmap = np.ndarray((gsize, gsize), dtype=object)
 
@@ -35,56 +36,89 @@ class SfNeural(StonesFinder):
             bg_message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
             self.display_message(bg_message, name=WIN_NAME)
         elif not self.has_sampled:
-            self.display_message("MAKING INITIAL ASSESSMENT...", name=WIN_NAME)
+            self.display_message("MAKING INITIAL ASSESSMENT...", name=WIN_NAME, force=True)
             print("initial assessment")
             self.predict_all(goban_img)
             self.has_sampled = True
         else:
             canvas = goban_img.copy()
-            r, w, _ = goban_img.shape
-            if r * w * 0.05 < np.sum(self.get_foreground()) / 255:
-                self.wait(canvas)  # wait for things to settle
-            else:
-                self.search(goban_img, canvas=canvas)
-                self.lookback(goban_img)
-            self._cleanup_heatmap()
-            self._drawvalues(canvas, np.transpose(self.heatmap))
+            self.mark_targets(canvas)
+            self.process_targets(goban_img, canvas)
+            self.lookback(goban_img, canvas=canvas)
             self._show(canvas, name=WIN_NAME)
 
     def predict_all(self, goban_img):
         stones = self.manager.predict_stones(goban_img)
         moves = []
-        for i in range(gsize):
-            for j in range(gsize):
-                moves.append((stones[i][j], i, j))
+        for r in range(gsize):
+            for c in range(gsize):
+                color = stones[r, c]
+                if color is not E:
+                    moves.append((color, r, c))
+                    confidence = 0.9  # todo refactor to get it from 'predict 'method used above (3rd dim of the mtx)
+                    self.heatmap[r, c] = HeatPoint(color, confidence, self.total_f_processed)
         self.bulk_update(moves)
 
-    def search(self, img, canvas: np.ndarray = None, color=(0, 255, 0)):
+    def mark_targets(self, canvas):
         fg = self.get_foreground()
         for r in range(gsize):
             for c in range(gsize):
-                if self.heatmap[r, c] is not None:
-                    continue  # intersection under scrutiny already
-                a0, b0, a1, b1 = self.getrect(r, c)
-                if (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255:
-                    self.candidates[r, c] += 1
-                    if 2 < self.candidates[r, c] and (r, c) != self.last_sugg:
-                        self.new_hit(r, c, img, canvas=canvas)
-                        self.candidates[r, c] = 0
-                    elif canvas is not None:
-                        cv2.rectangle(canvas, (b0, a0), (b1, a1), color)
+                if self.heatmap[r, c] is None:
+                    if self.is_agitated(r, c, fg):
+                        self.targets[r, c] += TARGET_INCR
+                    if self.targets[r, c]:
+                        x0, y0, x1, y1 = self.getrect(r, c)
+                        red = min(255, int(self.targets[r, c]) / TARGET_INCR * 255 // 4)
+                        cv2.rectangle(canvas, (y0, x0), (y1, x1), (0, 0, red))
+        self.targets[np.where(self.targets > 0)] -= 1
 
-    def new_hit(self, r, c, img, canvas):
-        new_color, confidence = self.predict(r, c, img, canvas=canvas)
-        if new_color is not E:
-            prev_color = self.get_stones()[r, c]
-            if prev_color == E:
-                self.suggest(new_color, r, c)
-                self.last_sugg = (r, c)
-                self.heatmap[r, c] = HeatPoint(NB_LOOKBACK, new_color, confidence, self.total_f_processed)
-            elif prev_color != new_color:
-                loc = Move(NP_TYPE, (prev_color, r, c)).get_coord(NP_TYPE)
-                print("Err.. hum. Now seeing {} instead of {} at {}".format(new_color, prev_color, loc))
+    def process_targets(self, img, canvas):
+        fg = self.get_foreground()
+        x = []
+        for i in range(self.manager.split):
+            for j in range(self.manager.split):
+                rs, re, cs, ce = self.manager._subregion(i, j)
+                agitated = False
+                if not len(np.where(self.targets[rs:re, cs:ce] > TARGET_THRESH)[0]):
+                    continue
+                for r in range(rs, re):
+                    for c in range(cs, ce):
+                        # todo set a different agitation threshold for target processing than selection
+                        if self.is_agitated(r, c, fg):
+                            agitated = True
+                            if agitated: break
+                    if agitated: break
+                x0, x1, y0, y1 = self.manager._get_rect_nn(rs, re, cs, ce)
+                if not agitated:
+                    x.append(((rs, re, cs, ce), img[x0:x1, y0:y1]))
+                    self.targets[rs:re, cs:ce] = 0
+                    cv2.rectangle(canvas, (y0, x0), (y1, x1), (0, 255, 0))
+                else:
+                    cv2.rectangle(canvas, (y0, x0), (y1, x1), (255, 0, 0))
+        if len(x):
+            y_s = self.manager.get_net().predict(np.asarray([img for _, img in x], dtype=np.float32))
+            stones = self.get_stones()
+            for i, y in enumerate(y_s):
+                (rs, re, cs, ce), _ = x[i]
+                new_stones = self.manager.compute_stones(np.argmax(y)).reshape((re - rs, ce - cs))
+                for r, c in np.transpose(np.where(new_stones != E)):
+                    pred = np.zeros(3, dtype=np.float32)
+                    for color in range(3):
+                        pred[color] += np.sum(y[self.indices[r * (ce - cs) + c, color]])
+                    confidence = max(pred) / sum(pred)
+                    prev_color = stones[r + rs, c + cs]
+                    new_color = new_stones[r, c]
+                    if prev_color == E:
+                        self.suggest(new_color, r + rs, c + cs)  # todo probably too early to suggest
+                        stones[r+rs, c+cs] = new_color  # necessary because of overlapping before last row and col
+                        self.heatmap[r + rs, c + cs] = HeatPoint(new_color, confidence, self.total_f_processed)
+                    elif prev_color != new_color:
+                        loc = Move(NP_TYPE, (prev_color, r + rs, c + cs)).get_coord(NP_TYPE)
+                        print("Err.. hum. Now seeing {} instead of {} at {}".format(new_color, prev_color, loc))
+
+    def is_agitated(self, r, c, fg):
+        a0, b0, a1, b1 = self.getrect(r, c)
+        return (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255
 
     def predict(self, r, c, img, canvas=None):
         """ Feed up to 4 input vectors to the neural network to predict the color of intersection (r, c)
@@ -117,19 +151,18 @@ class SfNeural(StonesFinder):
             pos = x[i][0]  # the relative position (in the current sub-image) of the intersection (r, c)
             for color in range(3):
                 pred[color] += np.sum(y[self.indices[pos, color]])
-        winner = np.argmax(pred)
-        return rcolors[winner], pred[winner]/sum(pred)
+        return rcolors[np.argmax(pred)], max(pred) / sum(pred)
 
     def wait(self, canvas: np.ndarray):
         fg = self.get_foreground()
-        self.candidates[:] = 0
+        self.targets[:] = 0
         for x in range(gsize):
             for y in range(gsize):
                 a0, b0, a1, b1 = self.getrect(x, y)
                 if (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255:
                     cv2.rectangle(canvas, (b0, a0), (b1, a1), (0, 0, 255))
 
-    def lookback(self, goban_img):
+    def lookback(self, goban_img, canvas=None):
         """ Re-check recent predictions, and cancel them if they are not consistent.
 
         """
@@ -147,6 +180,9 @@ class SfNeural(StonesFinder):
                     to_del.append((E, r, c))  # cancel previous prediction
         if len(to_del):
             self.bulk_update(to_del)
+        self._cleanup_heatmap()
+        if canvas is not None:
+            self._drawvalues(canvas, np.transpose(self.heatmap))
 
     def _cleanup_heatmap(self):
         for r, c in np.transpose(np.where(self.heatmap == COLD)):
@@ -155,7 +191,7 @@ class SfNeural(StonesFinder):
 
 class HeatPoint:
 
-    def __init__(self, energy, color, confidence, stamp):
+    def __init__(self, color, confidence, stamp, energy=NB_LOOKBACK):
         self.target = energy
         self.energy = energy
         self.color = color
@@ -197,6 +233,6 @@ class HeatPoint:
         if self.energy <= 0:
             self.energy -= 1
         if not self.is_cold():
-            return '{} {:.0f}%'.format(self.color, self.confidence*100)
+            return '{:d}'.format(int(self.confidence*10))
         else:
             return ''

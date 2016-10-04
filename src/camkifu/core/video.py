@@ -289,9 +289,9 @@ class VidProcessor:
             loc: (int, int)
                 The location of the window on the screen.
             max_frequ: float
-                The max number of images displayed per second, when running with GUI (otherwise ignored). If this
-                method is called too often with regards to this argument, the necessary number of images will be
-                ignored.
+                The max number of images displayed per second, when running with GUI. If this method is called more
+                than this frequency allows, excess images will be ignored, and their number will be displayed on the
+                next image to be shown.
         """
         if name is None:
             name = self._window_name()
