@@ -866,20 +866,20 @@ class StonesFinder(camkifu.core.VidProcessor):
         red = (10 if j % 2 else 200) * factor
         return blue, green, red
 
-    def _show(self, img, name=None, frame=True, latency=True, thread=False, loc=None, max_frequ=2):
+    def _show(self, img, name=None, frame=True, latency=True, thread=False, loc=None, max_frequ=2, force=False):
         """ Override to take control of the location of the window of this stonesfinder.
         """
         if loc is None:
             from camkifu.config.cvconf import sf_loc
             loc = sf_loc
-        super()._show(img, name, frame, latency, thread, loc=loc, max_frequ=max_frequ)
+        super()._show(img, name, frame, latency, thread, loc=loc, max_frequ=max_frequ, force=force)
 
-    def display_message(self, message, name=None):
-        """ Display a "message" image of the provided shape, indicating the background sampling is running.
+    def display_message(self, message, name=None, force=False):
+        """ Display a "message" image of the provided shape, on a black background.
         """
         black = np.zeros(self.goban_img.shape[0:2], dtype=np.uint8)
         imgutil.draw_str(black, message)
-        self._show(black, name=name)
+        self._show(black, name=name, force=force)
 
 
 def update_grid(lines, box, result_slot):

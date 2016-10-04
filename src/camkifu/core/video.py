@@ -241,21 +241,23 @@ class VidProcessor:
         """
         # step 1 : draw default metadata, starting at the top of image
         try:
-            # line 1 (optional)
+            x_offset = 40
+            line_spacing = 20
+            line_idx = 1
             if frame:
                 frame_idx = int(round(self.vmanager.capt.get(cv2.CAP_PROP_POS_FRAMES)))
                 total = int(round(self.vmanager.capt.get(cv2.CAP_PROP_FRAME_COUNT)))
-                x_offset = 40
-                line_spacing = 20
                 s = "Frame {}/{} ({} not shown)".format(frame_idx, total, self.ignored_show[name])
                 imgutil.draw_str(img, s, x_offset, line_spacing)
-
-            # line 2 (optional)
+                line_idx += 1
             if latency:
-                imgutil.draw_str(img, "latency: %.1f ms" % ((time.time() - self.last_read) * 1000), x_offset, 2 * line_spacing)
-            # line 3 (optional)
+                s = "latency: %.1f ms" % ((time.time() - self.last_read) * 1000)
+                imgutil.draw_str(img, s, x_offset, line_idx * line_spacing)
+                line_idx += 1
             if thread:
-                imgutil.draw_str(img, "thread: " + threading.current_thread().getName(), x_offset, 3 * line_spacing)
+                s = "thread: " + threading.current_thread().getName()
+                imgutil.draw_str(img, s, x_offset, line_idx * line_spacing)
+                line_idx += 1
 
             # step 2 : draw custom metadata, starting at the bottom of image
             i = 0
@@ -270,7 +272,7 @@ class VidProcessor:
             print("VidProcessor._draw_metadata(): {}".format(exc))
 
     def _show(self, img: np.ndarray, name: str=None, frame: bool=True, latency: bool=True, thread: bool=False,
-              loc: (int, int)=None, max_frequ: float=2):
+              loc: (int, int)=None, max_frequ: float=2, force=False):
         """ Request an image to be shown / updated.
 
         Multi-threaded env: put 'img' into the image queue with respect to 'max_frequ'.
@@ -294,7 +296,7 @@ class VidProcessor:
         if name is None:
             name = self._window_name()
         if self.vmanager.imqueue is not None:  # supposedly a multi-threaded env
-            if 1 / max_frequ < time.time() - self.last_shown[name]:
+            if force or 1 / max_frequ < time.time() - self.last_shown[name]:
                 self._draw_metadata(img, name, frame, latency, thread)
                 try:
                     self.vmanager.imqueue.put_nowait((name, img, self, loc))
