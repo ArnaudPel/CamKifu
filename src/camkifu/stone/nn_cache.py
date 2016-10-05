@@ -8,8 +8,9 @@ __author__ = 'Arnaud Peloquin'
 class NNCache:
 
     def __init__(self, nn_manager, img):
+        assert img.shape[0:2] == nn_manager.canonical_shape
         self.manager = nn_manager
-        self.img = img  # todo  check img shape with manager
+        self.img = img
         self.cache = np.ndarray((self.manager.split, self.manager.split), dtype=object)
         self.step = (gsize + 1) // self.manager.split
 
@@ -64,4 +65,3 @@ class NNCache:
         i = r // self.step
         j = c // self.step
         return i, j
-

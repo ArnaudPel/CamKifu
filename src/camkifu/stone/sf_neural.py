@@ -81,7 +81,7 @@ class SfNeural(StonesFinder):
                         x0, y0, x1, y1 = self.getrect(r, c)
                         red = min(255, int(self.targets[r, c]) / TARGET_INCR * 255 // 4)
                         cv2.rectangle(canvas, (y0, x0), (y1, x1), (0, 0, red))
-        self.targets[np.where(self.targets > 0)] -= 1
+        self.targets[np.where(self.targets > 0)] -= 1  # decay
 
     def process_targets(self, canvas):
         targets = self.select_targets(canvas)
@@ -150,30 +150,6 @@ class SfNeural(StonesFinder):
                     cv2.rectangle(canvas, (y0, x0), (y1, x1), (255, 0, 0))
         return targets
 
-    @staticmethod
-    def get_color_ratio(moves):
-        count = {B: 0, W: 0}
-        for m in moves:
-            if m[0] != E:
-                count[m[0]] += 1
-        if 0 in count.values():
-            count[B] += 1
-            count[W] += 1
-        return abs(math.log(count[B] / count[W], 3))
-
-    def is_agitated(self, r, c, fg):
-        a0, b0, a1, b1 = self.getrect(r, c)
-        return (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255
-
-    def wait(self, canvas: np.ndarray):
-        fg = self.get_foreground()
-        self.targets[:] = 0
-        for x in range(gsize):
-            for y in range(gsize):
-                a0, b0, a1, b1 = self.getrect(x, y)
-                if (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255:
-                    cv2.rectangle(canvas, (b0, a0), (b1, a1), (0, 0, 255))
-
     def lookback(self, canvas=None):
         """ Re-check recent predictions, and cancel them if they are not consistent.
 
@@ -196,9 +172,24 @@ class SfNeural(StonesFinder):
         if canvas is not None:
             self._drawvalues(canvas, np.transpose(self.heatmap))
 
+    def is_agitated(self, r, c, fg):
+        a0, b0, a1, b1 = self.getrect(r, c)
+        return (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255
+
     def _cleanup_heatmap(self):
         for r, c in np.transpose(np.where(self.heatmap == COLD)):
             self.heatmap[r, c] = None
+
+    @staticmethod
+    def get_color_ratio(moves):
+        count = {B: 0, W: 0}
+        for m in moves:
+            if m[0] != E:
+                count[m[0]] += 1
+        if 0 in count.values():
+            count[B] += 1
+            count[W] += 1
+        return abs(math.log(count[B] / count[W], 3))
 
 
 class HeatPoint:
@@ -248,36 +239,3 @@ class HeatPoint:
             return '{:d}'.format(int(self.confidence*10))
         else:
             return ''
-
-# def predict_heavy(self, r, c, img, canvas=None):
-#     """ Feed up to 4 input vectors to the neural network to predict the color of intersection (r, c)
-#
-#     Since the neural network model takes images corresponding to 2x2 intersections, it is possible to
-#     extract 4 different images, in which the intersection of interest (r, c) takes respectively the position
-#     (3, 2, 1, 0) ~ (lower right, lower left, upper right, upper left)
-#
-#     These prediction distributions are eventually reduced to predict the color at (r, c)
-#
-#     Return: color: chr, confidence: float
-#     """
-#     step = int((gsize + 1) / self.manager.split)
-#     x = []
-#     for k, (i, j) in enumerate(((-1, -1), (-1, 0), (0, -1), (0, 0))):
-#         rs = r + i
-#         cs = c + j
-#         if 0 <= rs < gsize - 1 and 0 <= cs < gsize - 1:
-#             x0, x1, y0, y1 = self.manager._get_rect_nn(rs, rs + step, cs, cs + step)
-#             pos = step ** 2 - k - 1  # remember the relative position of (r, c) in the sub-image
-#             x.append((pos, img[x0:x1, y0:y1]))
-#             if canvas is not None:
-#                 cv2.rectangle(canvas, (y0, x0), (y1, x1), color=(int(k * 255 / 3), 255, int((3-k) * 255 / 3)))
-#     y_s = self.manager.get_net().predict(np.asarray([img for _, img in x], dtype=np.float32))
-#
-#     # reduce the distributions per color of the intersection (r, c)
-#     # todo is this the proper way to reduce softmax distributions in this case ? (mult, or train classifier ?)
-#     pred = np.zeros(3, dtype=np.float32)
-#     for i, y in enumerate(y_s):
-#         pos = x[i][0]  # the relative position (in the current sub-image) of the intersection (r, c)
-#         for color in range(3):
-#             pred[color] += np.sum(y[self.indices[pos, color]])
-#     return rcolors[np.argmax(pred)], max(pred) / sum(pred)
