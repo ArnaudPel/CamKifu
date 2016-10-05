@@ -1,10 +1,11 @@
-import os
 import ntpath
+import os
 
 import cv2
 import numpy as np
 
 from camkifu import board
+from camkifu.config.cvconf import gobanloc_npz
 
 
 class BoardFinderManual(board.BoardFinder):
@@ -95,12 +96,11 @@ class BoardFinderManual(board.BoardFinder):
             The file path were to save the goban corners location.
         """
         try:
-            from test.devconf import gobanloc_npz
             if type(self.vmanager.current_video) is str:
                 fname = ntpath.basename(self.vmanager.current_video)
                 return gobanloc_npz + fname + ".npz"
-        except ImportError as err:
-            print("Can't cache goban locs: {}".format(err))
+        except BaseException as exc:
+            print("Can't cache goban locationss: {}".format(exc))
 
     def _window_name(self):
         video = self.vmanager.controller.video
