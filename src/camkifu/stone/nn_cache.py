@@ -30,11 +30,13 @@ class NNCache:
         return stones, confidence
 
     def predict_all_stones(self):
-        stones = np.ndarray((gsize, gsize), dtype=object)
+        stones = np.ndarray((gsize, gsize, 2), dtype=object)
         for i in range(self.manager.split):
             for j in range(self.manager.split):
                 rs, re, cs, ce = self.manager._subregion(i, j)
-                stones[rs:re, cs:ce], _ = self.predict_4_stones(i, j)
+                square, confidence = self.predict_4_stones(i, j)
+                stones[rs:re, cs:ce, 0] = square
+                stones[rs:re, cs:ce, 1] = confidence
         return stones
 
     def predict_y(self, i, j):

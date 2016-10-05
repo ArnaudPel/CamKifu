@@ -1,12 +1,16 @@
+import math
+
 import cv2
 import numpy as np
 
 from camkifu.stone import StonesFinder
 from camkifu.stone.nn_cache import NNCache
-from camkifu.stone.nn_manager import NNManager, rcolors
-from golib.config.golib_conf import gsize, E
+from camkifu.stone.nn_manager import NNManager
+from golib.config.golib_conf import gsize, E, B, W
 from golib.model import Move
-from golib.model.move import NP_TYPE
+from golib.model.move import NP_TYPE, KGS_TYPE
+
+MIN_CONFIDENCE = 0.6
 
 COLD = 'cold'
 WIN_NAME = 'Neural'
@@ -53,13 +57,17 @@ class SfNeural(StonesFinder):
     def predict_all(self):
         stones = self.cache.predict_all_stones()
         moves = []
+        discarded = []
         for r in range(gsize):
             for c in range(gsize):
-                color = stones[r, c]
+                color, confidence = stones[r, c]
                 if color is not E:
-                    moves.append((color, r, c))
-                    confidence = 0.9  # todo refactor to get it from 'predict 'method used above (3rd dim of the mtx)
-                    self.heatmap[r, c] = HeatPoint(color, confidence, self.total_f_processed)
+                    if confidence > MIN_CONFIDENCE:
+                        moves.append((color, r, c))
+                        self.heatmap[r, c] = HeatPoint(color, confidence, self.total_f_processed)
+                    else:
+                        discarded.append((color, r, c))
+        print('predict_all: discarded {}'.format(discarded))
         self.bulk_update(moves)
 
     def mark_targets(self, canvas):
@@ -76,8 +84,50 @@ class SfNeural(StonesFinder):
         self.targets[np.where(self.targets > 0)] -= 1
 
     def process_targets(self, canvas):
+        targets = self.select_targets(canvas)
+        moves = self.predict_moves(targets)
+        if len(moves):
+            if self.get_color_ratio(moves) < 1:
+                for (color, r, c, confidence) in moves:
+                    self.heatmap[r, c] = HeatPoint(color, confidence, self.total_f_processed)
+                if len(moves) == 1:
+                    self.suggest(*moves.pop()[0:3])
+                else:
+                    self.bulk_update([m[0:3] for m in moves])
+
+    def predict_moves(self, targets):
+        """
+        Args:
+            targets: iterable
+                The coordinates (i, j) of the target zones.
+        """
+        moves = set()
+        if not len(targets):
+            return moves
+        stones = self.get_stones()
+        for i, j in targets:
+            new_stones, confidence = self.cache.predict_4_stones(i, j)
+            if confidence < MIN_CONFIDENCE:
+                continue
+            rs, re, cs, ce = self.manager._subregion(i, j)
+            for a, b in np.transpose(np.where(new_stones != E)):
+                r = a + rs
+                c = b + cs
+                prev_color = stones[r, c]
+                new_color = new_stones[a, b]
+                if prev_color == E:
+                    moves.add((new_color, r, c, confidence))
+                elif prev_color != new_color:
+                    loc = Move(NP_TYPE, (prev_color, r, c)).get_coord(KGS_TYPE)
+                    print("Err.. hum. Now seeing {} instead of {} at {}".format(new_color, prev_color, loc))
+        return moves
+
+    def select_targets(self, canvas):
+        """ Select marked targets that are not too agitated (as in background/foreground separation)
+
+        """
         fg = self.get_foreground()
-        zones = []
+        targets = []
         for i in range(self.manager.split):
             for j in range(self.manager.split):
                 rs, re, cs, ce = self.manager._subregion(i, j)
@@ -93,65 +143,27 @@ class SfNeural(StonesFinder):
                     if agitated: break
                 x0, x1, y0, y1 = self.manager._get_rect_nn(rs, re, cs, ce)
                 if not agitated:
-                    zones.append((i, j))
+                    targets.append((i, j))
                     self.targets[rs:re, cs:ce] = 0
                     cv2.rectangle(canvas, (y0, x0), (y1, x1), (0, 255, 0))
                 else:
                     cv2.rectangle(canvas, (y0, x0), (y1, x1), (255, 0, 0))
-        if len(zones):
-            stones = self.get_stones()
-            for i, j in zones:
-                new_stones, confidence = self.cache.predict_4_stones(i, j)
-                rs, re, cs, ce = self.manager._subregion(i, j)
-                for a, b in np.transpose(np.where(new_stones != E)):
-                    r = a + rs
-                    c = b + cs
-                    prev_color = stones[r, c]
-                    new_color = new_stones[a, b]
-                    if prev_color == E:
-                        self.suggest(new_color, r, c)  # todo probably too early to suggest
-                        stones[r, c] = new_color  # necessary because of overlapping before last row and col
-                        self.heatmap[r, c] = HeatPoint(new_color, confidence, self.total_f_processed)
-                    elif prev_color != new_color:
-                        loc = Move(NP_TYPE, (prev_color, r, c)).get_coord(NP_TYPE)
-                        print("Err.. hum. Now seeing {} instead of {} at {}".format(new_color, prev_color, loc))
+        return targets
+
+    @staticmethod
+    def get_color_ratio(moves):
+        count = {B: 0, W: 0}
+        for m in moves:
+            if m[0] != E:
+                count[m[0]] += 1
+        if 0 in count.values():
+            count[B] += 1
+            count[W] += 1
+        return abs(math.log(count[B] / count[W], 3))
 
     def is_agitated(self, r, c, fg):
         a0, b0, a1, b1 = self.getrect(r, c)
         return (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255
-
-    def predict_heavy(self, r, c, img, canvas=None):
-        """ Feed up to 4 input vectors to the neural network to predict the color of intersection (r, c)
-
-        Since the neural network model takes images corresponding to 2x2 intersections, it is possible to
-        extract 4 different images, in which the intersection of interest (r, c) takes respectively the position
-        (3, 2, 1, 0) ~ (lower right, lower left, upper right, upper left)
-
-        These prediction distributions are eventually reduced to predict the color at (r, c)
-
-        Return: color: chr, confidence: float
-        """
-        step = int((gsize + 1) / self.manager.split)
-        x = []
-        for k, (i, j) in enumerate(((-1, -1), (-1, 0), (0, -1), (0, 0))):
-            rs = r + i
-            cs = c + j
-            if 0 <= rs < gsize - 1 and 0 <= cs < gsize - 1:
-                x0, x1, y0, y1 = self.manager._get_rect_nn(rs, rs + step, cs, cs + step)
-                pos = step ** 2 - k - 1  # remember the relative position of (r, c) in the sub-image
-                x.append((pos, img[x0:x1, y0:y1]))
-                if canvas is not None:
-                    cv2.rectangle(canvas, (y0, x0), (y1, x1), color=(int(k * 255 / 3), 255, int((3-k) * 255 / 3)))
-        y_s = self.manager.get_net().predict(np.asarray([img for _, img in x], dtype=np.float32))
-
-        # reduce the distributions per color of the intersection (r, c)
-        # todo is this the proper way to reduce softmax distributions in this case ? (mult, or train classifier ?)
-        pred = np.zeros(3, dtype=np.float32)
-        for i, y in enumerate(y_s):
-            pos = x[i][0]  # the relative position (in the current sub-image) of the intersection (r, c)
-            for color in range(3):
-                pred[color] += np.sum(y[self.indices[pos, color]])
-        return rcolors[np.argmax(pred)], max(pred) / sum(pred)
 
     def wait(self, canvas: np.ndarray):
         fg = self.get_foreground()
@@ -236,3 +248,36 @@ class HeatPoint:
             return '{:d}'.format(int(self.confidence*10))
         else:
             return ''
+
+# def predict_heavy(self, r, c, img, canvas=None):
+#     """ Feed up to 4 input vectors to the neural network to predict the color of intersection (r, c)
+#
+#     Since the neural network model takes images corresponding to 2x2 intersections, it is possible to
+#     extract 4 different images, in which the intersection of interest (r, c) takes respectively the position
+#     (3, 2, 1, 0) ~ (lower right, lower left, upper right, upper left)
+#
+#     These prediction distributions are eventually reduced to predict the color at (r, c)
+#
+#     Return: color: chr, confidence: float
+#     """
+#     step = int((gsize + 1) / self.manager.split)
+#     x = []
+#     for k, (i, j) in enumerate(((-1, -1), (-1, 0), (0, -1), (0, 0))):
+#         rs = r + i
+#         cs = c + j
+#         if 0 <= rs < gsize - 1 and 0 <= cs < gsize - 1:
+#             x0, x1, y0, y1 = self.manager._get_rect_nn(rs, rs + step, cs, cs + step)
+#             pos = step ** 2 - k - 1  # remember the relative position of (r, c) in the sub-image
+#             x.append((pos, img[x0:x1, y0:y1]))
+#             if canvas is not None:
+#                 cv2.rectangle(canvas, (y0, x0), (y1, x1), color=(int(k * 255 / 3), 255, int((3-k) * 255 / 3)))
+#     y_s = self.manager.get_net().predict(np.asarray([img for _, img in x], dtype=np.float32))
+#
+#     # reduce the distributions per color of the intersection (r, c)
+#     # todo is this the proper way to reduce softmax distributions in this case ? (mult, or train classifier ?)
+#     pred = np.zeros(3, dtype=np.float32)
+#     for i, y in enumerate(y_s):
+#         pos = x[i][0]  # the relative position (in the current sub-image) of the intersection (r, c)
+#         for color in range(3):
+#             pred[color] += np.sum(y[self.indices[pos, color]])
+#     return rcolors[np.argmax(pred)], max(pred) / sum(pred)
