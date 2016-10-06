@@ -368,34 +368,44 @@ class NNManager:
             if chr(cv2.waitKey()) == 'q':
                 break
 
-    def visualize_l0(self):
+    def visualize_l0(self, relu=True):
         filters = self.get_net().get_weights()[0]
         nb_filt = filters.shape[3]
         nb_rows, nb_cols = 1, nb_filt
+        # find the couple of dividers closest to sqrt
         for d in reversed(range(int(math.sqrt(nb_filt)))):
             if nb_filt % d == 0:
                 nb_rows, nb_cols = d, nb_filt // d
                 break
         depth = 3
         zoom = 8
-        margin = 3
+        margin = 6
         img_height = (filters.shape[0] * zoom + margin) * nb_rows - margin
         img_width = (filters.shape[1] * zoom + margin) * nb_cols - margin
-        colored = np.zeros((img_height, img_width, 3), dtype=np.uint8)
-        highs = []
-        lows = []
-        for color in range(depth):
-            lows.append(np.min(filters[:, :, color, :]))
-            highs.append(np.max(filters[:, :, color, :]))
 
+        if not relu:
+            highs = []
+            lows = []
+            for color in range(depth):
+                lows.append(np.min(filters[:, :, color, :]))
+                highs.append(np.max(filters[:, :, color, :]))
+
+        colored = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+        colored[:] = 255
         for i in range(nb_filt):
             f = filters[:, :, :, i]
             x0, y0 = (f.shape[0] * zoom + margin) * (i // nb_cols), (f.shape[1] * zoom + margin) * (i % nb_cols)
             x1, y1 = x0 + f.shape[0] * zoom, y0 + f.shape[1] * zoom
-            for color in range(depth):
-                f[:, :, color] = (f[:, :, color] - lows[color]) / (highs[color] - lows[color])
+            tile = f.copy()
+            if relu:
+                tile[np.where(tile < 0)] = 0
+                tile /= np.max(tile)
+            else:
+                for color in range(depth):
+                    # noinspection PyUnboundLocalVariable
+                    tile[:, :, color] = (tile[:, :, color] - lows[color]) / (highs[color] - lows[color])
             # noinspection PyTypeChecker
-            colored[x0:x1, y0:y1] = np.repeat(np.repeat(f * 255, zoom, axis=0), zoom, axis=1)
+            colored[x0:x1, y0:y1] = np.repeat(np.repeat(tile * 255, zoom, axis=0), zoom, axis=1)
         c_height = colored.shape[0]
         canvas = np.zeros(((c_height + margin) * 4 - margin, colored.shape[1], depth), dtype=np.uint8)
         canvas[0:c_height, :, :] = colored
