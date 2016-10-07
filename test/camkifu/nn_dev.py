@@ -57,7 +57,7 @@ def visualize_l0(manager, relu=True):
     cv2.waitKey()
 
 
-def convolve_l0(manager, img):
+def convolve_l0(manager, img, relu=True):
     x = T.tensor4(name='input')
     filters = manager.get_net().get_weights()[0]
     fs = filters.shape
@@ -72,8 +72,13 @@ def convolve_l0(manager, img):
     rshape = (10, 10)
     show(img, name='Base image')
     margin = (in_s[2] - ou_s[2]) // 2
-    for fidx, _filter in enumerate(out):
+    for idx, img_out in enumerate(out):
+        if relu:
+            img_out[np.where(img_out < 0)] = 0
+        img_out /= np.max(img_out)
+        img_out *= 255
         canvas = np.zeros(img.shape[0:2], dtype=np.uint8)
+        canvas[:] = 255
         for r in range(rshape[0]):
             rs = r * ou_s[2] + (r+1) * margin
             re = rs + ou_s[2]
@@ -81,8 +86,8 @@ def convolve_l0(manager, img):
                 cs = c * ou_s[3] + (c+1) * margin
                 ce = cs + ou_s[3]
                 subidx = r * rshape[0] + c
-                canvas[rs:re, cs:ce] = _filter[subidx]
-        win_name = 'Convolved by filter #{:d}'.format(fidx + 1)
+                canvas[rs:re, cs:ce] = img_out[subidx]
+        win_name = 'Convolved by filter #{:d}'.format(idx + 1)
         show(canvas, name=win_name, offset=(img.shape[0]+10, 0))
         if chr(cv2.waitKey()) == 'q':
             break
