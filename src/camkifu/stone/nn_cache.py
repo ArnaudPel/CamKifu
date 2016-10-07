@@ -12,13 +12,13 @@ class NNCache:
         self.manager = nn_manager
         self.img = img
         self.cache = np.ndarray((self.manager.split, self.manager.split), dtype=object)
-        self.step = (gsize + 1) // self.manager.split
 
     def predict_stone(self, r, c):
-        i, j = self.get_area(r, c)
+        i, j = self.manager.get_region_indices(r, c)
         y = self.predict_y(i, j)
         stones = self.manager.compute_stones(np.argmax(y))
-        idx = self.step * (r % self.step) + c % self.step
+        step = self.manager.step
+        idx = step * (r % step) + c % step
         confidence = max(y) / sum(y)
         return stones[idx], confidence
 
@@ -46,7 +46,7 @@ class NNCache:
         """
         y = self.cache[i, j]
         if y is None:
-            x = self._get_x(i, j)
+            x = self.manager._get_x(i, j, self.img)
             y = self.manager.get_net().predict(x.reshape(1, *x.shape))[0]
             self.cache[i, j] = y
         return y
@@ -56,12 +56,3 @@ class NNCache:
             for j in range(self.manager.split):
                 self.predict_y(i, j)
         return self.cache
-
-    def _get_x(self, i, j):
-        x0, x1, y0, y1 = self.manager._get_rect_nn(*self.manager._subregion(i, j))
-        return self.img[x0:x1, y0:y1]
-
-    def get_area(self, r, c):
-        i = r // self.step
-        j = c // self.step
-        return i, j

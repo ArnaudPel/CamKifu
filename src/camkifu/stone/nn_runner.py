@@ -133,8 +133,9 @@ def get_argparser() -> argparse.ArgumentParser:
     parser.add_argument('-t', '--train', action='store_true', default=False, help="Run neural net training.")
     parser.add_argument('-v', '--eval', action='store_true', default=False, help="Evaluate the current neural network.")
     parser.add_argument('-e', '--epoch', default=15, help="Set the number of epochs (applies to training only).")
-    parser.add_argument('-a', '--arch', default=0, type=int, help="Archive snapshots and their associated labels")
+    parser.add_argument('-a', '--arch', default=0, type=int, help="Archive snapshots and their associated labels.")
     parser.add_argument('-f', '--filters', action='store_true', default=False, help="Display convolution filters.")
+    parser.add_argument('-y', action='store_true', default=False, help="Extract (y) labels from data matrices.")
     return parser
 
 
@@ -148,8 +149,8 @@ if __name__ == '__main__':
     if args.arch:
         archive(args.arch)
 
-    if args.filters:
-        manager.visualize_l0()
+    if args.y:
+        extract_ys(cvconf.snapshot_dir)
 
     # xt, yt, xe, ye = split_data(cvconf.snapshot_dir)
     # manager.visualize_inputs(xe)
@@ -162,5 +163,4 @@ if __name__ == '__main__':
     # for label, ratio in distrib:
     #     print("{} : {:.2f}".format(NNManager.compute_stones(label), ratio))
 
-    # extract_ys(cvconf.snapshot_dir)
 

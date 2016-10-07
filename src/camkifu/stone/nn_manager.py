@@ -14,6 +14,7 @@ from keras.optimizers import Adam
 
 from camkifu.config import cvconf
 from camkifu.core.imgutil import show, draw_str, destroy_win
+from camkifu.stone.nn_cache import NNCache
 from golib.config.golib_conf import gsize, E, B, W
 from golib.gui import ControllerBase
 
@@ -41,6 +42,7 @@ class NNManager:
 
         self._network = None  # please access via self.get_net() - lazy instantiation
         self.split = 10  # feed the neural network with squares of four intersections (split the goban in 10x10 areas)
+        self.step = (gsize + 1) // self.split
         self.nb_classes = 3 ** (int((gsize + 1) / self.split) ** 2)  # size of ANN output layer
 
         # find out the shape of such a square in order to get the number of features
@@ -64,7 +66,7 @@ class NNManager:
             return model
         return self.create_net()
 
-    def _subregion(self, row, col):
+    def _subregion(self, i, j):
 
         """ Get the row and column indices representing the requested subregion of the goban.
 
@@ -74,8 +76,8 @@ class NNManager:
         so that the shape of each subregion is always the same.
 
         Args:
-            row: int
-            col: int
+            i: int
+            j: int
                 The identifiers of the region, in [ 0, self.split [
 
         Returns rs, re, cs, ce:  int, int, int, int
@@ -84,21 +86,26 @@ class NNManager:
             cs -- column start  (inclusive)
             ce -- column end    (exclusive)
         """
-        assert 0 <= row < self.split and 0 <= col < self.split
-        step = int((gsize + 1) / self.split)
-        rs = row * step
-        re = (row + 1) * step
+        assert 0 <= i < self.split and 0 <= j < self.split
+        step = self.step
+        rs = i * step
+        re = (i + 1) * step
         if gsize - rs < step:
             rs = gsize - step
             re = gsize
 
-        cs = col * step
-        ce = (col + 1) * step
+        cs = j * step
+        ce = (j + 1) * step
         if gsize - cs < step:
             cs = gsize - step
             ce = gsize
 
         return rs, re, cs, ce
+
+    def get_region_indices(self, r, c):
+        i = r // self.step
+        j = c // self.step
+        return i, j
 
     def gen_data(self, img_path):
         img = cv2.imread(img_path)
@@ -127,7 +134,7 @@ class NNManager:
                     stones[rs:re, cs:ce] = s_arr.reshape((re - rs, ce - cs))
             print("Loaded {}".format(y_path))
         else:  # try to guess stones with custom algo
-            stones = self.predict_stones(img)
+            stones = NNCache(self, img).predict_all_stones()[:, :, 0]
         return stones
 
     @staticmethod
@@ -144,8 +151,8 @@ class NNManager:
             return y_path
         # try to use a generic one if no specific has been found
         return regex.sub(' \(\d*\)', '', y_path)
-
     # noinspection PyBroadException
+
     def validate_stones(self, stones, img):
         # noinspection PyUnusedLocal
         def onmouse(event, x, y, flag, param):
@@ -183,13 +190,15 @@ class NNManager:
         destroy_win(win_name)
         return True if key == 'k' else False
 
+    def _get_x(self, i, j, img):
+        x0, x1, y0, y1 = self._get_rect_nn(*self._subregion(i, j))
+        return img[x0:x1, y0:y1]
+
     def generate_xs(self, img):
         x_s = np.zeros((self.split ** 2, self.r_width, self.c_width, self.depth), dtype=np.uint8)
         for i in range(self.split):
             for j in range(self.split):
-                rs, re, cs, ce = self._subregion(i, j)
-                x0, x1, y0, y1 = self._get_rect_nn(rs, re, cs, ce)
-                x_s[(i * self.split + j)] = img[x0:x1, y0:y1].copy()
+                x_s[(i * self.split + j)] = self._get_x(i, j, img).copy()
         return x_s
 
     def generate_ys(self, stones):
@@ -277,18 +286,6 @@ class NNManager:
         assert len(x.shape) == 4  # expecting an array of colored images
         return np.argmax(self.get_net().predict(x.astype(np.float32)), axis=1)
 
-    def predict_stones(self, goban_img):
-        # todo replace with nncache.predict_all_stones()
-        x_s = self.generate_xs(goban_img)
-        predict = self.predict_ys(x_s)
-        stones = np.ndarray((gsize, gsize), dtype=object)
-        for k, y in enumerate(predict):
-            i = int(k / self.split)
-            j = k % self.split
-            rs, re, cs, ce = self._subregion(i, j)
-            stones[rs:re, cs:ce] = self.compute_stones(y).reshape((re-rs, ce-cs))
-        return stones
-
     def evaluate(self, x, y):
         assert len(x.shape) == 4  # expecting an array of colored images
         y_predict = self.get_net().predict(x.astype(np.float32))
@@ -343,74 +340,3 @@ class NNManager:
                     classes = np.where(binar[:, d] == stone)
                     self.c_indices[d, colors[stone]] = classes[0]
         return self.c_indices
-
-    def patchwork(self, x, shape=(20, 20)):
-        a, b = shape
-        rw, cw = self.r_width, self.c_width
-        idx = 0
-        while True:
-            canvas = np.zeros((a * rw, b * cw, self.depth), dtype=np.uint8)
-            for j in range(a):
-                for k in range(b):
-                    if idx < len(x):
-                        canvas[j*rw:(j+1)*rw, k*cw:(k+1)*cw] = x[idx]
-                    else:
-                        print("Images {} -> {}".format(idx - (j*b + k), idx))
-                        yield canvas
-                        return
-                    idx += 1
-            print("Images {} -> {}".format(idx - a*b, idx-1))
-            yield canvas
-
-    def visualize_inputs(self, x, shape=(20, 20)):
-        for img in self.patchwork(x, shape):
-            show(img, name='Patchwork')
-            if chr(cv2.waitKey()) == 'q':
-                break
-
-    def visualize_l0(self, relu=True):
-        filters = self.get_net().get_weights()[0]
-        nb_filt = filters.shape[3]
-        nb_rows, nb_cols = 1, nb_filt
-        # find the couple of dividers closest to sqrt
-        for d in reversed(range(int(math.sqrt(nb_filt)))):
-            if nb_filt % d == 0:
-                nb_rows, nb_cols = d, nb_filt // d
-                break
-        depth = 3
-        zoom = 8
-        margin = 6
-        img_height = (filters.shape[0] * zoom + margin) * nb_rows - margin
-        img_width = (filters.shape[1] * zoom + margin) * nb_cols - margin
-
-        if not relu:
-            highs = []
-            lows = []
-            for color in range(depth):
-                lows.append(np.min(filters[:, :, color, :]))
-                highs.append(np.max(filters[:, :, color, :]))
-
-        colored = np.zeros((img_height, img_width, 3), dtype=np.uint8)
-        colored[:] = 255
-        for i in range(nb_filt):
-            f = filters[:, :, :, i]
-            x0, y0 = (f.shape[0] * zoom + margin) * (i // nb_cols), (f.shape[1] * zoom + margin) * (i % nb_cols)
-            x1, y1 = x0 + f.shape[0] * zoom, y0 + f.shape[1] * zoom
-            tile = f.copy()
-            if relu:
-                tile[np.where(tile < 0)] = 0
-                tile /= np.max(tile)
-            else:
-                for color in range(depth):
-                    # noinspection PyUnboundLocalVariable
-                    tile[:, :, color] = (tile[:, :, color] - lows[color]) / (highs[color] - lows[color])
-            # noinspection PyTypeChecker
-            colored[x0:x1, y0:y1] = np.repeat(np.repeat(tile * 255, zoom, axis=0), zoom, axis=1)
-        c_height = colored.shape[0]
-        canvas = np.zeros(((c_height + margin) * 4 - margin, colored.shape[1], depth), dtype=np.uint8)
-        canvas[0:c_height, :, :] = colored
-        for color in range(depth):
-            x0 = (color + 1) * (c_height + margin)
-            canvas[x0: x0 + c_height, :, color] = colored[:, :, color]
-        show(canvas, name='Convolution filters - First layer')
-        cv2.waitKey()
