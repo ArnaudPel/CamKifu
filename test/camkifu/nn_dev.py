@@ -3,11 +3,10 @@ import math
 
 import cv2
 import numpy as np
+from theano.tensor.nnet import conv2d, theano, T
 
-from camkifu.config import cvconf
-from camkifu.core.imgutil import show
+from camkifu.core.imgutil import show, destroy_win
 from camkifu.stone.nn_manager import NNManager
-from camkifu.stone.nn_runner import split_data
 
 
 def visualize_l0(manager, relu=True):
@@ -58,6 +57,38 @@ def visualize_l0(manager, relu=True):
     cv2.waitKey()
 
 
+def convolve_l0(manager, img):
+    x = T.tensor4(name='input')
+    filters = manager.get_net().get_weights()[0]
+    fs = filters.shape
+    w = theano.shared(filters.transpose(3, 2, 0, 1).reshape(fs[3], fs[2], fs[0], fs[1]), name='W')
+    f = theano.function([x], conv2d(x, w))
+    inputs = manager.generate_xs(img)
+    in_s = inputs.shape
+    inputs = inputs.transpose(0, 3, 1, 2).reshape(in_s[0], in_s[3], in_s[1], in_s[2])
+    out = f(inputs)
+    ou_s = out.shape
+    out = out.transpose(1, 0, 2, 3).reshape(ou_s[1], ou_s[0], ou_s[2], ou_s[3])
+    rshape = (10, 10)
+    show(img, name='Base image')
+    margin = (in_s[2] - ou_s[2]) // 2
+    for fidx, _filter in enumerate(out):
+        canvas = np.zeros(img.shape[0:2], dtype=np.uint8)
+        for r in range(rshape[0]):
+            rs = r * ou_s[2] + (r+1) * margin
+            re = rs + ou_s[2]
+            for c in range(rshape[1]):
+                cs = c * ou_s[3] + (c+1) * margin
+                ce = cs + ou_s[3]
+                subidx = r * rshape[0] + c
+                canvas[rs:re, cs:ce] = _filter[subidx]
+        win_name = 'Convolved by filter #{:d}'.format(fidx + 1)
+        show(canvas, name=win_name, offset=(img.shape[0]+10, 0))
+        if chr(cv2.waitKey()) == 'q':
+            break
+        destroy_win(win_name)
+
+
 def patchwork(manager, x, shape=(20, 20)):
     a, b = shape
     rw, cw = manager.r_width, manager.c_width
@@ -88,6 +119,7 @@ def get_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add_argument('-f', '--filters', action='store_true', default=False, help="Display convolution filters.")
     parser.add_argument('-p', '--patchwork', help="Show a patchwork of the xs in the matrix file.")
+    parser.add_argument('-c', '--convolve', help="Apply 1st convolution layer of the neural network to image.")
     return parser
 
 
@@ -98,11 +130,16 @@ if __name__ == '__main__':
     if args.filters:
         visualize_l0(manager)
 
-    extension = '.npz'
-    if args.patchwork is not None:
+    if args.patchwork:
+        extension = '.npz'
         if args.patchwork.endswith(extension):
-            # visualize_inputs(manager, np.load(args.patchwork)['X'])
-            xt, yt, xe, ye = split_data(cvconf.snapshot_dir)
-            visualize_inputs(manager, xt)
+            visualize_inputs(manager, np.load(args.patchwork)['X'])
         else:
             print('Unsupported arg for command -p (--patchwork): expecting \'{}\' files'.format(extension))
+
+    if args.convolve:
+        extension = ('.png', '.jpg', '.jpeg')
+        if args.convolve.lower().endswith(extension):
+            convolve_l0(manager, cv2.imread(args.convolve))
+        else:
+            print('Unsupported arg for command -c (--convolve): expecting \'{}\' files'.format(extension))

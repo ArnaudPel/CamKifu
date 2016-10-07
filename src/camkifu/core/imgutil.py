@@ -95,7 +95,7 @@ def draw_str(dst, s, x=None, y=None, color=(255, 255, 255)):
 windows = set()  # dev workaround to center windows the first time they are displayed only
 
 
-def show(img, name="Camkifu", loc=None):
+def show(img, name="Camkifu", loc=None, offset=(0, 0)):
     """ Show the specified image in its own window.
 
     Args:
@@ -105,14 +105,18 @@ def show(img, name="Camkifu", loc=None):
             The name of the window.
         loc: (int, int)
             The location of the window to set (as per cv2.moveWindow). Default to a value that tries to center.
+        offset: (int, int)
+            Add a relative component to 'loc'. Can also be used to place a window relatively to the default location.
     """
     if name not in windows:
         cv2.namedWindow(name, cv2.WINDOW_NORMAL)
         if loc is not None:
             cv2.moveWindow(name, *loc)
         else:
-            center = (golib_conf.screenw / 2, golib_conf.screenh / 2)
-            cv2.moveWindow(name, max(0, int(center[0] - img.shape[0] / 2)), int(img.shape[1] / 2))
+            center = (golib_conf.screenw // 2, golib_conf.screenh // 2)
+            x = center[0] - img.shape[0] // 2 + offset[0]
+            y = img.shape[1] // 2 + offset[1]
+            cv2.moveWindow(name, max(0, x), y)
         windows.add(name)
     cv2.imshow(name, img)
 
