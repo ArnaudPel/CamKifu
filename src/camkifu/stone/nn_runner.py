@@ -23,10 +23,14 @@ def merge_npz(train_data_dir, pattern):
             inputs.append(data['X'])
             labels.append(data['Y'])
             files.append(mat)
-    x = np.concatenate(inputs, axis=0)
-    print('Merged {} inputs -> {}'.format(len(inputs), x.shape))
-    y = np.concatenate(labels, axis=0)
-    return x, y, files
+    if len(inputs):
+        x = np.concatenate(inputs, axis=0)
+        print('Merged {} inputs -> {}'.format(len(inputs), x.shape))
+        y = np.concatenate(labels, axis=0)
+        return x, y, files
+    else:
+        print('No training data found in [{}]'.format(train_data_dir))
+        return None, None, None
 
 
 def display_histo(labels, nb_bins=3 ** 4):
@@ -67,6 +71,7 @@ def distrib_imbalance(labels, nb_bins=3 ** 4):
 
 
 def split_data(base_dir):
+    xt = yt = xe = ye = None
     tfile = join(base_dir, TRAIN_DAT_MTX)
     if isfile(tfile):
         tdat = np.load(tfile)
@@ -75,15 +80,16 @@ def split_data(base_dir):
         print("Loaded datasets from [{}] {} | {}".format(TRAIN_DAT_MTX, len(xt), len(xe)))
     else:
         x_tot, y_tot, _ = merge_npz(base_dir, '(.*\-train data.*)|(arch\d*)')
-        indices = np.indices([x_tot.shape[0]])[0]
-        np.random.shuffle(indices)
-        split_idx = int(0.8 * len(indices))
-        xt = x_tot[indices[:split_idx], :]
-        yt = y_tot[indices[:split_idx], :]
-        xe = x_tot[indices[split_idx:], :]
-        ye = y_tot[indices[split_idx:], :]
-        np.savez(tfile, Xt=xt, Yt=yt, Xe=xe, Ye=ye)
-        print("Created NEW datasets: [{}]".format(TRAIN_DAT_MTX))
+        if x_tot is not None:
+            indices = np.indices([x_tot.shape[0]])[0]
+            np.random.shuffle(indices)
+            split_idx = int(0.8 * len(indices))
+            xt = x_tot[indices[:split_idx], :]
+            yt = y_tot[indices[:split_idx], :]
+            xe = x_tot[indices[split_idx:], :]
+            ye = y_tot[indices[split_idx:], :]
+            np.savez(tfile, Xt=xt, Yt=yt, Xe=xe, Ye=ye)
+            print("Created NEW datasets: [{}]".format(TRAIN_DAT_MTX))
     return xt, yt, xe, ye
 
 
@@ -117,12 +123,12 @@ def archive(idx):
         os.rename(join(cd, pic), join(arch_dir, pic))
 
 
-def run_batch(manager, base_dir=cvconf.snapshot_dir, train=True, evaluate=True, epochs=15):
+def run_batch(manager, base_dir, train=True, eval=True, epochs=15, bs=1000):
     try:
         x_train, y_train, x_eval, y_eval = split_data(base_dir)
-        if train:
-            manager.train(x_train, y_train, batch_size=445, nb_epoch=epochs, lr=0.003)
-        if evaluate:
+        if train and x_train is not None:
+            manager.train(x_train, y_train, vdata=(x_eval, y_eval), batch_size=bs, nb_epoch=epochs)
+        if eval and x_eval is not None:
             manager.evaluate(x_eval, y_eval)
     except KeyboardInterrupt:
         print("KeyboardInterrupt")
@@ -132,10 +138,12 @@ def get_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add_argument('-t', '--train', action='store_true', default=False, help="Run neural net training.")
     parser.add_argument('-v', '--eval', action='store_true', default=False, help="Evaluate the current neural network.")
-    parser.add_argument('-e', '--epoch', default=15, help="Set the number of epochs (applies to training only).")
+    parser.add_argument('-e', '--epoch', default=15, type=int, help="Set the number of epochs (for training only).")
+    parser.add_argument('-b', '--batch', default=500, type=int, help="Mini-batch size, for optimizer")
     parser.add_argument('-a', '--arch', default=0, type=int, help="Archive snapshots and their associated labels.")
     parser.add_argument('-f', '--filters', action='store_true', default=False, help="Display convolution filters.")
     parser.add_argument('-y', action='store_true', default=False, help="Extract (y) labels from data matrices.")
+    parser.add_argument('-s', '--small', action='store_true', default=False, help="Load a very small training dataset")
     return parser
 
 
@@ -144,7 +152,10 @@ if __name__ == '__main__':
     manager = NNManager()
 
     if args.train or args.eval:
-        run_batch(manager, train=args.train, evaluate=args.eval, epochs=args.epoch)
+        _dir = cvconf.snapshot_dir
+        if args.small:
+            _dir = join(_dir, 'small')
+        run_batch(manager, _dir, train=args.train, eval=args.eval, epochs=args.epoch, bs=args.batch)
 
     if args.arch:
         archive(args.arch)

@@ -2,6 +2,7 @@ import functools
 import math
 import operator
 import re as regex
+import sys
 from os.path import isfile
 
 import cv2
@@ -60,9 +61,10 @@ class NNManager:
 
     def init_net(self):
         if isfile(KERAS_MODEL_FILE):
-            print("Loading previous model from [{}] ...".format(KERAS_MODEL_FILE))
+            sys.stdout.write("Loading previous model from [{}] ... ".format(KERAS_MODEL_FILE))
+            sys.stdout.flush()
             model = load_model(KERAS_MODEL_FILE)
-            print("... loading done")
+            sys.stdout.write("Done\n")
             return model
         return self.create_net()
 
@@ -273,14 +275,26 @@ class NNManager:
         network.compile(loss='categorical_crossentropy', optimizer=optimizer)
         return network
 
-    def train(self, x, y, batch_size=1000, nb_epoch=2, lr=0.001):
+    def train(self, x, y, vdata=None, batch_size=1000, nb_epoch=2, lr=0.001):
         assert len(x.shape) == 4  # expecting an array of colored images
         previous_lr = float(self.get_net().optimizer.lr.get_value())
         if not math.isclose(lr, previous_lr, rel_tol=1e-06):
             print("Setting new learning rate: {:.5f} -> {:.5f}".format(previous_lr, lr))
             self.get_net().optimizer.lr.set_value(lr)
         checkpoint = ModelCheckpoint(KERAS_MODEL_FILE, monitor='loss', save_best_only=True, save_weights_only=False)
-        self.get_net().fit(x, y, batch_size=batch_size, nb_epoch=nb_epoch, callbacks=[checkpoint])
+        history = self.get_net().fit(x, y, validation_data=vdata, batch_size=batch_size, nb_epoch=nb_epoch, callbacks=[checkpoint])
+        try:
+            # noinspection PyUnresolvedReferences
+            import matplotlib.pyplot as mpl
+            mpl.plot(history.history['loss'])
+            mpl.plot(history.history['val_loss'])
+            mpl.title('model loss')
+            mpl.ylabel('loss')
+            mpl.xlabel('epoch')
+            mpl.legend(['train', 'test'], loc='upper left')
+            mpl.show()
+        except ImportError:
+            pass
 
     def predict_ys(self, x):
         assert len(x.shape) == 4  # expecting an array of colored images
