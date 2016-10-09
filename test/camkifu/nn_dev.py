@@ -120,11 +120,18 @@ def visualize_inputs(manager, x, shape=(20, 20)):
             break
 
 
+def print_weights(manager):
+    print('Nb weights = {0:,}'.format(manager.get_nb_weights()).replace(',', ' '))
+    for layer in manager.get_net().get_weights():
+        print('\t{}'.format(layer.shape))
+
+
 def get_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add_argument('-f', '--filters', action='store_true', default=False, help="Display convolution filters.")
-    parser.add_argument('-p', '--patchwork', help="Show a patchwork of the xs in the matrix file.")
-    parser.add_argument('-c', '--convolve', help="Apply 1st convolution layer of the neural network to image.")
+    parser.add_argument('-p', '--patchwork', metavar='NPZ_PATH', help="Show a patchwork of the xs in the matrix file.")
+    parser.add_argument('-c', '--convolve', metavar='IMG_PATH', help="Apply 1st convolution layer of the neural net to image.")
+    parser.add_argument('-w', '--weights', action='store_true', help="Print basic info on the current model weights.")
     return parser
 
 
@@ -148,3 +155,5 @@ if __name__ == '__main__':
             convolve_l0(manager, cv2.imread(args.convolve))
         else:
             print('Unsupported arg for command -c (--convolve): expecting \'{}\' files'.format(extension))
+    if args.weights:
+        print_weights(manager)
