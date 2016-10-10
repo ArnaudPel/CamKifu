@@ -1,5 +1,5 @@
 
-links to similar projects : [http://remi.coulom.free.fr/kifu-snap/]
+[Similar projects](http://remi.coulom.free.fr/kifu-snap/)
 
 Below are things to investigate, do, or discard.
 
@@ -14,6 +14,7 @@ Below are things to investigate, do, or discard.
 
 ### Board finder auto
 
+- use a machine learning model. train it either on raw pictures (downsampled), or on a set of lines previously detected with OpenCV canny/hough
 - takes forever when `Room 1.mov` is pyrdowned. most likely because bf finds too many lines. investigate
 - save background and re-run only if the image is "disturbed" for too long ? Only after several converging detections maybe
 - enable manual corrections, which should then disable automatic changes (at least for the corrected corner(s))
@@ -40,7 +41,7 @@ Below are things to investigate, do, or discard.
 Please note that a "Fatal Python error: PyEval_RestoreThread: NULL tstate" can occur from time to time and crash the
 interpreter itself. It occurs when using the GUI. It seems to be originating in the fact that openCV images have to
 be displayed on the main thread, also required by Tkinter. I have dropped the case after several unsuccessful tries,
-yet if this problem becomes a pain, try to display fewer images per second and it should soothe.
+yet if this problem becomes a pain, try to display fewer images per second.
 
 
 ### General
@@ -48,9 +49,8 @@ yet if this problem becomes a pain, try to display fewer images per second and i
 - channel all printing to a decent log
 - save user preferences: {sgf save dir, ...}.
 - extract vision (+ time periods) parameters to file for easier tuning (maybe via GUI)
-- try and see if some references could not be weakened  (http://docs.python.org/2/library/weakref.html)
+- try and see if some references could not be [weakened](http://docs.python.org/2/library/weakref.html)
 - benchmark.py: parse argument for each run from each reference sgf file ? ex. the first node of the game could contain a custom property where the [--bounds, --moves, --bf, --sf, etc...] arguments could be set
-- ability to provide image file as input (for testing)
 - save a video sample for each game, can be seen as a backup. provide option to disable it (disk space)
 
 ### GUI
