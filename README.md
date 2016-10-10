@@ -43,13 +43,17 @@ By decreasing priority
 
 ### Projects
 In an attempt to enforce separation of concerns, non-vision Go features are developped as a separate module, named Golib. As of Oct 2016, imports from Golib made in Camkifu are phrased as if both source directories have been merged. [Pycharm](http://www.jetbrains.com/pycharm/) handles that in `Preferences | Project Dependencies`. When working from a bash terminal, I suggest enriching the python path, in ```~/.bash_profile``` (or ```~/.bashrc```):
-```PYTHONPATH="/path/to/Golib/src:/path/to/Camkifu/src:/path/to/Camkifu:${PYTHONPATH}"
-export PYTHONPATH```
+```sh
+PYTHONPATH="/path/to/Golib/src:/path/to/Camkifu/src:/path/to/Camkifu:${PYTHONPATH}"
+export PYTHONPATH
+```
 
 And a little ```~/.bash_profile``` bonus to run Camkifu from command line with parameters:
-```function camkifu(){
+```sh
+function camkifu(){
     python3 /Users/Kohistan/Developer/PycharmProjects/Camkifu/src/ckmain.py "$@";
-}```
+}
+```
 
 ### Code
 Keeping in mind the OCP, a few class hierarchies are favorite candidates for extension.
