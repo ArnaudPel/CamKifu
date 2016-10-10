@@ -15,7 +15,8 @@ As of October 2016, the main value of this software is to provide a testing fram
 
 (†) Can be ignored if you are planning to develop your own detection algorithms
 
-## Current Features (October 2016)
+## Current Features
+As of October 2016
 - Automatic detection of the board + Manual detection available in case of failure
 - Automatic detection of the stones
 - A few GUI tools to generate neural network training data
@@ -23,6 +24,8 @@ As of October 2016, the main value of this software is to provide a testing fram
 - Move, Add, Remove stones manually, whether detection is on or not
 - Automatic pause of vision processing when browsing moves (variations are currently not supported)
 - Save, Open an SGF file. Non-empty sgf can be used as starting point as well
+
+![screenshot 1](https://cloud.githubusercontent.com/assets/6020369/19236686/eda1b88e-8ef8-11e6-98b8-80771cff651c.png)
 
 ## Wish List
 By decreasing priority
@@ -71,7 +74,6 @@ Some work has been done around the multi-threaded vision flow:
 I've had yet another attempt at doing TDD in Camkifu recently, but failed again, always falling back to a quick dev-and-run pattern. Because it seems I need to visually _see_ what's going on with each frame in order to understand and improve the algos. Anyway here are a few feeble attempts to provide test features:
 - `DetectionTest.py` can be used to compare algorithms against known expected results, and calculate the match percentage.
 - testing options (like processing a subpart of a file, checking against a subpart of a reference sgf) can be found in `DetectionTest.py`, in the form of Command Line arguments.
-
 
 ## (Metaphysical) Thanks
 
