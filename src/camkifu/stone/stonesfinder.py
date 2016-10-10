@@ -260,6 +260,7 @@ class StonesFinder(camkifu.core.VidProcessor):
                 Whether or not to print the move in the console.
         """
         self._check_dels(r, c)
+        # todo implement an auto-save mechanism to better recover from python interpreter crash. Also in bulk update ?
         move = golib.model.Move('np', ctuple=(color, r, c))
         if doprint:
             print(move)

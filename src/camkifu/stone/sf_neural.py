@@ -3,6 +3,7 @@ import math
 import cv2
 import numpy as np
 
+import camkifu.core
 from camkifu.stone import StonesFinder
 from camkifu.stone.nn_cache import NNCache
 from camkifu.stone.nn_manager import NNManager
@@ -91,7 +92,10 @@ class SfNeural(StonesFinder):
                 for (color, r, c, confidence) in moves:
                     self.heatmap[r, c] = HeatPoint(color, confidence, self.total_f_processed)
                 if len(moves) == 1:
-                    self.suggest(*moves.pop()[0:3])
+                    try:
+                        self.suggest(*moves.pop()[0:3])
+                    except camkifu.core.DeletedError as de:
+                        print(de)  # todo learn something about it ?
                 else:
                     self.bulk_update([m[0:3] for m in moves])
 

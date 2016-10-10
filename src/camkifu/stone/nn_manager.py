@@ -7,6 +7,8 @@ from os.path import isfile
 
 import cv2
 import numpy as np
+
+# todo import locally and only disable the stonesfinder if keras is not available, instead of crashing
 from keras.callbacks import ModelCheckpoint
 from keras.layers import Convolution2D, MaxPooling2D
 from keras.layers import Dense, Dropout, Flatten
