@@ -1,6 +1,6 @@
 import tkinter as tk
-import golib.gui
 
+import golib.gui
 from camkifu.config.cvconf import snapshot_dir
 from camkifu.stone.training_ui import DataGeneration
 
@@ -22,6 +22,7 @@ class VUI(golib.gui.UI):
         self.build_menu_detection()
         self.build_menu_video()
         self.build_buttons()
+        self.bind_all("<{0}-q>".format(golib.gui.ui.mod1), lambda _: self.execute("quit"))
 
     def build_buttons(self):
         self.video_pos = tk.Scale(self.buttons, command=lambda x: self.execute("vidpos", float(x)), orient=tk.HORIZONTAL)

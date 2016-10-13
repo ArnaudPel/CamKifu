@@ -1,4 +1,4 @@
-from os.path import realpath
+from os.path import realpath, join
 
 from golib.config import golib_conf
 """
@@ -46,7 +46,9 @@ bf_loc = None
 sf_loc = None
 
 fpath = realpath(__file__)
-gobanloc_npz = fpath[:fpath.index('/src/')] + "/res/temp/gobanlocs/"
+tmp_dir = fpath[:fpath.index('/src/')] + "/res/temp/"
+gobanloc_npz = join(tmp_dir, "gobanlocs/")
+tmp_sgf = join(tmp_dir, "auto-saved.sgf")
 
 # TODO prompt user for that
 # folder where to save the snapshots

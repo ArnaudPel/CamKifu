@@ -265,6 +265,7 @@ class StonesFinder(camkifu.core.VidProcessor):
         if doprint:
             print(move)
         self.vmanager.controller.pipe("append", move)
+        self.vmanager.controller.pipe("auto_save")
 
     def remove(self, x, y):
         """ Indicate to the controller the removal of a stone from the goban. May be processed asynchronously.
@@ -314,6 +315,7 @@ class StonesFinder(camkifu.core.VidProcessor):
                     del_errors.append(de)
         if len(moves):
             self.vmanager.controller.pipe("bulk", moves)
+            self.vmanager.controller.pipe("auto_save")
         if len(del_errors):
             msg = "Bulk_update:warning: All non-conflicting locations have been sent."
             raise camkifu.core.DeletedError(del_errors, message=msg)

@@ -1,16 +1,16 @@
+import os
 import queue
 import random
 
 import numpy as np
-import golib.gui
-import golib.model
 
 import camkifu.core
-
-
-# size of the command queue
+import golib.gui
+import golib.model
+from camkifu.config.cvconf import tmp_sgf
 from golib.config.golib_conf import gsize, E, B, W
 
+# size of the command queue
 commands_size = 10
 
 
@@ -37,25 +37,27 @@ def promptdiscard(meth):
 
 # noinspection PyMethodMayBeStatic
 class ControllerV(golib.gui.Controller):
+    # noinspection PyUnresolvedReferences
     """ Extension of the default GUI controller adding the handling of Vision threads.
 
-    Attributes:
-        queue: Queue
-            The commands that have been received and wait for execution.
-        video: int / str
-            The video input description as used by openCV: integer or file path
-        bounds: (int, int)
-            The video start and end position as used by openCV.
-        input:
-            The UI component collecting user input.
-        api: dict
-            The commands exposed by this Controller.
-        paused: Paused
-            A toggle
-    """
+        Attributes:
+            queue: Queue
+                The commands that have been received and wait for execution.
+            video: int / str
+                The video input description as used by openCV: integer or file path
+            bounds: (int, int)
+                The video start and end position as used by openCV.
+            input:
+                The UI component collecting user input.
+            api: dict
+                The commands exposed by this Controller.
+            paused: Paused
+                A toggle
+        """
 
     def __init__(self, user_input, display, sgffile=None, video=0, bounds=(0, 1)):
-        super().__init__(user_input, display, sgffile=sgffile)
+        sgf, autosaved = self._init_sgf(sgffile)
+        super().__init__(user_input, display, sgffile=sgf)
         self.queue = queue.Queue(commands_size)
         self.video = video
         self.bounds = bounds
@@ -75,6 +77,7 @@ class ControllerV(golib.gui.Controller):
             self.input.commands["vidpos"] = lambda new_pos: self.vidpos(new_pos)
             self.input.commands["snapshot"] = lambda save_goban: self.snapshot(save_goban)
             self.input.commands["random"] = lambda: self.random()
+            self.input.commands["quit"] = lambda: self.quit()
         except AttributeError as ae:
             self.log("Some commands could not be bound to User Interface.")
             self.log(ae)
@@ -90,12 +93,25 @@ class ControllerV(golib.gui.Controller):
             "select_sf": self._select_sfinder,
             "video_changed": self._prompt_new_kifu,
             "video_progress": lambda progress: self.display.video_progress(progress),
+            "auto_save": lambda: self.auto_save(),
         }
-
-        if sgffile is not None:
+        if autosaved:
+            # abstraction leak ! :)
+            self.kifu.sgffile = None
+            self.kifu.modified = True  # recovered from a crash, treat as a new game
+            self.display_title("Recovered from auto-saved game")
+        if sgf is not None:
             self.goto(722)  # get kifu ready to ramble
 
         self.paused = Pause(False)
+
+    def _init_sgf(self, sgffile):
+        sgf = sgffile
+        autosaved = False
+        if sgffile is None and os.path.exists(tmp_sgf):
+            sgf = tmp_sgf
+            autosaved = True
+        return sgf, autosaved
 
     def pipe(self, instruction, *args):
         """ Send an instruction to this controller, that will be treated asynchronously.
@@ -287,6 +303,7 @@ class ControllerV(golib.gui.Controller):
         """
         self._pause(True)
         super()._save()
+        self.del_autosave()
         self._pause(False)
 
     @promptdiscard
@@ -318,6 +335,23 @@ class ControllerV(golib.gui.Controller):
             except AttributeError:
                 pass  # most likely last_move() has returned null
         return super().__setattr__(name, value)
+
+    def auto_save(self):
+        self.kifu.snapshot(tmp_sgf)
+
+    def del_autosave(self):
+        if os.path.exists(tmp_sgf):
+            os.remove(tmp_sgf)
+
+    def _onclose(self):
+        try:
+            super()._onclose()
+        except SystemExit as goodbye:
+            self.del_autosave()
+            raise goodbye
+
+    def quit(self):
+        self.del_autosave()
 
 
 class Pause:
