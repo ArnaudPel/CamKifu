@@ -1,11 +1,11 @@
 import importlib
-import time
-import threading
 import os.path
+import re
+import threading
+import time
 from os import listdir
 
 import cv2
-import re
 
 import camkifu.core.video
 from camkifu.config import cvconf
@@ -177,15 +177,21 @@ class VManagerBase(threading.Thread):
             None if the first element of the list is (None, None)) and no match is found.
 
         """
-        if name is "None":
+        if name == "None":
             return None
         module_str, class_str = None, None
         for m, c in classes:
-            if c == name:
-                module_str, class_str = m, c
-                break
-        if class_str is None:
-            module_str, class_str = classes[0]
+            if c == "None":
+                continue
+            try:
+                importlib.import_module(m)
+                if module_str is None:
+                    module_str, class_str = m, c  # default to the first module that can load
+                if c == name:
+                    module_str, class_str = m, c  # requested class has been found, stop
+                    break
+            except ImportError as err:
+                print("Can't load {}: {}".format(c, err))
         if class_str not in (None, "None"):
             module = importlib.import_module(module_str)
             return getattr(module, class_str)

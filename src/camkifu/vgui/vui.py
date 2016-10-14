@@ -2,7 +2,6 @@ import tkinter as tk
 
 import golib.gui
 from camkifu.config.cvconf import snapshot_dir
-from camkifu.stone.training_ui import DataGeneration
 
 
 # noinspection PyAttributeOutsideInit
@@ -77,10 +76,15 @@ class VUI(golib.gui.UI):
     def build_menu_training(self):
         # TODO one action to set the samples dest folder
         # TODO one action to open the sampling verification widget
-        menu = tk.Menu(self.menubar)
-        menu.add_command(label="Random Fill", command=lambda: self.execute("random"))
-        menu.add_command(label="Data Generation", command=self.data_gen)
-        self.menubar.insert_cascade(0, label="Training", menu=menu)
+        try:
+            # noinspection PyUnresolvedReferences
+            from camkifu.stone.training_ui import DataGeneration
+            menu = tk.Menu(self.menubar)
+            menu.add_command(label="Random Fill", command=lambda: self.execute("random"))
+            menu.add_command(label="Data Generation", command=self.data_gen)
+            self.menubar.insert_cascade(0, label="Training", menu=menu)
+        except ImportError:
+            pass
 
     def toggle_active(self):
         self.execute("on" if self.checkvar_detect.get() else "off")
@@ -115,6 +119,11 @@ class VUI(golib.gui.UI):
         self.video_pos.set(progress)
 
     def data_gen(self):
-        window = tk.Toplevel(self)
-        nn_frame = DataGeneration(window, snapshot_dir)
-        nn_frame.pack()
+        try:
+            # noinspection PyUnresolvedReferences
+            from camkifu.stone.training_ui import DataGeneration
+            window = tk.Toplevel(self)
+            nn_frame = DataGeneration(window, snapshot_dir)
+            nn_frame.pack()
+        except ImportError as ie:
+            print("Can't load Data Generation window: {}".format(ie))
