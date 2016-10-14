@@ -1,5 +1,5 @@
-import time
 import math
+import time
 
 import cv2
 import numpy as np
@@ -102,7 +102,7 @@ class BoardFinderAuto(board.BoardFinder):
         return found
 
     # noinspection PyMethodMayBeStatic
-    def find_lines(self, posititons, contours, length_ref, shape):
+    def find_lines(self, positions, contours, length_ref, shape):
         """ Use houghlines to find big lines in the contours.
 
         Another approach could have used cv2.approxPolyDP(), but it fits the polygon points inside the contour, whereas
@@ -125,7 +125,7 @@ class BoardFinderAuto(board.BoardFinder):
         ghost = np.zeros((shape[0], shape[1]), dtype=np.uint8)
         # colors = ((0, 0, 255), (255, 0, 0), (0, 255, 0), (255, 255, 255))
         # i = 0
-        for pos in posititons:
+        for pos in positions:
             cv2.drawContours(ghost, contours, pos, 255, thickness=1)
             # i += 1
         # self._show(ghost)
@@ -165,7 +165,7 @@ class BoardFinderAuto(board.BoardFinder):
                             if assigned:
                                 break
                         if not assigned:
-                            # create a new group for each lonely point, it may be joined with others later
+                            # create a new group for each lonely point, it may be joined by others later
                             self.groups_accu.append([p0])
                 else:
                     # s2 is "too parallel" with s1: all possibly interesting intersections have been processed for s1.
