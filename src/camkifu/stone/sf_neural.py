@@ -39,7 +39,7 @@ class SfNeural(StonesFinder):
         #  todo this method is crying for a state machine
         if self.total_f_processed == 0:
             self.display_message("LOADING NEURAL NET...", name=WIN_NAME)
-            self.manager.get_net()
+            self.manager.get_net(download=True)
         elif self.total_f_processed < self.bg_init_frames:
             bg_message = "BACKGROUND SAMPLING ({0}/{1})".format(self.total_f_processed, self.bg_init_frames)
             self.display_message(bg_message, name=WIN_NAME)

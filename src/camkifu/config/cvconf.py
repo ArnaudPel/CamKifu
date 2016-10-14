@@ -55,3 +55,4 @@ tmp_sgf = join(tmp_dir, "auto-saved.sgf")
 train_dir = "/Users/Kohistan/Developer/PycharmProjects/Train"
 snapshot_dir = "%s/data" % train_dir
 
+sf_neural_model_url = "https://github.com/ArnaudPel/CamKifu/files/530135/sf-neural.model.30-09-2016.zip"

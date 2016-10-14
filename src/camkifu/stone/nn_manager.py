@@ -2,13 +2,11 @@ import functools
 import math
 import operator
 import re as regex
-import sys
-from os.path import isfile
+import threading
+from os.path import isfile, dirname
 
 import cv2
 import numpy as np
-
-# todo import locally and only disable the stonesfinder if keras is not available, instead of crashing
 from keras.callbacks import ModelCheckpoint
 from keras.layers import Convolution2D, MaxPooling2D
 from keras.layers import Dense, Dropout, Flatten
@@ -36,14 +34,15 @@ class NNManager:
     """The neural network Training Manager.
 
     """
+    _network = None  # please access via self.get_net() - lazy instantiation
+    _netlock = threading.RLock()
+    _depth = 3  # color channels
 
     def __init__(self):
         # (~ to stonesfinder.canonical_shape)
         # all the size-related computations are based on this assumption
         self.canonical_shape = (cvconf.canonical_size, cvconf.canonical_size)
-        self.depth = 3  # color channel
 
-        self._network = None  # please access via self.get_net() - lazy instantiation
         self.split = 10  # feed the neural network with squares of four intersections (split the goban in 10x10 areas)
         self.step = (gsize + 1) // self.split
         self.nb_classes = 3 ** (int((gsize + 1) / self.split) ** 2)  # size of ANN output layer
@@ -53,22 +52,42 @@ class NNManager:
         self.r_width = y1 - y0  # number of pixels on the vertical side of the sample
         self.c_width = x1 - x0  # number of pixels on the horizontal side of the sample
 
-        self.controller = ControllerBase()  # todo find a better way to load a saved game ? (this is using GUI package)
+        self.controller = ControllerBase()
         self.c_indices = None  # see self.class_indices()
 
-    def get_net(self):
-        if self._network is None:
-            self._network = self.init_net()
-        return self._network
+    @staticmethod
+    def get_net(download=False):
+        with NNManager._netlock:
+            if NNManager._network is None:
+                NNManager._network = NNManager.init_net(download=download)
+            return NNManager._network
 
-    def init_net(self):
+    @staticmethod
+    def init_net(download=False):
+        if not isfile(KERAS_MODEL_FILE) and download:
+            NNManager.download_model()
         if isfile(KERAS_MODEL_FILE):
-            sys.stdout.write("Loading previous model from [{}] ... ".format(KERAS_MODEL_FILE))
-            sys.stdout.flush()
+            print("Loading model from {} ... ".format(KERAS_MODEL_FILE), end="")
             model = load_model(KERAS_MODEL_FILE)
-            sys.stdout.write("Done\n")
+            print("Done")
             return model
-        return self.create_net()
+        return NNManager.create_net()
+
+    @staticmethod
+    def download_model():
+        try:
+            local_zip = KERAS_MODEL_FILE + ".zip"
+            if not isfile(local_zip):
+                url = cvconf.sf_neural_model_url
+                print("Downloading neural network from {} ... ".format(url), end="")
+                import urllib.request as req
+                req.urlretrieve(url, filename=local_zip)
+                print("Done")
+            import zipfile
+            with zipfile.ZipFile(local_zip, "r") as archive:
+                archive.extractall(dirname(local_zip))
+        except OSError as ioerr:
+            print(ioerr)
 
     def _subregion(self, i, j):
 
@@ -199,7 +218,7 @@ class NNManager:
         return img[x0:x1, y0:y1]
 
     def generate_xs(self, img):
-        x_s = np.zeros((self.split ** 2, self.r_width, self.c_width, self.depth), dtype=np.uint8)
+        x_s = np.zeros((self.split ** 2, self.r_width, self.c_width, NNManager._depth), dtype=np.uint8)
         for i in range(self.split):
             for j in range(self.split):
                 x_s[(i * self.split + j)] = self._get_x(i, j, img).copy()
@@ -255,10 +274,11 @@ class NNManager:
                 y0 = y1 - self.r_width
         return x0, x1, y0, y1
 
-    def create_net(self):
+    @staticmethod
+    def create_net():
         print("Creating new Keras model")
         network = Sequential()
-        input_shape = (40, 40, self.depth)
+        input_shape = (40, 40, NNManager._depth)
         network.add(Convolution2D(32, 5, 5, activation='relu', input_shape=input_shape))
         network.add(Convolution2D(32, 5, 5, activation='relu'))
         network.add(MaxPooling2D(pool_size=(2, 2)))
@@ -284,7 +304,11 @@ class NNManager:
             print("Setting new learning rate: {:.5f} -> {:.5f}".format(previous_lr, lr))
             self.get_net().optimizer.lr.set_value(lr)
         checkpoint = ModelCheckpoint(KERAS_MODEL_FILE, monitor='loss', save_best_only=True, save_weights_only=False)
-        history = self.get_net().fit(x, y, validation_data=vdata, batch_size=batch_size, nb_epoch=nb_epoch, callbacks=[checkpoint])
+        history = self.get_net().fit(x, y,
+                                     validation_data=vdata,
+                                     batch_size=batch_size,
+                                     nb_epoch=nb_epoch,
+                                     callbacks=[checkpoint])
         try:
             # noinspection PyUnresolvedReferences
             import matplotlib.pyplot as mpl
