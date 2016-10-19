@@ -91,7 +91,7 @@ class ControllerV(golib.gui.Controller):
             "register_sf": self._add_sfinder,
             "select_bf": self._select_bfinder,
             "select_sf": self._select_sfinder,
-            "video_changed": self._prompt_new_kifu,
+            "video_changed": self._newsgf,
             "video_progress": lambda progress: self.display.video_progress(progress),
             "auto_save": lambda: self.auto_save(),
         }
@@ -248,14 +248,6 @@ class ControllerV(golib.gui.Controller):
 
     def _select_sfinder(self, label):
         self.display.select_sf(label)
-
-    def _prompt_new_kifu(self):
-        """ To be called when the current Kifu must imperatively be replaced.
-
-        For example, if the video input has changed, there isn't much sense in keeping the same SGF.
-        """
-        if not self._opensgf():
-            self._newsgf()
 
     def _cvappend(self, move):
         """ Append the provided move to the current game. Implementation dedicated to automated detection.
