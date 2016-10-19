@@ -10,7 +10,7 @@ import cv2
 import camkifu.core.video
 from camkifu.config import cvconf
 from camkifu.config.cvconf import snapshot_dir
-from camkifu.core.imgutil import is_img
+from camkifu.core.imgutil import is_img, get_video_capture
 
 
 class VManagerBase(threading.Thread):
@@ -70,17 +70,18 @@ class VManagerBase(threading.Thread):
     def init_capt(self):
         """ Initialize or reset the video capture object with video input as defined in the controller.
         """
+        self.current_video = self.controller.video
         if self.capt is not None:
             self.capt.release()
         if is_img(self.controller.video):
             self.capt = CaptureReaderImg(self.controller.video)
         else:
             self.capt = self._get_capture()
-        self.full_speed = os.path.isfile(self.controller.video)
-        self.current_video = self.controller.video
 
-        # set the reading position in video files. is ignored by live camera
-        self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
+        if self.capt is not None:
+            self.full_speed = os.path.isfile(self.controller.video)
+            # set the reading position in video files. is ignored by live camera
+            self.capt.set(cv2.CAP_PROP_POS_AVI_RATIO, self.controller.bounds[0])
 
     def _get_capture(self):
         """ Return the proper video capture object for this vmanager (may be a wrapper of cv2.VideoCapture).
@@ -232,7 +233,9 @@ class VManager(VManagerBase):
 
     def _get_capture(self):
         # noinspection PyArgumentList
-        return CaptureReader(cv2.VideoCapture(self.controller.video), self)
+        cv_capture = get_video_capture(self.controller.video)
+        if cv_capture is not None:
+            return CaptureReader(cv_capture, self)
 
     def next(self):
         for proc in self.processes:
@@ -247,15 +250,15 @@ class VManager(VManagerBase):
         This main loop does not exit by itself, it has to be requested. An exit may also occurs as per the
         'daemon thread' scheme.
         """
-        self.init_capt()
         self._register_processes()
-
+        self.init_capt()
         # Main loop, watch for processor class changes and video input changes. Not intended to stop (daemon thread)
         while not self._interrupt_flag:
             if self.active:
-                self.check_bf()
-                self.check_sf()
                 self.check_video()
+                if self.capt is not None:
+                    self.check_bf()
+                    self.check_sf()
             time.sleep(0.2)
             self.hasrun = True
 

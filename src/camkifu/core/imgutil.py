@@ -1,12 +1,38 @@
 import bisect
 import math
+import queue
 import sys
+import threading
 from os.path import isfile
 
 import cv2
 import numpy as np
 
 from golib.config import golib_conf
+
+
+class VideoCaptureDaemon(threading.Thread):
+
+    def __init__(self, video, result_queue):
+        super().__init__()
+        self.daemon = True
+        self.video = video
+        self.result_queue = result_queue
+
+    def run(self):
+        self.result_queue.put(cv2.VideoCapture(self.video))
+
+
+def get_video_capture(video, timeout=5):
+    """ Wrapper to cv2.VideoCapture() adding a timeout. Useful when trying to get live camera.
+
+    """
+    rep_queue = queue.Queue()
+    VideoCaptureDaemon(video, rep_queue).start()
+    try:
+        return rep_queue.get(block=True, timeout=timeout)
+    except queue.Empty:
+        print('cv2.VideoCapture: could not grab input ({}). Timeout occurred after {:.2f}s'.format(video, timeout))
 
 
 def connect_clusters(groups, dist):
