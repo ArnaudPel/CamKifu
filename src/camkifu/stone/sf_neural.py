@@ -11,11 +11,11 @@ from golib.config.golib_conf import gsize, E, B, W
 from golib.model import Move
 from golib.model.move import NP_TYPE, KGS_TYPE
 
-MIN_CONFIDENCE = 0.6
 
 COLD = 'cold'
 WIN_NAME = 'Neural'
 
+MIN_CONFIDENCE = 0.6
 TARGET_THRESH = 15
 TARGET_INCR = 5
 NB_LOOKBACK = 3
@@ -29,15 +29,15 @@ class SfNeural(StonesFinder):
         super().__init__(vmanager, learn_bg=True)
         self.manager = NNManager()
         self.cache = None
-        self.targets = np.zeros((gsize, gsize), dtype=np.uint8)
-        self.indices = self.manager.class_indices()  # compute only once
         self.has_sampled = False
-        self.heatmap = np.ndarray((gsize, gsize), dtype=object)
+        self.indices = self.manager.class_indices()              # compute only once
+        self.targets = np.zeros((gsize, gsize), dtype=np.uint8)  # accumulate each location agitation
+        self.heatmap = np.ndarray((gsize, gsize), dtype=object)  # recent predictions that need double-checking
 
     def _find(self, goban_img):
         self.cache = NNCache(self.manager, goban_img)
-        #  todo this method is crying for a state machine
         if self.total_f_processed == 0:
+            # todo sample background in //
             self.display_message("LOADING NEURAL NET...", name=WIN_NAME)
             self.manager.get_net(download=True)
         elif self.total_f_processed < self.bg_init_frames:
@@ -93,7 +93,7 @@ class SfNeural(StonesFinder):
                     self.heatmap[r, c] = HeatPoint(color, confidence, self.total_f_processed)
                 if len(moves) == 1:
                     try:
-                        self.suggest(*moves.pop()[0:3])
+                        self.suggest(*moves.pop()[0:3], doprint=False)
                     except camkifu.core.DeletedError as de:
                         print(de)  # todo learn something about it ?
                 else:
@@ -137,13 +137,12 @@ class SfNeural(StonesFinder):
                 rs, re, cs, ce = self.manager._subregion(i, j)
                 agitated = False
                 if not len(np.where(self.targets[rs:re, cs:ce] > TARGET_THRESH)[0]):
-                    continue
+                    continue  # no targets in this region
                 for a in range(rs, re):
                     for b in range(cs, ce):
-                        # todo set a different agitation threshold for target processing than selection
-                        if self.is_agitated(a, b, fg):
+                        if self.is_agitated(a, b, fg, ratio=0.5):
                             agitated = True
-                            if agitated: break
+                            break
                     if agitated: break
                 x0, x1, y0, y1 = self.manager._get_rect_nn(rs, re, cs, ce)
                 if not agitated:
@@ -176,9 +175,9 @@ class SfNeural(StonesFinder):
         if canvas is not None:
             self._drawvalues(canvas, np.transpose(self.heatmap))
 
-    def is_agitated(self, r, c, fg):
+    def is_agitated(self, r, c, fg, ratio=0.7):
         a0, b0, a1, b1 = self.getrect(r, c)
-        return (a1 - a0) * (b1 - b0) * 0.7 < np.sum(fg[a0:a1, b0:b1]) / 255
+        return (a1 - a0) * (b1 - b0) * ratio < np.sum(fg[a0:a1, b0:b1]) / 255
 
     def _cleanup_heatmap(self):
         for r, c in np.transpose(np.where(self.heatmap == COLD)):
