@@ -126,7 +126,6 @@ class VidProcessor:
             True (interrupt) if the flag has been set, or if the end of the video is reached, otherwise False.
         """
         if self.terminated_video():
-            print("Video end reached. {} terminating main loop.".format(self.__class__.__name__))
             return True
         return self._interruptflag
 

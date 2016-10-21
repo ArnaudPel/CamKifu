@@ -267,18 +267,13 @@ class VManager(VManagerBase):
         self._interrupt_flag = True
 
     def stop_processing(self):
-        message = "Requesting "
         for proc in self.processes:
             proc.interrupt()
-            message += proc.name + ", "
-        message = message[0:len(message)-2]
-        message += " interruption."
         # release a potential CaptureReader that may keep threads sleeping
         try:
             self.capt.unsync_threads(True)
         except AttributeError:
             pass
-        print(message)
 
     def check_video(self):
         """ Listen for video input source change in controller.
@@ -409,7 +404,6 @@ class VManager(VManagerBase):
             self.controller.pipe("select_bf", None)
         if process is self.stones_finder:
             self.controller.pipe("select_sf", None)
-        print("{0} terminated.".format(process.__class__.__name__))
 
     def _spawn(self, process):
         """ Start the provided process in a new thread and append it to the list of active processes.

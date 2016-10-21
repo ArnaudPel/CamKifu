@@ -45,7 +45,6 @@ class SfNeural(StonesFinder):
             self.display_message(bg_message, name=WIN_NAME)
         elif not self.has_sampled:
             self.display_message("MAKING INITIAL ASSESSMENT...", name=WIN_NAME, force=True)
-            print("initial assessment")
             self.predict_all()
             self.has_sampled = True
         else:
@@ -68,7 +67,6 @@ class SfNeural(StonesFinder):
                         self.heatmap[r, c] = HeatPoint(color, confidence, self.total_f_processed)
                     else:
                         discarded.append((color, r, c))
-        print('predict_all: discarded {}'.format(discarded))
         self.bulk_update(moves)
 
     def mark_targets(self, canvas):
@@ -93,6 +91,7 @@ class SfNeural(StonesFinder):
                     self.heatmap[r, c] = HeatPoint(color, confidence, self.total_f_processed)
                 if len(moves) == 1:
                     try:
+                        # todo use B/W succession logic to re-order stones if needs be (maybe not at endgame though)
                         self.suggest(*moves.pop()[0:3], doprint=False)
                     except camkifu.core.DeletedError as de:
                         print(de)  # todo learn something about it ?
@@ -122,6 +121,7 @@ class SfNeural(StonesFinder):
                 if prev_color == E:
                     moves.add((new_color, r, c, confidence))
                 elif prev_color != new_color:
+                    # todo store predictions whatever the color, and keep the most freq ? See imgutil.CyclicBuffer
                     loc = Move(NP_TYPE, (prev_color, r, c)).get_coord(KGS_TYPE)
                     print("Err.. hum. Now seeing {} instead of {} at {}".format(new_color, prev_color, loc))
         return moves
