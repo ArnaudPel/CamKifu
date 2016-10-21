@@ -1,12 +1,11 @@
 import argparse
-import os
 import ntpath
+import os
 import time
 
-import ckmain
 import camkifu.core
+import ckmain
 import test.objects
-
 
 """
 Script that helps with running successive detection tests in one go. To be called on a directory containing
@@ -87,22 +86,7 @@ def main(vid_dir, refdir=None, bf=None, sf=None):
         print(r)
 
 
-def get_argparser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
-    ckmain.add_finder_args(parser)
-
-    # compulsory argument
-    parser.add_argument("dir", help="Directory containing the videos on which to run the benchmark.")
-
-    # optional arguments
-    refdir_help = "Directory containing the reference sgfs associated with each video (matched on filename)." \
-                  " Defaults to \"dir\" if omitted."
-    parser.add_argument("--refdir", help=refdir_help)
-
-    return parser
-
-
-class Report():
+class Report:
 
     def __init__(self, vmanager, duration):
         self.vmanager = vmanager
@@ -117,12 +101,27 @@ class Report():
         return "[{}: {}% in {} s]".format(name, percent, int(round(self.duration)))
 
 
-class DummyQueue():
+class DummyQueue:
     def put(self, x):
         pass
 
     def put_nowait(self, x):
         pass
+
+
+def get_argparser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    ckmain.add_finder_args(parser)
+
+    # compulsory argument
+    parser.add_argument("dir", help="Directory containing the videos on which to run the benchmark.")
+
+    # optional arguments
+    refdir_help = "Directory containing the reference sgfs associated with each video (matched on filename)." \
+                  " Defaults to \"dir\" if omitted."
+    parser.add_argument("--refdir", help=refdir_help)
+
+    return parser
 
 
 if __name__ == '__main__':

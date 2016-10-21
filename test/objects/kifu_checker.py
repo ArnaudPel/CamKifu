@@ -73,7 +73,7 @@ def print_matcher(matcher):
     print("Matched   : " + good)
     print("Missed    : " + miss)
     print("Unexpected: " + unex)
-    print("Ratio     : " + str(matcher.ratio()))
+    print("Ratio     : {:.3f}".format(matcher.ratio()))
 
 
 def display_matcher(matcher, master=None):
